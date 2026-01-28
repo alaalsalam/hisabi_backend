@@ -1,0 +1,200 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "user",
+  "wallet_id",
+  "client_id",
+  "goal_name",
+  "goal_type",
+  "currency",
+  "target_amount",
+  "target_amount_base",
+  "current_amount",
+  "progress_percent",
+  "remaining_amount",
+  "target_date",
+  "linked_account",
+  "linked_debt",
+  "status",
+  "color",
+  "client_created_ms",
+  "client_modified_ms",
+  "doc_version",
+  "server_modified",
+  "is_deleted",
+  "deleted_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "label": "User",
+   "options": "User",
+   "reqd": 1
+  },
+  {
+   "fieldname": "wallet_id",
+   "fieldtype": "Link",
+   "label": "Wallet",
+   "options": "Hisabi Wallet",
+   "reqd": 1
+  },
+  {
+   "fieldname": "client_id",
+   "fieldtype": "Data",
+   "label": "Client ID",
+   "reqd": 1
+  },
+  {
+   "fieldname": "goal_name",
+   "fieldtype": "Data",
+   "label": "Goal Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "goal_type",
+   "fieldtype": "Select",
+   "label": "Goal Type",
+   "options": "save\npay_debt",
+   "reqd": 1
+  },
+  {
+   "fieldname": "currency",
+   "fieldtype": "Data",
+   "label": "Currency",
+   "reqd": 1
+  },
+  {
+   "fieldname": "target_amount",
+   "fieldtype": "Currency",
+   "label": "Target Amount",
+   "reqd": 1
+  },
+  {
+   "fieldname": "target_amount_base",
+   "fieldtype": "Currency",
+   "label": "Target Amount Base"
+  },
+  {
+   "fieldname": "current_amount",
+   "fieldtype": "Currency",
+   "label": "Current Amount"
+  },
+  {
+   "fieldname": "progress_percent",
+   "fieldtype": "Percent",
+   "label": "Progress Percent"
+  },
+  {
+   "fieldname": "remaining_amount",
+   "fieldtype": "Currency",
+   "label": "Remaining Amount"
+  },
+  {
+   "fieldname": "target_date",
+   "fieldtype": "Datetime",
+   "label": "Target Date"
+  },
+  {
+   "fieldname": "linked_account",
+   "fieldtype": "Link",
+   "label": "Linked Account",
+   "options": "Hisabi Account"
+  },
+  {
+   "fieldname": "linked_debt",
+   "fieldtype": "Link",
+   "label": "Linked Debt",
+   "options": "Hisabi Debt"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "active\ncompleted\ncancelled"
+  },
+  {
+   "fieldname": "color",
+   "fieldtype": "Data",
+   "label": "Color"
+  },
+  {
+   "fieldname": "client_created_ms",
+   "fieldtype": "Int",
+   "label": "Client Created (ms)"
+  },
+  {
+   "fieldname": "client_modified_ms",
+   "fieldtype": "Int",
+   "label": "Client Modified (ms)"
+  },
+  {
+   "default": "0",
+   "fieldname": "doc_version",
+   "fieldtype": "Int",
+   "label": "Doc Version"
+  },
+  {
+   "fieldname": "server_modified",
+   "fieldtype": "Datetime",
+   "label": "Server Modified"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_deleted",
+   "fieldtype": "Check",
+   "label": "Is Deleted"
+  },
+  {
+   "fieldname": "deleted_at",
+   "fieldtype": "Datetime",
+   "label": "Deleted At"
+  }
+ ],
+ "indexes": [
+  {
+   "fields": [
+    "user",
+    "client_id"
+   ],
+   "unique": 1
+  },
+  {
+   "fields": [
+    "wallet_id"
+   ]
+  }
+ ],
+ "module": "Hisabi Backend",
+ "name": "Hisabi Goal",
+ "permissions": [
+  {
+   "create": 1,
+   "read": 1,
+   "role": "Hisabi User",
+   "if_owner": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Hisabi Admin"
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC"
+}

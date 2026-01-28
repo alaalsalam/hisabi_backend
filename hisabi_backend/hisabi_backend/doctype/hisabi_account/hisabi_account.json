@@ -1,0 +1,176 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "user",
+  "wallet_id",
+  "client_id",
+  "account_name",
+  "account_type",
+  "currency",
+  "opening_balance",
+  "current_balance",
+  "color",
+  "icon",
+  "archived",
+  "sort_order",
+  "client_created_ms",
+  "client_modified_ms",
+  "doc_version",
+  "server_modified",
+  "is_deleted",
+  "deleted_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "label": "User",
+   "options": "User",
+   "reqd": 1
+  },
+  {
+   "fieldname": "wallet_id",
+   "fieldtype": "Link",
+   "label": "Wallet",
+   "options": "Hisabi Wallet",
+   "reqd": 1
+  },
+  {
+   "fieldname": "client_id",
+   "fieldtype": "Data",
+   "label": "Client ID",
+   "reqd": 1
+  },
+  {
+   "fieldname": "account_name",
+   "fieldtype": "Data",
+   "label": "Account Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "account_type",
+   "fieldtype": "Select",
+   "label": "Account Type",
+   "options": "cash\nbank\nwallet\ncredit",
+   "reqd": 1
+  },
+  {
+   "fieldname": "currency",
+   "fieldtype": "Data",
+   "label": "Currency",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "opening_balance",
+   "fieldtype": "Currency",
+   "label": "Opening Balance"
+  },
+  {
+   "default": "0",
+   "fieldname": "current_balance",
+   "fieldtype": "Currency",
+   "label": "Current Balance"
+  },
+  {
+   "fieldname": "color",
+   "fieldtype": "Data",
+   "label": "Color"
+  },
+  {
+   "fieldname": "icon",
+   "fieldtype": "Data",
+   "label": "Icon"
+  },
+  {
+   "default": "0",
+   "fieldname": "archived",
+   "fieldtype": "Check",
+   "label": "Archived"
+  },
+  {
+   "default": "0",
+   "fieldname": "sort_order",
+   "fieldtype": "Int",
+   "label": "Sort Order"
+  },
+  {
+   "fieldname": "client_created_ms",
+   "fieldtype": "Int",
+   "label": "Client Created (ms)"
+  },
+  {
+   "fieldname": "client_modified_ms",
+   "fieldtype": "Int",
+   "label": "Client Modified (ms)"
+  },
+  {
+   "default": "0",
+   "fieldname": "doc_version",
+   "fieldtype": "Int",
+   "label": "Doc Version"
+  },
+  {
+   "fieldname": "server_modified",
+   "fieldtype": "Datetime",
+   "label": "Server Modified"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_deleted",
+   "fieldtype": "Check",
+   "label": "Is Deleted"
+  },
+  {
+   "fieldname": "deleted_at",
+   "fieldtype": "Datetime",
+   "label": "Deleted At"
+  }
+ ],
+ "indexes": [
+  {
+   "fields": [
+    "user",
+    "client_id"
+   ],
+   "unique": 1
+  },
+  {
+   "fields": [
+    "wallet_id"
+   ]
+  }
+ ],
+ "module": "Hisabi Backend",
+ "name": "Hisabi Account",
+ "permissions": [
+  {
+   "create": 1,
+   "read": 1,
+   "role": "Hisabi User",
+   "if_owner": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Hisabi Admin"
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC"
+}

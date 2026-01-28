@@ -1,0 +1,130 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:client_id",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "client_id",
+  "wallet_name",
+  "status",
+  "owner_user",
+  "created_from_device",
+  "client_created_ms",
+  "client_modified_ms",
+  "doc_version",
+  "server_modified",
+  "is_deleted",
+  "deleted_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "client_id",
+   "fieldtype": "Data",
+   "label": "Client ID",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "wallet_name",
+   "fieldtype": "Data",
+   "label": "Wallet Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "active\narchived",
+   "default": "active",
+   "reqd": 1
+  },
+  {
+   "fieldname": "owner_user",
+   "fieldtype": "Link",
+   "label": "Owner User",
+   "options": "User",
+   "reqd": 1
+  },
+  {
+   "fieldname": "created_from_device",
+   "fieldtype": "Data",
+   "label": "Created From Device"
+  },
+  {
+   "fieldname": "client_created_ms",
+   "fieldtype": "Int",
+   "label": "Client Created (ms)"
+  },
+  {
+   "fieldname": "client_modified_ms",
+   "fieldtype": "Int",
+   "label": "Client Modified (ms)"
+  },
+  {
+   "default": "0",
+   "fieldname": "doc_version",
+   "fieldtype": "Int",
+   "label": "Doc Version"
+  },
+  {
+   "fieldname": "server_modified",
+   "fieldtype": "Datetime",
+   "label": "Server Modified"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_deleted",
+   "fieldtype": "Check",
+   "label": "Is Deleted"
+  },
+  {
+   "fieldname": "deleted_at",
+   "fieldtype": "Datetime",
+   "label": "Deleted At"
+  }
+ ],
+ "indexes": [
+  {
+   "fields": [
+    "client_id"
+   ],
+   "unique": 1
+  },
+  {
+   "fields": [
+    "owner_user",
+    "status"
+   ]
+  }
+ ],
+ "module": "Hisabi Backend",
+ "name": "Hisabi Wallet",
+ "permissions": [
+  {
+   "create": 1,
+   "read": 1,
+   "role": "Hisabi User",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Hisabi Admin"
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC"
+}
+

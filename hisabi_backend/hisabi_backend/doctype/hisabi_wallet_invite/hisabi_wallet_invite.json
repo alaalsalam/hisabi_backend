@@ -1,0 +1,141 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "field:client_id",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "client_id",
+  "wallet",
+  "invited_by",
+  "invite_code",
+  "invite_link_token",
+  "target_phone",
+  "target_email",
+  "role_to_grant",
+  "status",
+  "expires_at",
+  "accepted_by",
+  "accepted_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "client_id",
+   "fieldtype": "Data",
+   "label": "Client ID",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "wallet",
+   "fieldtype": "Link",
+   "label": "Wallet",
+   "options": "Hisabi Wallet",
+   "reqd": 1
+  },
+  {
+   "fieldname": "invited_by",
+   "fieldtype": "Link",
+   "label": "Invited By",
+   "options": "User",
+   "reqd": 1
+  },
+  {
+   "fieldname": "invite_code",
+   "fieldtype": "Data",
+   "label": "Invite Code",
+   "reqd": 1,
+   "unique": 1,
+   "length": 12
+  },
+  {
+   "fieldname": "invite_link_token",
+   "fieldtype": "Data",
+   "label": "Invite Link Token",
+   "unique": 1
+  },
+  {
+   "fieldname": "target_phone",
+   "fieldtype": "Data",
+   "label": "Target Phone"
+  },
+  {
+   "fieldname": "target_email",
+   "fieldtype": "Data",
+   "label": "Target Email"
+  },
+  {
+   "fieldname": "role_to_grant",
+   "fieldtype": "Select",
+   "label": "Role To Grant",
+   "options": "admin\nmember\nviewer",
+   "default": "member",
+   "reqd": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "active\naccepted\nrevoked\nexpired",
+   "default": "active",
+   "reqd": 1
+  },
+  {
+   "fieldname": "expires_at",
+   "fieldtype": "Datetime",
+   "label": "Expires At"
+  },
+  {
+   "fieldname": "accepted_by",
+   "fieldtype": "Link",
+   "label": "Accepted By",
+   "options": "User"
+  },
+  {
+   "fieldname": "accepted_at",
+   "fieldtype": "Datetime",
+   "label": "Accepted At"
+  }
+ ],
+ "indexes": [
+  {
+   "fields": [
+    "client_id"
+   ],
+   "unique": 1
+  },
+  {
+   "fields": [
+    "invite_code"
+   ],
+   "unique": 1
+  }
+ ],
+ "module": "Hisabi Backend",
+ "name": "Hisabi Wallet Invite",
+ "permissions": [
+  {
+   "read": 1,
+   "role": "Hisabi User"
+  },
+  {
+   "read": 1,
+   "role": "Hisabi Admin"
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC"
+}
+

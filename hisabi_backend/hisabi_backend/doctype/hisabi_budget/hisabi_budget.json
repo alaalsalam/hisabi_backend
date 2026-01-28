@@ -1,0 +1,196 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "user",
+  "wallet_id",
+  "client_id",
+  "budget_name",
+  "period",
+  "scope_type",
+  "category",
+  "currency",
+  "amount",
+  "amount_base",
+  "spent_amount",
+  "start_date",
+  "end_date",
+  "alert_threshold",
+  "archived",
+  "client_created_ms",
+  "client_modified_ms",
+  "doc_version",
+  "server_modified",
+  "is_deleted",
+  "deleted_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "label": "User",
+   "options": "User",
+   "reqd": 1
+  },
+  {
+   "fieldname": "wallet_id",
+   "fieldtype": "Link",
+   "label": "Wallet",
+   "options": "Hisabi Wallet",
+   "reqd": 1
+  },
+  {
+   "fieldname": "client_id",
+   "fieldtype": "Data",
+   "label": "Client ID",
+   "reqd": 1
+  },
+  {
+   "fieldname": "budget_name",
+   "fieldtype": "Data",
+   "label": "Budget Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "period",
+   "fieldtype": "Select",
+   "label": "Period",
+   "options": "weekly\nmonthly\nquarterly\nyearly\ncustom",
+   "reqd": 1
+  },
+  {
+   "fieldname": "scope_type",
+   "fieldtype": "Select",
+   "label": "Scope Type",
+   "options": "total\ncategory",
+   "reqd": 1
+  },
+  {
+   "fieldname": "category",
+   "fieldtype": "Link",
+   "label": "Category",
+   "options": "Hisabi Category"
+  },
+  {
+   "fieldname": "currency",
+   "fieldtype": "Data",
+   "label": "Currency",
+   "reqd": 1
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "label": "Amount",
+   "reqd": 1
+  },
+  {
+   "fieldname": "amount_base",
+   "fieldtype": "Currency",
+   "label": "Amount Base"
+  },
+  {
+   "fieldname": "spent_amount",
+   "fieldtype": "Currency",
+   "label": "Spent Amount"
+  },
+  {
+   "fieldname": "start_date",
+   "fieldtype": "Datetime",
+   "label": "Start Date"
+  },
+  {
+   "fieldname": "end_date",
+   "fieldtype": "Datetime",
+   "label": "End Date"
+  },
+  {
+   "default": "80",
+   "fieldname": "alert_threshold",
+   "fieldtype": "Int",
+   "label": "Alert Threshold"
+  },
+  {
+   "default": "0",
+   "fieldname": "archived",
+   "fieldtype": "Check",
+   "label": "Archived"
+  },
+  {
+   "fieldname": "client_created_ms",
+   "fieldtype": "Int",
+   "label": "Client Created (ms)"
+  },
+  {
+   "fieldname": "client_modified_ms",
+   "fieldtype": "Int",
+   "label": "Client Modified (ms)"
+  },
+  {
+   "default": "0",
+   "fieldname": "doc_version",
+   "fieldtype": "Int",
+   "label": "Doc Version"
+  },
+  {
+   "fieldname": "server_modified",
+   "fieldtype": "Datetime",
+   "label": "Server Modified"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_deleted",
+   "fieldtype": "Check",
+   "label": "Is Deleted"
+  },
+  {
+   "fieldname": "deleted_at",
+   "fieldtype": "Datetime",
+   "label": "Deleted At"
+  }
+ ],
+ "indexes": [
+  {
+   "fields": [
+    "user",
+    "client_id"
+   ],
+   "unique": 1
+  },
+  {
+   "fields": [
+    "wallet_id"
+   ]
+  }
+ ],
+ "module": "Hisabi Backend",
+ "name": "Hisabi Budget",
+ "permissions": [
+  {
+   "create": 1,
+   "read": 1,
+   "role": "Hisabi User",
+   "if_owner": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Hisabi Admin"
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC"
+}

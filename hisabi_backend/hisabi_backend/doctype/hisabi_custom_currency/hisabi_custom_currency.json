@@ -1,0 +1,145 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "user",
+  "wallet_id",
+  "client_id",
+  "code",
+  "name_ar",
+  "name_en",
+  "symbol",
+  "decimals",
+  "client_created_ms",
+  "client_modified_ms",
+  "doc_version",
+  "server_modified",
+  "is_deleted",
+  "deleted_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "label": "User",
+   "options": "User",
+   "reqd": 1
+  },
+  {
+   "fieldname": "wallet_id",
+   "fieldtype": "Link",
+   "label": "Wallet",
+   "options": "Hisabi Wallet",
+   "reqd": 1
+  },
+  {
+   "fieldname": "client_id",
+   "fieldtype": "Data",
+   "label": "Client ID",
+   "reqd": 1
+  },
+  {
+   "fieldname": "code",
+   "fieldtype": "Data",
+   "label": "Code"
+  },
+  {
+   "fieldname": "name_ar",
+   "fieldtype": "Data",
+   "label": "Name (AR)"
+  },
+  {
+   "fieldname": "name_en",
+   "fieldtype": "Data",
+   "label": "Name (EN)"
+  },
+  {
+   "fieldname": "symbol",
+   "fieldtype": "Data",
+   "label": "Symbol"
+  },
+  {
+   "default": "2",
+   "fieldname": "decimals",
+   "fieldtype": "Int",
+   "label": "Decimals"
+  },
+  {
+   "fieldname": "client_created_ms",
+   "fieldtype": "Int",
+   "label": "Client Created (ms)"
+  },
+  {
+   "fieldname": "client_modified_ms",
+   "fieldtype": "Int",
+   "label": "Client Modified (ms)"
+  },
+  {
+   "default": "0",
+   "fieldname": "doc_version",
+   "fieldtype": "Int",
+   "label": "Doc Version"
+  },
+  {
+   "fieldname": "server_modified",
+   "fieldtype": "Datetime",
+   "label": "Server Modified"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_deleted",
+   "fieldtype": "Check",
+   "label": "Is Deleted"
+  },
+  {
+   "fieldname": "deleted_at",
+   "fieldtype": "Datetime",
+   "label": "Deleted At"
+  }
+ ],
+ "indexes": [
+  {
+   "fields": [
+    "user",
+    "client_id"
+   ],
+   "unique": 1
+  },
+  {
+   "fields": [
+    "wallet_id"
+   ]
+  }
+ ],
+ "module": "Hisabi Backend",
+ "name": "Hisabi Custom Currency",
+ "permissions": [
+  {
+   "create": 1,
+   "read": 1,
+   "role": "Hisabi User",
+   "if_owner": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Hisabi Admin"
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC"
+}
