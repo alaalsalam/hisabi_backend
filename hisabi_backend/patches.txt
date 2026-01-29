@@ -4,6 +4,6 @@
 
 [post_model_sync]
 # Patches added in this section will be executed after doctypes are migrated
-hisabi_backend.patches.v1_1.add_user_phone_custom_fields
 hisabi_backend.patches.v1_2.add_user_lockout_fields
 hisabi_backend.patches.v1_0.backfill_default_wallets
+hisabi_backend.patches.v1_3.remove_user_custom_fields

@@ -1,0 +1,81 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "user",
+  "default_wallet",
+  "phone_verified",
+  "locale",
+  "name_ar"
+ ],
+ "fields": [
+  {
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "label": "User",
+   "options": "User",
+   "reqd": 1
+  },
+  {
+   "fieldname": "default_wallet",
+   "fieldtype": "Link",
+   "label": "Default Wallet",
+   "options": "Hisabi Wallet"
+  },
+  {
+   "default": "0",
+   "fieldname": "phone_verified",
+   "fieldtype": "Check",
+   "label": "Phone Verified"
+  },
+  {
+   "fieldname": "locale",
+   "fieldtype": "Data",
+   "label": "Locale"
+  },
+  {
+   "fieldname": "name_ar",
+   "fieldtype": "Data",
+   "label": "Name (AR)"
+  }
+ ],
+ "indexes": [
+  {
+   "fields": [
+    "user"
+   ],
+   "unique": 1
+  }
+ ],
+ "module": "Hisabi Backend",
+ "name": "Hisabi User",
+ "permissions": [
+  {
+   "create": 1,
+   "read": 1,
+   "role": "Hisabi User",
+   "if_owner": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Hisabi Admin"
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC"
+}

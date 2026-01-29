@@ -1,0 +1,159 @@
+{
+ "charts": [],
+ "content": "[{\"id\":\"ZQGjHKQ1Yf\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Hisabi</span>\",\"col\":12}},{\"id\":\"kyukdBV_1t\",\"type\":\"card\",\"data\":{\"card_name\":\"Hisabi Wallet\",\"col\":4}}]",
+ "creation": "2026-01-29 20:44:51.449134",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "income",
+ "idx": 0,
+ "indicator_color": "green",
+ "is_hidden": 0,
+ "label": "Hisabi",
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Hisabi Wallet",
+   "link_count": 12,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Hisabi Wallet",
+   "link_count": 0,
+   "link_to": "Hisabi Wallet",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Hisabi Account",
+   "link_count": 0,
+   "link_to": "Hisabi Account",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Hisabi Transaction",
+   "link_count": 0,
+   "link_to": "Hisabi Transaction",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Hisabi Allocation Rule",
+   "link_count": 0,
+   "link_to": "Hisabi Bucket",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Hisabi Allocation Rule",
+   "link_count": 0,
+   "link_to": "Hisabi Allocation Rule",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Hisabi Budget",
+   "link_count": 0,
+   "link_to": "Hisabi Budget",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Hisabi Goal",
+   "link_count": 0,
+   "link_to": "Hisabi Goal",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Hisabi Debt",
+   "link_count": 0,
+   "link_to": "Hisabi Debt",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Hisabi Debt Request",
+   "link_count": 0,
+   "link_to": "Hisabi Debt Request",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Hisabi Jameya",
+   "link_count": 0,
+   "link_to": "Hisabi Jameya",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Hisabi Device",
+   "link_count": 0,
+   "link_to": "Hisabi Device",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Hisabi Settings",
+   "link_count": 0,
+   "link_to": "Hisabi Settings",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ],
+ "modified": "2026-01-29 21:38:58.571002",
+ "modified_by": "Administrator",
+ "module": "Hisabi Backend",
+ "name": "Hisabi",
+ "number_cards": [],
+ "owner": "Administrator",
+ "parent_page": "",
+ "public": 1,
+ "quick_lists": [],
+ "roles": [],
+ "sequence_id": 27.0,
+ "shortcuts": [],
+ "title": "Hisabi"
+}

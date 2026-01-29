@@ -30,33 +30,11 @@ from hisabi_backend.utils.validators import validate_password_strength, validate
 from hisabi_backend.utils.wallet_acl import get_wallets_for_user
 from hisabi_backend.utils.auth_lockout import on_login_failed, on_login_success, raise_if_locked
 from hisabi_backend.utils.request_context import get_request_ip
+from hisabi_backend.utils.user_events import normalize_phone_digits
 from hisabi_backend.utils.audit_security import audit_security_event
 
 
-PHONE_DIGITS_RE = re.compile(r"\\d+")
-
-
-def _normalize_phone_e164(phone: str) -> str:
-    """Normalize phone to a consistent +<digits> format.
-
-    We keep this intentionally simple (no country inference). The uniqueness is enforced on this normalized string.
-    """
-    if not phone:
-        frappe.throw(_("phone is required"), frappe.ValidationError)
-
-    phone = phone.strip()
-    if phone.startswith("00"):
-        phone = "+" + phone[2:]
-
-    # Keep only digits; preserve leading +.
-    digits = "".join(PHONE_DIGITS_RE.findall(phone))
-    if not digits:
-        frappe.throw(_("Invalid phone"), frappe.ValidationError)
-
-    if len(digits) < 8 or len(digits) > 15:
-        frappe.throw(_("Invalid phone length"), frappe.ValidationError)
-
-    return "+" + digits
+PHONE_DIGITS_RE = re.compile(r"\d+")
 
 
 def _resolve_user(identifier: str) -> str:
@@ -70,8 +48,12 @@ def _resolve_user(identifier: str) -> str:
             return user
         frappe.throw(_("User not found"), frappe.AuthenticationError)
 
-    phone = _normalize_phone_e164(identifier)
-    user = frappe.get_value("User", {"custom_phone": phone}) or frappe.get_value("User", {"mobile_no": phone})
+    phone = normalize_phone_digits(identifier, strict=True)
+    user = (
+        frappe.get_value("User", {"phone": phone})
+        or frappe.get_value("User", {"mobile_no": phone})
+        or frappe.get_value("User", {"phone": phone})
+    )
     if user:
         return user
     frappe.throw(_("User not found"), frappe.AuthenticationError)
@@ -83,7 +65,7 @@ def _serialize_user(user: str) -> Dict[str, Any]:
         "name": u.name,
         "full_name": u.full_name,
         "email": u.email,
-        "phone": getattr(u, "custom_phone", None) or u.mobile_no,
+        "phone": getattr(u, "phone", None) or getattr(u, "mobile_no", None) or getattr(u, "phone", None),
     }
 
 
@@ -99,10 +81,21 @@ def _ensure_user_email(email: Optional[str], *, phone: Optional[str]) -> str:
     return f"{digits}@phone.hisabi.local"
 
 
+def _get_or_create_hisabi_user(user: str) -> frappe.model.document.Document:
+    name = frappe.get_value("Hisabi User", {"user": user})
+    if name:
+        return frappe.get_doc("Hisabi User", name)
+    doc = frappe.new_doc("Hisabi User")
+    doc.user = user
+    doc.save(ignore_permissions=True)
+    return doc
+
+
 def _ensure_default_wallet_for_user(user: str, device_id: Optional[str] = None) -> str:
     """Create a default wallet and owner membership if missing."""
-    # Prefer user custom default wallet if already set.
-    default_wallet = frappe.get_value("User", user, "custom_default_wallet")
+    # Prefer Hisabi User default wallet if already set.
+    profile = _get_or_create_hisabi_user(user)
+    default_wallet = getattr(profile, "default_wallet", None)
     if default_wallet and frappe.db.exists("Hisabi Wallet", default_wallet):
         return default_wallet
 
@@ -115,7 +108,8 @@ def _ensure_default_wallet_for_user(user: str, device_id: Optional[str] = None) 
         as_dict=True,
     )
     if row and row.wallet:
-        frappe.db.set_value("User", user, "custom_default_wallet", row.wallet, update_modified=False)
+        profile.default_wallet = row.wallet
+        profile.save(ignore_permissions=True)
         return row.wallet
 
     wallet_id = f"wallet-u-{frappe.generate_hash(user, length=12)}"
@@ -141,7 +135,8 @@ def _ensure_default_wallet_for_user(user: str, device_id: Optional[str] = None) 
     apply_common_sync_fields(member, bump_version=True, mark_deleted=False)
     member.save(ignore_permissions=True)
 
-    frappe.db.set_value("User", user, "custom_default_wallet", wallet_id, update_modified=False)
+    profile.default_wallet = wallet_id
+    profile.save(ignore_permissions=True)
     return wallet_id
 
 
@@ -163,7 +158,7 @@ def register_user(
     validate_password_strength(password)
 
     email_norm = _ensure_user_email(email, phone=phone)
-    phone_norm = _normalize_phone_e164(phone) if phone else None
+    phone_norm = normalize_phone_digits(phone, strict=True) if phone else None
     if not (email_norm or phone_norm):
         frappe.throw(_("email or phone is required"), frappe.ValidationError)
 
@@ -171,7 +166,7 @@ def register_user(
 
     if frappe.db.exists("User", {"email": email_norm}):
         frappe.throw(_("Account already exists"), frappe.ValidationError)
-    if phone_norm and frappe.db.exists("User", {"custom_phone": phone_norm}):
+    if phone_norm and (frappe.db.exists("User", {"phone": phone_norm}) or frappe.db.exists("User", {"mobile_no": phone_norm})):
         frappe.throw(_("Account already exists"), frappe.ValidationError)
 
     device = device or {}
@@ -192,11 +187,12 @@ def register_user(
             "send_welcome_email": 0,
             "user_type": "Website User",
             "roles": [{"role": "Hisabi User"}],
-            "custom_phone": phone_norm,
-            "custom_phone_verified": 0,
+            "phone": phone_norm,
         }
     ).insert(ignore_permissions=True)
     update_password(user_doc.name, password)
+
+    _get_or_create_hisabi_user(user_doc.name)
 
     wallet_id = _ensure_default_wallet_for_user(user_doc.name, device_id=device_id)
 
@@ -205,6 +201,7 @@ def register_user(
         device_id=device_id,
         platform=platform,
         device_name=device_name,
+        allow_reassign=True,
     )
     audit_security_event("login_success", user=user_doc.name, device_id=device_id, payload={"action": "register"})
 

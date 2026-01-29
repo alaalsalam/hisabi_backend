@@ -30,7 +30,7 @@ def audit_security_event(
 		if payload:
 			wallet_id = payload.get("wallet_id")
 		if not wallet_id and real_user and real_user != "Guest":
-			wallet_id = frappe.get_value("User", real_user, "custom_default_wallet")
+			wallet_id = frappe.get_value("Hisabi User", {"user": real_user}, "default_wallet")
 		if not wallet_id and real_user and real_user != "Guest":
 			wallet_id = frappe.get_value("Hisabi Wallet Member", {"user": real_user, "status": "active"}, "wallet")
 		if hasattr(doc, "wallet_id"):

@@ -93,7 +93,12 @@ def verify_device_token_v2(token_hash: str, token: str) -> bool:
 
 
 def issue_device_token_for_device(
-    *, user: str, device_id: str, platform: str, device_name: str | None = None
+    *,
+    user: str,
+    device_id: str,
+    platform: str,
+    device_name: str | None = None,
+    allow_reassign: bool = False,
 ) -> tuple[str, frappe.model.document.Document]:
     """Upsert device and rotate token. Returns (raw_token, device_doc)."""
     if not user or user == "Guest":
@@ -106,7 +111,14 @@ def issue_device_token_for_device(
     if name:
         device = frappe.get_doc("Hisabi Device", name)
         if device.user != user and device.status != "revoked":
-            frappe.throw("Device already linked to another user", frappe.PermissionError)
+            if allow_reassign:
+                audit_security_event(
+                    "device_reassigned",
+                    user=user,
+                    payload={"device_id": device.device_id, "from_user": device.user},
+                )
+            else:
+                frappe.throw("Device already linked to another user", frappe.PermissionError)
     else:
         device = frappe.new_doc("Hisabi Device")
         device.device_id = device_id
@@ -119,6 +131,14 @@ def issue_device_token_for_device(
         device.device_name = device_name
     device.status = "active"
     device.last_seen_at = frappe.utils.now_datetime()
+
+    # Ensure wallet_id is set when required by schema.
+    if hasattr(device, "wallet_id") and not getattr(device, "wallet_id", None):
+        wallet_id = frappe.get_value("Hisabi User", {"user": user}, "default_wallet")
+        if not wallet_id:
+            wallet_id = frappe.get_value("Hisabi Wallet Member", {"user": user, "status": "active"}, "wallet")
+        if wallet_id:
+            device.wallet_id = wallet_id
 
     token = generate_device_token_v2()
     device.token_hash = hash_device_token_v2(token)

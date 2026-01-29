@@ -5,6 +5,11 @@ app_description = "Backend App for Hisabi app "
 app_email = "alaalsalam101@gmail.com"
 app_license = "mit"
 
+# Export hisabi workspace for consistent deploy
+fixtures = [
+	{"doctype": "Workspace", "filters": [["name", "=", "Hisabi"]]}
+]
+
 # Apps
 # ------------------
 

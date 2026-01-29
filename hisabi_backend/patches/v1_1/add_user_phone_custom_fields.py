@@ -35,7 +35,7 @@ def execute() -> None:
 
 	We must use Custom Field for core DocTypes like User (cannot ship User JSON in an app).
 	"""
-	_ensure_custom_field("User", "custom_phone", "Data", "Phone", unique=0)
+	_ensure_custom_field("User", "phone", "Data", "Phone", unique=0)
 	_ensure_custom_field("User", "custom_phone_verified", "Check", "Phone Verified", default=0)
 	_ensure_custom_field("User", "custom_default_wallet", "Link", "Default Wallet", options="Hisabi Wallet")
 	_ensure_custom_field("User", "custom_locale", "Data", "Locale")
