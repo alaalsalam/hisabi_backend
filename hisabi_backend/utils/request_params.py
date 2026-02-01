@@ -37,6 +37,20 @@ def get_request_param(name: str) -> Any:
     val = frappe.form_dict.get(name)
     if val is not None and val != "":
         return val
+    # Werkzeug request args/form (some /api/method calls don't populate form_dict with query params reliably).
+    req = getattr(frappe.local, "request", None)
+    if req:
+        try:
+            val = req.args.get(name)
+        except Exception:
+            val = None
+        if val is not None and val != "":
+            return val
+        try:
+            val = req.form.get(name)
+        except Exception:
+            val = None
+        if val is not None and val != "":
+            return val
     # JSON body (application/json).
     return _get_json_body().get(name)
-

@@ -11,6 +11,16 @@ from typing import Any, Dict, Optional
 import frappe
 
 
+def _serialize_user(user: str) -> Dict[str, Any]:
+    u = frappe.get_doc("User", user)
+    return {
+        "name": u.name,
+        "full_name": u.full_name,
+        "email": u.email,
+        "phone": getattr(u, "phone", None) or getattr(u, "mobile_no", None),
+    }
+
+
 @frappe.whitelist(allow_guest=True)
 def register_user(
     email: str | None = None,
@@ -40,9 +50,21 @@ def logout():
 
 @frappe.whitelist(allow_guest=False)
 def me():
-    from .auth_v2 import me as _impl
+    # Keep response shape stable for clients: include default_wallet_id + wallets[].isDefault.
+    from frappe.utils import now_datetime
 
-    return _impl()
+    from hisabi_backend.utils.security import require_device_token_auth
+    from hisabi_backend.utils.wallet_acl import ensure_default_wallet_for_user, get_wallets_for_user
+
+    user, device = require_device_token_auth()
+    default_wallet_id = ensure_default_wallet_for_user(user, device_id=device.device_id)
+    return {
+        "user": _serialize_user(user),
+        "device": {"device_id": device.device_id, "status": device.status, "last_seen_at": device.last_seen_at},
+        "default_wallet_id": default_wallet_id,
+        "wallets": get_wallets_for_user(user, default_wallet_id=default_wallet_id),
+        "server_time": now_datetime().isoformat(),
+    }
 
 
 @frappe.whitelist(allow_guest=False)
