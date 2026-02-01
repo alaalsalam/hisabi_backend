@@ -12,12 +12,22 @@ fixtures = [
 
 # Bearer token auth (Hisabi API)
 _bearer_auth = "hisabi_backend.utils.bearer_auth.authenticate_request"
+_cors_preflight = "hisabi_backend.utils.cors.handle_preflight"
+_cors_after = "hisabi_backend.utils.cors.add_cors_headers"
 
 if "before_request" in globals():
     if _bearer_auth not in before_request:
         before_request.append(_bearer_auth)
+    if _cors_preflight not in before_request:
+        before_request.append(_cors_preflight)
 else:
-    before_request = [_bearer_auth]
+    before_request = [_bearer_auth, _cors_preflight]
+
+if "after_request" in globals():
+    if _cors_after not in after_request:
+        after_request.append(_cors_after)
+else:
+    after_request = [_cors_after]
 
 # Apps
 # ------------------

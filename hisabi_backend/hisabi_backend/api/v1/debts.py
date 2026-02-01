@@ -79,6 +79,6 @@ def decline_request(request_id: str, device_id: Optional[str] = None) -> Dict[st
     user_phone = frappe.get_value("User", user, "phone")
     if request.user != user and user_phone and normalize_phone(user_phone) != normalize_phone(request.to_phone or ""):
         frappe.throw(_("Not permitted"), frappe.PermissionError)
-    request.status = "declined"
+    request.status = "rejected"
     request.save(ignore_permissions=True)
     return {"status": "declined", "request_id": request.name}

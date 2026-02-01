@@ -66,15 +66,53 @@ SERVER_AUTH_FIELDS = {
 }
 
 FIELD_MAP = {
-    "Hisabi Account": {"name": "account_name", "title": "account_name"},
-    "Hisabi Category": {"name": "category_name", "title": "category_name"},
+    "Hisabi Account": {
+        "name": "account_name",
+        "title": "account_name",
+        "type": "account_type",
+    },
+    "Hisabi Category": {
+        "name": "category_name",
+        "title": "category_name",
+        "parent_id": "parent_category",
+        "default_bucket_id": "default_bucket",
+    },
     "Hisabi Bucket": {"name": "bucket_name", "title": "bucket_name"},
-    "Hisabi Allocation Rule": {"name": "rule_name", "title": "rule_name"},
-    "Hisabi Budget": {"name": "budget_name", "title": "budget_name"},
-    "Hisabi Goal": {"name": "goal_name", "title": "goal_name"},
+    "Hisabi Allocation Rule": {
+        "name": "rule_name",
+        "title": "rule_name",
+        "scope_ref_id": "scope_ref",
+    },
+    "Hisabi Allocation Rule Line": {
+        "rule_id": "rule",
+        "bucket_id": "bucket",
+    },
+    "Hisabi Transaction Allocation": {
+        "transaction_id": "transaction",
+        "bucket_id": "bucket",
+        "rule_id_used": "rule_used",
+    },
+    "Hisabi Budget": {
+        "name": "budget_name",
+        "title": "budget_name",
+        "category_id": "category",
+    },
+    "Hisabi Goal": {
+        "name": "goal_name",
+        "title": "goal_name",
+        "type": "goal_type",
+        "linked_account_id": "linked_account",
+        "linked_debt_id": "linked_debt",
+    },
     "Hisabi Debt": {"name": "debt_name", "title": "debt_name"},
     "Hisabi Jameya": {"name": "jameya_name", "title": "jameya_name"},
-    "Hisabi Transaction": {"type": "transaction_type"},
+    "Hisabi Transaction": {
+        "type": "transaction_type",
+        "account_id": "account",
+        "to_account_id": "to_account",
+        "category_id": "category",
+        "bucket_id": "bucket",
+    },
 }
 
 
@@ -127,6 +165,23 @@ def _apply_field_map(doctype: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         if old in payload and new not in payload:
             payload[new] = payload.pop(old)
     return payload
+
+
+def _resolve_base_currency(wallet_id: str, user: str) -> str | None:
+    currency = frappe.get_value(
+        "Hisabi Settings",
+        {"wallet_id": wallet_id, "is_deleted": 0},
+        "base_currency",
+    )
+    if not currency:
+        currency = frappe.get_value(
+            "Hisabi Settings",
+            {"user": user, "is_deleted": 0},
+            "base_currency",
+        )
+    if not currency:
+        currency = frappe.db.get_single_value("System Settings", "currency")
+    return currency
 
 
 def _filter_payload_fields(doc: frappe.model.document.Document, payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -503,6 +558,20 @@ def sync_push(device_id: str, wallet_id: str, items: List[Dict[str, Any]]) -> Di
         if entity_type != "Hisabi Wallet":
             # For all wallet-scoped entities, require at least member role.
             require_wallet_member(wallet_id, user, min_role="member")
+
+        if entity_type in {"Hisabi Budget", "Hisabi Goal"}:
+            payload = dict(payload)
+            base_currency = _resolve_base_currency(wallet_id, user)
+            if entity_type == "Hisabi Budget":
+                if not payload.get("currency") and base_currency:
+                    payload["currency"] = base_currency
+                if payload.get("amount") is None and payload.get("amount_base") is not None:
+                    payload["amount"] = payload.get("amount_base")
+            if entity_type == "Hisabi Goal":
+                if not payload.get("currency") and base_currency:
+                    payload["currency"] = base_currency
+                if payload.get("target_amount") is None and payload.get("target_amount_base") is not None:
+                    payload["target_amount"] = payload.get("target_amount_base")
 
         doc = _prepare_doc_for_write(entity_type, payload, user, existing=existing)
         mark_deleted = operation == "delete"

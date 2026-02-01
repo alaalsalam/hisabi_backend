@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Optional
 
 import frappe
+from werkzeug.wrappers import Response
 
 
 ALLOWED_ORIGINS = {
@@ -44,8 +45,9 @@ def handle_preflight():
     origin = _get_allowed_origin(req.headers.get("Origin"))
     if not origin:
         return None
-    # Frappe short-circuits OPTIONS internally; after_request will add headers.
-    return None
+    response = Response()
+    response.status_code = 200
+    return _apply_headers(response, origin)
 
 
 def add_cors_headers(response):

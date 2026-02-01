@@ -58,6 +58,10 @@ def report_summary(
         filters=account_filters,
         fields=["name", "account_name", "currency", "current_balance"],
     )
+    accounts = [
+        {**row, "account": row.get("name")}
+        for row in accounts
+    ]
 
     budget_filters = {"wallet_id": wallet_id, "is_deleted": 0, "archived": 0}
     if currency:
@@ -67,6 +71,7 @@ def report_summary(
         filters=budget_filters,
         fields=["name", "budget_name", "currency", "amount", "spent_amount", "start_date", "end_date"],
     )
+    budgets = [{**row, "budget": row.get("name")} for row in budgets]
 
     goals = frappe.get_all(
         "Hisabi Goal",
@@ -83,6 +88,7 @@ def report_summary(
             "status",
         ],
     )
+    goals = [{**row, "goal": row.get("name")} for row in goals]
 
     debt_totals = frappe.db.sql(
         """
@@ -96,6 +102,14 @@ def report_summary(
     )
 
     debt_summary = {row.direction: row.remaining for row in debt_totals}
+    owed_by_me = debt_summary.get("owe", 0) or 0
+    owed_to_me = debt_summary.get("owed_to_me", 0) or 0
+    debt_summary = {
+        **debt_summary,
+        "owed_by_me": owed_by_me,
+        "owed_to_me": owed_to_me,
+        "net": (owed_to_me - owed_by_me),
+    }
 
     upcoming_jameya = frappe.get_all(
         "Hisabi Jameya Payment",
@@ -105,9 +119,19 @@ def report_summary(
         limit=20,
     )
 
+    total_income = totals.get("total_income", 0) if totals else 0
+    total_expense = totals.get("total_expense", 0) if totals else 0
+    totals_out = {
+        "income": total_income,
+        "expense": total_expense,
+        "net": total_income - total_expense,
+        "total_income": total_income,
+        "total_expense": total_expense,
+    }
+
     return {
         "accounts": accounts,
-        "totals": totals,
+        "totals": totals_out,
         "budgets": budgets,
         "goals": goals,
         "debts": debt_summary,
@@ -143,11 +167,14 @@ def report_budgets(
             continue
         amount = budget.amount or 0
         spent = budget.spent_amount or 0
+        percent = (spent / amount * 100) if amount else 0
         result.append(
             {
                 **budget,
+                "budget": budget.get("name"),
                 "remaining": amount - spent,
-                "spent_percent": (spent / amount * 100) if amount else 0,
+                "spent_percent": percent,
+                "percent": percent,
             }
         )
 
@@ -176,6 +203,7 @@ def report_goals(wallet_id: Optional[str] = None, device_id: Optional[str] = Non
             "status",
         ],
     )
+    goals = [{**row, "goal": row.get("name")} for row in goals]
     return {"goals": goals, "server_time": now_datetime().isoformat()}
 
 
@@ -201,4 +229,11 @@ def report_debts(wallet_id: Optional[str] = None, device_id: Optional[str] = Non
             "due_date",
         ],
     )
-    return {"debts": debts, "server_time": now_datetime().isoformat()}
+    totals = {"owed_by_me": 0, "owed_to_me": 0, "net": 0}
+    for row in debts:
+        if row.get("direction") == "owe":
+            totals["owed_by_me"] += row.get("remaining_amount") or 0
+        elif row.get("direction") == "owed_to_me":
+            totals["owed_to_me"] += row.get("remaining_amount") or 0
+    totals["net"] = totals["owed_to_me"] - totals["owed_by_me"]
+    return {"debts": debts, "totals": totals, "server_time": now_datetime().isoformat()}

@@ -1,17 +1,21 @@
 {
  "actions": [],
  "allow_rename": 1,
+ "autoname": "field:client_id",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "client_id",
   "user",
   "wallet_id",
-  "client_id",
-  "from_phone",
-  "to_phone",
-  "debt_payload",
-  "debt_payload_json",
-  "status",
+  "owner_entity_type",
+  "owner_client_id",
+  "file_id",
+  "file_url",
+  "file_name",
+  "mime_type",
+  "file_size",
+  "sha256",
   "client_created_ms",
   "client_modified_ms",
   "doc_version",
@@ -20,6 +24,13 @@
   "deleted_at"
  ],
  "fields": [
+  {
+   "fieldname": "client_id",
+   "fieldtype": "Data",
+   "label": "Client ID",
+   "reqd": 1,
+   "unique": 1
+  },
   {
    "fieldname": "user",
    "fieldtype": "Link",
@@ -35,36 +46,46 @@
    "reqd": 1
   },
   {
-   "fieldname": "client_id",
+   "fieldname": "owner_entity_type",
    "fieldtype": "Data",
-   "label": "Client ID",
+   "label": "Owner Entity Type",
    "reqd": 1
   },
   {
-   "fieldname": "from_phone",
+   "fieldname": "owner_client_id",
    "fieldtype": "Data",
-   "label": "From Phone"
+   "label": "Owner Client ID",
+   "reqd": 1
   },
   {
-   "fieldname": "to_phone",
+   "fieldname": "file_id",
    "fieldtype": "Data",
-   "label": "To Phone"
+   "label": "File ID"
   },
   {
-   "fieldname": "debt_payload",
-   "fieldtype": "JSON",
-   "label": "Debt Payload"
+   "fieldname": "file_url",
+   "fieldtype": "Data",
+   "label": "File URL"
   },
   {
-   "fieldname": "debt_payload_json",
-   "fieldtype": "JSON",
-   "label": "Debt Payload JSON"
+   "fieldname": "file_name",
+   "fieldtype": "Data",
+   "label": "File Name"
   },
   {
-   "fieldname": "status",
-   "fieldtype": "Select",
-   "label": "Status",
-   "options": "pending\naccepted\nrejected"
+   "fieldname": "mime_type",
+   "fieldtype": "Data",
+   "label": "MIME Type"
+  },
+  {
+   "fieldname": "file_size",
+   "fieldtype": "Int",
+   "label": "File Size"
+  },
+  {
+   "fieldname": "sha256",
+   "fieldtype": "Data",
+   "label": "SHA256"
   },
   {
    "fieldname": "client_created_ms",
@@ -102,19 +123,26 @@
  "indexes": [
   {
    "fields": [
-    "user",
     "client_id"
    ],
    "unique": 1
   },
   {
    "fields": [
-    "wallet_id"
+    "wallet_id",
+    "owner_entity_type",
+    "owner_client_id"
+   ]
+  },
+  {
+   "fields": [
+    "wallet_id",
+    "file_id"
    ]
   }
  ],
  "module": "Hisabi Backend",
- "name": "Hisabi Debt Request",
+ "name": "Hisabi Attachment",
  "permissions": [
   {
    "create": 1,

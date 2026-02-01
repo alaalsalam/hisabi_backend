@@ -55,6 +55,16 @@
   {
    "hidden": 0,
    "is_query_report": 0,
+   "label": "Hisabi Attachment",
+   "link_count": 0,
+   "link_to": "Hisabi Attachment",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
    "label": "Hisabi Allocation Rule",
    "link_count": 0,
    "link_to": "Hisabi Bucket",

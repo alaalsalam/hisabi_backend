@@ -18,7 +18,10 @@ class HisabiDebtRequest(Document):
         if not self.status:
             self.status = "pending"
 
-        if self.status not in {"pending", "accepted", "declined"}:
+        if self.status == "declined":
+            self.status = "rejected"
+
+        if self.status not in {"pending", "accepted", "rejected"}:
             frappe.throw(_("Invalid status"), frappe.ValidationError)
 
         if self.debt_payload and not self.debt_payload_json:

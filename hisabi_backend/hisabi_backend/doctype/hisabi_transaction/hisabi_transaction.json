@@ -92,8 +92,9 @@
   },
   {
    "fieldname": "bucket",
-   "fieldtype": "Data",
-   "label": "Bucket"
+   "fieldtype": "Link",
+   "label": "Bucket",
+   "options": "Hisabi Bucket"
   },
   {
    "fieldname": "note",

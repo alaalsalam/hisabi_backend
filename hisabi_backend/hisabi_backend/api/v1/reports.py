@@ -137,6 +137,8 @@ def bucket_rules(wallet_id: Optional[str] = None, device_id: Optional[str] = Non
         fields=["name", "scope_type", "scope_ref", "is_default", "active"],
         order_by="server_modified desc, doc_version desc",
     )
+    for rule in rules:
+        rule["rule"] = rule.get("name")
 
     rule_map = {rule.name: rule for rule in rules}
     lines = frappe.get_all(
