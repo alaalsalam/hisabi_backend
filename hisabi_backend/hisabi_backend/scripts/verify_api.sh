@@ -8,22 +8,7 @@ PASSWORD=${PASSWORD:-"Test1234!"}
 DEVICE_ID=${DEVICE_ID:-"dev-$(date +%s)"}
 
 function json_get() {
-  python3 - "$1" <<'PY'
-import json,sys
-raw=sys.stdin.read()
-path=sys.argv[1].split('.')
-try:
-    data=json.loads(raw)
-    for p in path:
-        data=data.get(p)
-        if data is None:
-            break
-    if data is None:
-        sys.exit(1)
-    print(data)
-except Exception:
-    sys.exit(1)
-PY
+  python3 -c $'import json,sys\nraw=sys.stdin.read()\npath=sys.argv[1].split(".")\ndata=json.loads(raw)\nfor p in path:\n    data = data.get(p) if isinstance(data, dict) else None\nif data is None:\n    sys.exit(1)\nprint(data)\n' "$1"
 }
 
 echo "==> Preflight OPTIONS"
