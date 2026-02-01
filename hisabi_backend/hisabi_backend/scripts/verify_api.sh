@@ -4,11 +4,11 @@ set -euo pipefail
 BASE_URL=${BASE_URL:-"https://hisabi.yemenfrappe.com"}
 ORIGIN=${ORIGIN:-"https://hisabi.yemenfrappe.com"}
 PHONE=${PHONE:-"+1555$(date +%s | tail -c 6)"}
-PASSWORD=${PASSWORD:-"testpass123"}
+PASSWORD=${PASSWORD:-"Test1234!"}
 DEVICE_ID=${DEVICE_ID:-"dev-$(date +%s)"}
 
 function json_get() {
-  python3 - <<'PY'
+  python3 - "$1" <<'PY'
 import json,sys
 raw=sys.stdin.read()
 path=sys.argv[1].split('.')
@@ -43,8 +43,8 @@ REGISTER_RESP=$(curl -s -X POST "${BASE_URL}/api/method/hisabi_backend.api.v1.re
   -d "${REGISTER_PAYLOAD}")
 
 echo "Register response: ${REGISTER_RESP}"
-TOKEN=$(echo "${REGISTER_RESP}" | json_get auth.token || true)
-WALLET_ID=$(echo "${REGISTER_RESP}" | json_get default_wallet_id || true)
+TOKEN=$(echo "${REGISTER_RESP}" | json_get message.auth.token || true)
+WALLET_ID=$(echo "${REGISTER_RESP}" | json_get message.default_wallet_id || true)
 
 if [[ -z "${TOKEN}" || -z "${WALLET_ID}" ]]; then
   echo "Missing token or wallet id in register response" >&2
@@ -69,8 +69,16 @@ curl -s -X GET "${BASE_URL}/api/method/hisabi_backend.api.v1.me" \
 echo ""
 
 echo "==> Reports summary"
+echo "-- GET with query string"
 curl -s "${BASE_URL}/api/method/hisabi_backend.api.v1.reports_finance.report_summary?wallet_id=${WALLET_ID}" \
   -H "Authorization: Bearer ${TOKEN}" | head -c 200
+
+echo ""
+echo "-- POST with JSON body"
+curl -s -X POST "${BASE_URL}/api/method/hisabi_backend.api.v1.reports_finance.report_summary" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d "{\"wallet_id\":\"${WALLET_ID}\"}" | head -c 200
 
 echo ""
 

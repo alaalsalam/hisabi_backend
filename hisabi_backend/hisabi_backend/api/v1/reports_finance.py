@@ -8,6 +8,7 @@ import frappe
 from frappe.utils import get_datetime, now_datetime
 
 from hisabi_backend.utils.security import require_device_token_auth
+from hisabi_backend.utils.request_params import get_request_param
 from hisabi_backend.utils.validators import validate_client_id
 from hisabi_backend.utils.wallet_acl import require_wallet_member
 
@@ -21,6 +22,7 @@ def report_summary(
     device_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     user, _device = require_device_token_auth()
+    wallet_id = wallet_id or get_request_param("wallet_id")
     if not wallet_id:
         frappe.throw("wallet_id is required", frappe.ValidationError)
     wallet_id = validate_client_id(wallet_id)
@@ -148,6 +150,7 @@ def report_budgets(
     device_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     user, _device = require_device_token_auth()
+    wallet_id = wallet_id or get_request_param("wallet_id")
     if not wallet_id:
         frappe.throw("wallet_id is required", frappe.ValidationError)
     wallet_id = validate_client_id(wallet_id)
@@ -184,6 +187,7 @@ def report_budgets(
 @frappe.whitelist(allow_guest=False)
 def report_goals(wallet_id: Optional[str] = None, device_id: Optional[str] = None) -> Dict[str, Any]:
     user, _device = require_device_token_auth()
+    wallet_id = wallet_id or get_request_param("wallet_id")
     if not wallet_id:
         frappe.throw("wallet_id is required", frappe.ValidationError)
     wallet_id = validate_client_id(wallet_id)
@@ -210,6 +214,7 @@ def report_goals(wallet_id: Optional[str] = None, device_id: Optional[str] = Non
 @frappe.whitelist(allow_guest=False)
 def report_debts(wallet_id: Optional[str] = None, device_id: Optional[str] = None) -> Dict[str, Any]:
     user, _device = require_device_token_auth()
+    wallet_id = wallet_id or get_request_param("wallet_id")
     if not wallet_id:
         frappe.throw("wallet_id is required", frappe.ValidationError)
     wallet_id = validate_client_id(wallet_id)
