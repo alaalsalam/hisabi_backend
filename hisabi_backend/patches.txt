@@ -10,3 +10,4 @@ hisabi_backend.patches.v1_3.remove_user_custom_fields
 hisabi_backend.patches.v1_4.debt_request_status_rejected
 hisabi_backend.patches.v1_4.backfill_budget_currency_amount
 hisabi_backend.patches.v1_4.backfill_goal_currency_target_amount
+hisabi_backend.patches.v1_5.backfill_user_default_wallet

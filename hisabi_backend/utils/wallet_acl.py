@@ -81,6 +81,19 @@ def ensure_default_wallet_for_user(user: str, device_id: Optional[str] = None) -
         profile.save(ignore_permissions=True)
         return row.wallet
 
+    # Fall back to any non-removed membership before creating a new wallet.
+    row = frappe.db.get_value(
+        "Hisabi Wallet Member",
+        {"user": user, "status": ["!=", "removed"]},
+        ["wallet"],
+        order_by="modified desc",
+        as_dict=True,
+    )
+    if row and row.wallet:
+        profile.default_wallet = row.wallet
+        profile.save(ignore_permissions=True)
+        return row.wallet
+
     wallet_id = f"wallet-u-{frappe.generate_hash(user, length=12)}"
     if frappe.db.exists("Hisabi Wallet", wallet_id):
         wallet_id = f"{wallet_id}-{secrets.token_hex(2)}"
