@@ -10,7 +10,6 @@ Design goals:
 from __future__ import annotations
 
 import re
-import secrets
 from typing import Any, Dict, Optional, Tuple
 
 import frappe
@@ -25,9 +24,12 @@ from hisabi_backend.utils.security import (
     require_device_token_auth,
 )
 from hisabi_backend.utils.security_rate_limit import rate_limit
-from hisabi_backend.utils.sync_common import apply_common_sync_fields
 from hisabi_backend.utils.validators import validate_password_strength, validate_platform
-from hisabi_backend.utils.wallet_acl import get_wallets_for_user
+from hisabi_backend.utils.wallet_acl import (
+    ensure_default_wallet_for_user,
+    get_or_create_hisabi_user,
+    get_wallets_for_user,
+)
 from hisabi_backend.utils.auth_lockout import on_login_failed, on_login_success, raise_if_locked
 from hisabi_backend.utils.request_context import get_request_ip
 from hisabi_backend.utils.user_events import normalize_phone_digits
@@ -81,63 +83,6 @@ def _ensure_user_email(email: Optional[str], *, phone: Optional[str]) -> str:
     return f"{digits}@phone.hisabi.local"
 
 
-def _get_or_create_hisabi_user(user: str) -> frappe.model.document.Document:
-    name = frappe.get_value("Hisabi User", {"user": user})
-    if name:
-        return frappe.get_doc("Hisabi User", name)
-    doc = frappe.new_doc("Hisabi User")
-    doc.user = user
-    doc.save(ignore_permissions=True)
-    return doc
-
-
-def _ensure_default_wallet_for_user(user: str, device_id: Optional[str] = None) -> str:
-    """Create a default wallet and owner membership if missing."""
-    # Prefer Hisabi User default wallet if already set.
-    profile = _get_or_create_hisabi_user(user)
-    default_wallet = getattr(profile, "default_wallet", None)
-    if default_wallet and frappe.db.exists("Hisabi Wallet", default_wallet):
-        return default_wallet
-
-    # If user already has an active wallet membership, use the most recent one.
-    row = frappe.db.get_value(
-        "Hisabi Wallet Member",
-        {"user": user, "status": "active"},
-        ["wallet"],
-        order_by="modified desc",
-        as_dict=True,
-    )
-    if row and row.wallet:
-        profile.default_wallet = row.wallet
-        profile.save(ignore_permissions=True)
-        return row.wallet
-
-    wallet_id = f"wallet-u-{frappe.generate_hash(user, length=12)}"
-    if frappe.db.exists("Hisabi Wallet", wallet_id):
-        wallet_id = f"{wallet_id}-{secrets.token_hex(2)}"
-
-    wallet = frappe.new_doc("Hisabi Wallet")
-    wallet.client_id = wallet_id
-    wallet.name = wallet_id
-    wallet.wallet_name = "My Wallet"
-    wallet.status = "active"
-    wallet.owner_user = user
-    wallet.created_from_device = device_id
-    apply_common_sync_fields(wallet, bump_version=True, mark_deleted=False)
-    wallet.save(ignore_permissions=True)
-
-    member = frappe.new_doc("Hisabi Wallet Member")
-    member.wallet = wallet_id
-    member.user = user
-    member.role = "owner"
-    member.status = "active"
-    member.joined_at = now_datetime()
-    apply_common_sync_fields(member, bump_version=True, mark_deleted=False)
-    member.save(ignore_permissions=True)
-
-    profile.default_wallet = wallet_id
-    profile.save(ignore_permissions=True)
-    return wallet_id
 
 
 @frappe.whitelist(allow_guest=True)
@@ -192,9 +137,9 @@ def register_user(
     ).insert(ignore_permissions=True)
     update_password(user_doc.name, password)
 
-    _get_or_create_hisabi_user(user_doc.name)
+    get_or_create_hisabi_user(user_doc.name)
 
-    wallet_id = _ensure_default_wallet_for_user(user_doc.name, device_id=device_id)
+    wallet_id = ensure_default_wallet_for_user(user_doc.name, device_id=device_id)
 
     token, device_doc = issue_device_token_for_device(
         user=user_doc.name,
@@ -255,7 +200,7 @@ def login(
     platform = validate_platform(device.get("platform") or "web")
     device_name = (device.get("device_name") or "").strip() or None
 
-    wallet_id = _ensure_default_wallet_for_user(user, device_id=device_id)
+    wallet_id = ensure_default_wallet_for_user(user, device_id=device_id)
 
     token, device_doc = issue_device_token_for_device(
         user=user,
@@ -290,10 +235,12 @@ def logout() -> Dict[str, Any]:
 def me() -> Dict[str, Any]:
     """Return current user profile and wallet memberships (requires device token)."""
     user, device = require_device_token_auth()
+    default_wallet_id = ensure_default_wallet_for_user(user, device_id=device.device_id)
     return {
         "user": _serialize_user(user),
         "device": {"device_id": device.device_id, "status": device.status, "last_seen_at": device.last_seen_at},
-        "wallets": get_wallets_for_user(user),
+        "default_wallet_id": default_wallet_id,
+        "wallets": get_wallets_for_user(user, default_wallet_id=default_wallet_id),
         "server_time": now_datetime().isoformat(),
     }
 

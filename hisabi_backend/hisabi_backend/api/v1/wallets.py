@@ -11,7 +11,11 @@ from frappe.utils import add_to_date, now_datetime
 from hisabi_backend.utils.security import require_device_token_auth
 from hisabi_backend.utils.sync_common import apply_common_sync_fields
 from hisabi_backend.utils.validators import normalize_phone, validate_client_id
-from hisabi_backend.utils.wallet_acl import get_wallets_for_user, require_wallet_member
+from hisabi_backend.utils.wallet_acl import (
+    ensure_default_wallet_for_user,
+    get_wallets_for_user,
+    require_wallet_member,
+)
 from hisabi_backend.utils.audit_security import audit_security_event
 
 
@@ -26,7 +30,12 @@ def _generate_invite_token() -> str:
 @frappe.whitelist(allow_guest=False)
 def wallets_list(device_id: Optional[str] = None) -> Dict[str, Any]:
     user, _device = require_device_token_auth()
-    return {"wallets": get_wallets_for_user(user), "server_time": now_datetime().isoformat()}
+    default_wallet_id = ensure_default_wallet_for_user(user, device_id=device_id)
+    return {
+        "wallets": get_wallets_for_user(user, default_wallet_id=default_wallet_id),
+        "default_wallet_id": default_wallet_id,
+        "server_time": now_datetime().isoformat(),
+    }
 
 
 @frappe.whitelist(allow_guest=False)

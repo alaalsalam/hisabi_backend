@@ -153,3 +153,6 @@ Update these endpoints to include frontend‑expected keys *without removing exi
   - Reports endpoints return JSON with expected keys (budget/goal/account/totals).
   - Sync push transaction w/ bucket + account mapping; ensure no `invalid_account`.
 
+## WP1 Decisions (schema vs derived fields)
+- `Wallet.isDefault` is derived in API responses (compare wallet id to `default_wallet_id`); no DocType field added.
+- `selectedWalletId` remains local-only in the client; no `Hisabi Settings` schema change.
