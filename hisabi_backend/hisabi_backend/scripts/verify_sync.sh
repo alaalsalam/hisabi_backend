@@ -89,6 +89,19 @@ JSON
 VALID_RESP=$(curl_with_status POST "${BASE_URL}/api/method/hisabi_backend.api.v1.sync.sync_push" "${VALID_SYNC_PAYLOAD}" "${TOKEN}")
 print_status_and_body "${VALID_RESP}"
 
+echo "==> Sync push (mixed: valid + invalid supported type)"
+MIXED_VALID_ID="acc-sync-${TS}-ok"
+MIXED_INVALID_ID="acc-sync-${TS}-bad"
+MIXED_SYNC_PAYLOAD=$(cat <<JSON
+{"device_id":"${DEVICE_ID}","wallet_id":"${WALLET_ID}","items":[
+  {"op_id":"op-acc-ok-${TS}","entity_type":"Hisabi Account","entity_id":"${MIXED_VALID_ID}","operation":"create","payload":{"client_id":"${MIXED_VALID_ID}","name":"Cash 2","type":"cash","currency":"SAR"}},
+  {"op_id":"op-acc-bad-${TS}","entity_type":"Hisabi Account","entity_id":"${MIXED_INVALID_ID}","operation":"create","payload":{"client_id":"${MIXED_INVALID_ID}","type":"cash","currency":"SAR"}}
+]}
+JSON
+)
+MIXED_RESP=$(curl_with_status POST "${BASE_URL}/api/method/hisabi_backend.api.v1.sync.sync_push" "${MIXED_SYNC_PAYLOAD}" "${TOKEN}")
+print_status_and_body "${MIXED_RESP}"
+
 echo "==> Sync push (invalid: missing wallet_id)"
 INVALID_WALLET_PAYLOAD=$(cat <<JSON
 {"device_id":"${DEVICE_ID}","items":[
