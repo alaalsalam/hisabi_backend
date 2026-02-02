@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import frappe
 from frappe import _
 from frappe.utils import cint, get_datetime, now_datetime
+from werkzeug.wrappers import Response
 from hisabi_backend.domain.recalc_engine import (
     recalc_account_balance,
     recalc_budgets,
@@ -560,6 +561,7 @@ def sync_push(
     **kwargs,
 ) -> Dict[str, Any]:
     """Apply client changes to the server."""
+    frappe.flags.disable_traceback = True
     request = getattr(frappe, "request", None)
     form_dict = getattr(frappe, "form_dict", {}) or {}
     json_body = None
@@ -616,35 +618,35 @@ def sync_push(
     has_form = 1 if form_dict else 0
     has_json = 1 if json_body else 0
     items_type = type(items).__name__ if items is not None else "none"
-    try:
-        frappe.local.response.setdefault("http_headers", []).append(
-            ("X-Hisabi-Sync-Impl", SYNC_PUSH_IMPL_STAMP)
-        )
-        frappe.local.response.setdefault("http_headers", []).append(
-            ("X-Hisabi-Sync-Args", f"has_form={has_form}; has_json={has_json}; items_type={items_type}")
-        )
-    except Exception:
-        pass
+
+    def _build_sync_response(payload: Dict[str, Any], status_code: int = 200) -> Response:
+        response = Response()
+        response.mimetype = "application/json"
+        response.status_code = status_code
+        response.headers["X-Hisabi-Sync-Impl"] = SYNC_PUSH_IMPL_STAMP
+        response.headers["X-Hisabi-Sync-Args"] = f"has_form={has_form}; has_json={has_json}; items_type={items_type}"
+        response.data = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+        return response
 
     if not device_id:
-        frappe.throw("device_id is required", frappe.ValidationError)
+        return _build_sync_response({"error": "device_id is required"}, status_code=417)
     if not wallet_id:
-        frappe.throw("wallet_id is required", frappe.ValidationError)
+        return _build_sync_response({"error": "wallet_id is required"}, status_code=417)
     if items is None:
-        frappe.throw("items is required", frappe.ValidationError)
+        return _build_sync_response({"error": "items is required"}, status_code=417)
 
     user, device = _require_device_auth(device_id)
     _check_rate_limit(device_id)
     wallet_id = validate_client_id(wallet_id)
 
     if not isinstance(items, list):
-        frappe.throw(_("items must be a list"), frappe.ValidationError)
+        return _build_sync_response({"error": "items must be a list"}, status_code=417)
 
     if len(items) > MAX_PUSH_ITEMS:
-        return {
-            "results": [{"status": "error", "error": "too_many_items"}],
-            "server_time": now_datetime().isoformat(),
-        }
+        return _build_sync_response(
+            {"message": {"results": [{"status": "error", "error": "too_many_items"}], "server_time": now_datetime().isoformat()}},
+            status_code=417,
+        )
 
     results: List[Dict[str, Any]] = []
     affected_accounts = set()
@@ -671,7 +673,7 @@ def sync_push(
         validation_error = _validate_sync_push_item(item, wallet_id)
         if validation_error:
             if validation_error.get("error") in {"unsupported_entity_type", "doctype_not_installed"}:
-                frappe.throw(validation_error.get("error"), frappe.ValidationError)
+                return _build_sync_response({"error": validation_error.get("error")}, status_code=417)
             results.append(validation_error)
             continue
 
@@ -934,7 +936,10 @@ def sync_push(
     device.last_sync_ms = min(int(device.last_sync_at.timestamp() * 1000), 2147483647)
     device.save(ignore_permissions=True)
 
-    return {"results": results, "server_time": now_datetime().isoformat()}
+    return _build_sync_response(
+        {"message": {"results": results, "server_time": now_datetime().isoformat()}},
+        status_code=200,
+    )
 
 
 @frappe.whitelist(allow_guest=False)
