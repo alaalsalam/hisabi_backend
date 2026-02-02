@@ -662,6 +662,8 @@ def sync_push(
     for item in items:
         validation_error = _validate_sync_push_item(item, wallet_id)
         if validation_error:
+            if validation_error.get("error") in {"unsupported_entity_type", "doctype_not_installed"}:
+                frappe.throw(validation_error.get("error"), frappe.ValidationError)
             results.append(validation_error)
             continue
 

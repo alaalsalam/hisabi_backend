@@ -23,7 +23,7 @@ def recalc_account_balance(user: str, account_id: str, wallet_id: str | None = N
     where = "wallet_id=%s" if wallet_id else "user=%s"
 
     outgoing = frappe.db.sql(
-        """
+        f"""
         SELECT COALESCE(SUM(CASE
             WHEN transaction_type = 'income' THEN amount
             WHEN transaction_type = 'expense' THEN -amount
@@ -36,7 +36,7 @@ def recalc_account_balance(user: str, account_id: str, wallet_id: str | None = N
     )[0][0]
 
     incoming = frappe.db.sql(
-        """
+        f"""
         SELECT COALESCE(SUM(amount), 0)
         FROM `tabHisabi Transaction`
         WHERE {where} AND is_deleted=0 AND to_account=%s
