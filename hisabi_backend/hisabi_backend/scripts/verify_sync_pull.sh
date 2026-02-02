@@ -37,6 +37,20 @@ function curl_with_status() {
   fi
 }
 
+function curl_with_status_get() {
+  local url=$1
+  local token=${2:-}
+  shift 2 || true
+  if [[ -n "${token}" ]]; then
+    curl -s -i -G -w "\nHTTP_STATUS:%{http_code}\n" "${url}" \
+      -H "Authorization: Bearer ${token}" \
+      "$@"
+  else
+    curl -s -i -G -w "\nHTTP_STATUS:%{http_code}\n" "${url}" \
+      "$@"
+  fi
+}
+
 function print_status_and_body() {
   local response="$1"
   local status
@@ -45,6 +59,33 @@ function print_status_and_body() {
   body=$(echo "${response}" | sed '/HTTP_STATUS:/d')
   echo "HTTP ${status}"
   echo "${body}"
+}
+
+function response_body() {
+  local response="$1"
+  RESPONSE_RAW="${response}" python3 - <<'PY'
+import os
+raw = os.environ.get("RESPONSE_RAW", "")
+raw = raw.split("HTTP_STATUS:")[0] if "HTTP_STATUS:" in raw else raw
+start = raw.find("{")
+end = raw.rfind("}")
+if start != -1 and end != -1 and end >= start:
+    body = raw[start:end + 1]
+else:
+    body = ""
+print(body.strip())
+PY
+}
+
+function assert_header_present() {
+  local response="$1"
+  local header="$2"
+  local headers
+  headers=$(echo "${response}" | sed '/HTTP_STATUS:/d' | sed -n '1,/^\r\{0,1\}$/p')
+  if ! rg -qi "^${header}:" <<< "${headers}"; then
+    echo "missing ${header} (workers stale or wrong service)" >&2
+    exit 1
+  fi
 }
 
 function assert_status() {
@@ -104,18 +145,35 @@ fi
 
 SINCE=$(date -u -d '1 day ago' '+%Y-%m-%dT%H:%M:%S')
 
-echo "==> Sync pull (since older than creation)"
-PULL_PAYLOAD=$(cat <<JSON
-{"device_id":"${DEVICE_ID}","wallet_id":"${WALLET_ID}","since":"${SINCE}","limit":50}
-JSON
-)
-PULL_RESP=$(curl_with_status POST "${BASE_URL}/api/method/hisabi_backend.api.v1.sync.sync_pull" "${PULL_PAYLOAD}" "${TOKEN}")
-print_status_and_body "${PULL_RESP}"
-assert_status "${PULL_RESP}" "200"
+echo "==> Sync pull (GET with query params)"
+PULL_GET_RESP=$(curl_with_status_get "${BASE_URL}/api/method/hisabi_backend.api.v1.sync.sync_pull" "${TOKEN}" \
+  --data-urlencode "device_id=${DEVICE_ID}" \
+  --data-urlencode "wallet_id=${WALLET_ID}" \
+  --data-urlencode "since=${SINCE}" \
+  --data-urlencode "limit=50")
+print_status_and_body "${PULL_GET_RESP}"
+assert_status "${PULL_GET_RESP}" "200"
+assert_header_present "${PULL_GET_RESP}" "X-Hisabi-Pull-Impl"
 
-HAS_ITEM=$(echo "${PULL_RESP}" | sed '/HTTP_STATUS:/d' | ACC_ID="${ACC_ID}" python3 - <<PY
-import json,sys,os
-data=json.load(sys.stdin)
+PULL_GET_BODY=$(response_body "${PULL_GET_RESP}")
+HAS_ITEMS_FIELD=$(PULL_GET_BODY="${PULL_GET_BODY}" python3 - <<'PY'
+import json,os
+raw=os.environ.get("PULL_GET_BODY","")
+data=json.loads(raw) if raw else {}
+msg=data.get("message") or {}
+print("yes" if isinstance(msg.get("items"), list) else "no")
+PY
+)
+if [[ "${HAS_ITEMS_FIELD}" != "yes" ]]; then
+  echo "missing message.items array in pull response" >&2
+  exit 1
+fi
+
+PULL_BODY="${PULL_GET_BODY}"
+HAS_ITEM=$(ACC_ID="${ACC_ID}" PULL_BODY="${PULL_BODY}" python3 - <<PY
+import json,os
+raw=os.environ.get("PULL_BODY","")
+data=json.loads(raw) if raw else {}
 items=(data.get("message") or {}).get("items") or []
 acc=os.environ.get("ACC_ID")
 found=any((i.get("entity_type") == "Hisabi Account" and (i.get("client_id") == acc or i.get("entity_id") == acc)) for i in items)
@@ -127,16 +185,60 @@ if [[ "${HAS_ITEM}" != "yes" ]]; then
   exit 1
 fi
 
-NEXT_CURSOR=$(echo "${PULL_RESP}" | sed '/HTTP_STATUS:/d' | json_get message.next_cursor || true)
+NEXT_CURSOR=$(echo "${PULL_BODY}" | json_get message.next_cursor || true)
 if [[ -z "${NEXT_CURSOR}" ]]; then
   echo "Missing next_cursor in pull response" >&2
   exit 1
 fi
 
+PULL_DOC_VERSION=$(ACC_ID="${ACC_ID}" PULL_BODY="${PULL_BODY}" python3 - <<PY
+import json,os
+raw=os.environ.get("PULL_BODY","")
+data=json.loads(raw) if raw else {}
+items=(data.get("message") or {}).get("items") or []
+acc=os.environ.get("ACC_ID")
+for item in items:
+    if item.get("entity_type") != "Hisabi Account":
+        continue
+    if item.get("client_id") == acc or item.get("entity_id") == acc:
+        val=item.get("doc_version")
+        if val is not None:
+            print(val)
+            raise SystemExit
+print("")
+PY
+)
+if [[ -n "${PULL_DOC_VERSION}" ]]; then
+  DOC_VERSION="${PULL_DOC_VERSION}"
+fi
+
+DELETE_ID=$(ACC_ID="${ACC_ID}" PULL_BODY="${PULL_BODY}" python3 - <<PY
+import json,os
+raw=os.environ.get("PULL_BODY","")
+data=json.loads(raw) if raw else {}
+items=(data.get("message") or {}).get("items") or []
+acc=os.environ.get("ACC_ID")
+for item in items:
+    if item.get("entity_type") != "Hisabi Account":
+        continue
+    if item.get("client_id") == acc or item.get("entity_id") == acc:
+        payload=item.get("payload") or {}
+        name=payload.get("name")
+        if name:
+            print(name)
+            raise SystemExit
+        cid=item.get("client_id") or item.get("entity_id")
+        if cid:
+            print(cid)
+            raise SystemExit
+print(acc)
+PY
+)
+
 echo "==> Sync push (delete account)"
 DELETE_PAYLOAD=$(cat <<JSON
 {"device_id":"${DEVICE_ID}","wallet_id":"${WALLET_ID}","items":[
-  {"op_id":"op-acc-del-${TS}","entity_type":"Hisabi Account","entity_id":"${ACC_ID}","operation":"delete","base_version":${DOC_VERSION},"payload":{"client_id":"${ACC_ID}"}}
+  {"op_id":"op-acc-del-${TS}","entity_type":"Hisabi Account","entity_id":"${DELETE_ID}","operation":"delete","base_version":${DOC_VERSION},"payload":{"client_id":"${DELETE_ID}"}}
 ]}
 JSON
 )
@@ -144,18 +246,27 @@ DELETE_RESP=$(curl_with_status POST "${BASE_URL}/api/method/hisabi_backend.api.v
 print_status_and_body "${DELETE_RESP}"
 assert_status "${DELETE_RESP}" "200"
 
+DELETE_STATUS=$(echo "${DELETE_RESP}" | sed '/HTTP_STATUS:/d' | json_get message.results.0.status || true)
+if [[ "${DELETE_STATUS}" != "accepted" && "${DELETE_STATUS}" != "duplicate" ]]; then
+  echo "Delete did not succeed (status=${DELETE_STATUS})" >&2
+  exit 1
+fi
+
 echo "==> Sync pull (after delete)"
-PULL_AFTER_PAYLOAD=$(cat <<JSON
-{"device_id":"${DEVICE_ID}","wallet_id":"${WALLET_ID}","cursor":"${NEXT_CURSOR}","limit":50}
-JSON
-)
-PULL_AFTER_RESP=$(curl_with_status POST "${BASE_URL}/api/method/hisabi_backend.api.v1.sync.sync_pull" "${PULL_AFTER_PAYLOAD}" "${TOKEN}")
+PULL_AFTER_RESP=$(curl_with_status_get "${BASE_URL}/api/method/hisabi_backend.api.v1.sync.sync_pull" "${TOKEN}" \
+  --data-urlencode "device_id=${DEVICE_ID}" \
+  --data-urlencode "wallet_id=${WALLET_ID}" \
+  --data-urlencode "cursor=${NEXT_CURSOR}" \
+  --data-urlencode "limit=50")
 print_status_and_body "${PULL_AFTER_RESP}"
 assert_status "${PULL_AFTER_RESP}" "200"
+assert_header_present "${PULL_AFTER_RESP}" "X-Hisabi-Pull-Impl"
 
-HAS_DELETE=$(echo "${PULL_AFTER_RESP}" | sed '/HTTP_STATUS:/d' | ACC_ID="${ACC_ID}" python3 - <<PY
-import json,sys,os
-data=json.load(sys.stdin)
+PULL_AFTER_BODY=$(response_body "${PULL_AFTER_RESP}")
+HAS_DELETE=$(ACC_ID="${DELETE_ID}" PULL_AFTER_BODY="${PULL_AFTER_BODY}" python3 - <<PY
+import json,os
+raw=os.environ.get("PULL_AFTER_BODY","")
+data=json.loads(raw) if raw else {}
 items=(data.get("message") or {}).get("items") or []
 acc=os.environ.get("ACC_ID")
 for item in items:

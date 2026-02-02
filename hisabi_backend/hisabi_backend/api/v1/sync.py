@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import datetime
 import json
+import subprocess
 from typing import Any, Dict, List, Optional, Tuple
 
 import frappe
@@ -998,11 +1000,36 @@ def sync_pull(
 ) -> Dict[str, Any]:
     """Return server changes since cursor using server_modified."""
 
+    def _coerce_json(value: Any) -> Any:
+        if isinstance(value, (datetime.date, datetime.datetime, datetime.time)):
+            return str(value)
+        if isinstance(value, dict):
+            return {str(k): _coerce_json(v) for k, v in value.items()}
+        if isinstance(value, (list, tuple, set)):
+            return [_coerce_json(v) for v in value]
+        return value
+
     def _build_sync_response(payload: Dict[str, Any], status_code: int = 200) -> Response:
+        try:
+            short_head = (
+                subprocess.check_output(
+                    ["git", "rev-parse", "--short", "HEAD"],
+                    cwd="/home/frappe/frappe-bench/apps/hisabi_backend",
+                )
+                .decode()
+                .strip()
+            )
+        except Exception:
+            short_head = "unknown"
+
         response = Response()
         response.mimetype = "application/json"
         response.status_code = status_code
-        response.data = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+        response.data = frappe.as_json(payload)
+        response.headers["X-Hisabi-Pull-Impl"] = f"hisabi_backend.api.v1.sync:sync_pull@{short_head}"
+        response.headers["X-Hisabi-Pull-Args"] = (
+            f"has_form={int(has_form)}; has_args={int(has_args)}; has_json={int(has_json)}; has_qs={int(has_qs)}"
+        )
         return response
 
     from urllib.parse import parse_qs
@@ -1010,6 +1037,10 @@ def sync_pull(
     form_dict = frappe.form_dict or {}
     request = getattr(frappe.local, "request", None)
     json_body = None
+    has_form = bool(form_dict)
+    has_args = bool(getattr(request, "args", None))
+    has_json = False
+    has_qs = bool(getattr(request, "query_string", None))
 
     if device_id is None:
         device_id = form_dict.get("device_id")
@@ -1034,38 +1065,6 @@ def sync_pull(
         if limit is None:
             limit = request.args.get("limit")
 
-    if request and request.form:
-        if device_id is None:
-            device_id = request.form.get("device_id")
-        if wallet_id is None:
-            wallet_id = request.form.get("wallet_id")
-        if since is None:
-            since = request.form.get("since")
-        if cursor is None:
-            cursor = request.form.get("cursor")
-        if limit is None:
-            limit = request.form.get("limit")
-
-    if request and request.data:
-        raw = request.data.decode("utf-8")
-        if raw:
-            try:
-                json_body = json.loads(raw)
-            except json.JSONDecodeError:
-                json_body = None
-
-    if isinstance(json_body, dict):
-        if device_id is None:
-            device_id = json_body.get("device_id")
-        if wallet_id is None:
-            wallet_id = json_body.get("wallet_id")
-        if since is None:
-            since = json_body.get("since")
-        if cursor is None:
-            cursor = json_body.get("cursor")
-        if limit is None:
-            limit = json_body.get("limit")
-
     if request and getattr(request, "query_string", None):
         parsed = parse_qs(request.query_string.decode("utf-8"))
         if device_id is None:
@@ -1078,6 +1077,27 @@ def sync_pull(
             cursor = (parsed.get("cursor") or [None])[0]
         if limit is None:
             limit = (parsed.get("limit") or [None])[0]
+
+    if request and request.data and request.content_type and "application/json" in request.content_type:
+        raw = request.data.decode("utf-8")
+        if raw:
+            try:
+                json_body = json.loads(raw)
+            except json.JSONDecodeError:
+                json_body = None
+
+    if isinstance(json_body, dict):
+        has_json = True
+        if device_id is None:
+            device_id = json_body.get("device_id")
+        if wallet_id is None:
+            wallet_id = json_body.get("wallet_id")
+        if since is None:
+            since = json_body.get("since")
+        if cursor is None:
+            cursor = json_body.get("cursor")
+        if limit is None:
+            limit = json_body.get("limit")
 
     if not device_id:
         return _build_sync_response({"error": "device_id is required"}, status_code=417)
@@ -1136,6 +1156,7 @@ def sync_pull(
 
         for row in records:
             doc = _sanitize_pull_record(doctype, frappe.get_doc(doctype, row.name).as_dict())
+            doc = _coerce_json(doc)
             client_id = doc.get("client_id") or doc.get("name")
             item = {
                 "entity_type": doctype,
@@ -1161,7 +1182,8 @@ def sync_pull(
 
     device.last_pull_at = now_datetime()
     device.last_pull_ms = min(int(device.last_pull_at.timestamp() * 1000), 2147483647)
-    device.save(ignore_permissions=True)
+    device.db_set("last_pull_at", device.last_pull_at, update_modified=False)
+    device.db_set("last_pull_ms", device.last_pull_ms, update_modified=False)
 
     return _build_sync_response(
         {"message": {"items": items, "next_cursor": next_cursor.isoformat(), "server_time": now_datetime().isoformat()}},
