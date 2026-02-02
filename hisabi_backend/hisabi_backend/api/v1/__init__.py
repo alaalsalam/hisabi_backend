@@ -58,11 +58,17 @@ def me():
 
     user, device = require_device_token_auth()
     default_wallet_id = ensure_default_wallet_for_user(user, device_id=device.device_id)
+    wallets = get_wallets_for_user(user, default_wallet_id=default_wallet_id)
+    # Defensive: ensure the derived flag exists even if helper output changes.
+    for row in wallets:
+        row["isDefault"] = row.get("wallet") == default_wallet_id
     return {
+        "_impl": "hisabi_backend.api.v1.__init__:me",
+        "impl": "hisabi_backend.api.v1.__init__:me",
         "user": _serialize_user(user),
         "device": {"device_id": device.device_id, "status": device.status, "last_seen_at": device.last_seen_at},
         "default_wallet_id": default_wallet_id,
-        "wallets": get_wallets_for_user(user, default_wallet_id=default_wallet_id),
+        "wallets": wallets,
         "server_time": now_datetime().isoformat(),
     }
 

@@ -22,9 +22,34 @@ def report_summary(
     device_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     user, _device = require_device_token_auth()
-    wallet_id = wallet_id or get_request_param("wallet_id")
+    # Be explicit: Frappe RPC sometimes doesn't populate `wallet_id` into function args.
+    # Read from form_dict and then fall back to request parsing helper (args/query_string/json body).
+    wallet_id = wallet_id or frappe.form_dict.get("wallet_id") or get_request_param("wallet_id")
     if not wallet_id:
-        frappe.throw("wallet_id is required", frappe.ValidationError)
+        # Temporary debug aid for live wiring issues: return request context to diagnose why
+        # query string params aren't reaching the method.
+        req = getattr(frappe.local, "request", None)
+        try:
+            raw_qs = getattr(req, "query_string", b"") if req else b""
+            if isinstance(raw_qs, bytes):
+                raw_qs_str = raw_qs.decode("utf-8", errors="ignore")
+            else:
+                raw_qs_str = str(raw_qs)
+        except Exception:
+            raw_qs_str = ""
+        debug_args = {
+            "form_dict_wallet_id": frappe.form_dict.get("wallet_id"),
+            "request_args_wallet_id": getattr(getattr(req, "args", None), "get", lambda _k: None)("wallet_id")
+            if req
+            else None,
+            "query_string": raw_qs_str[:200],
+        }
+        frappe.local.response["http_status_code"] = 417
+        return {
+            "impl": "hisabi_backend.api.v1.reports_finance:report_summary",
+            "error": "wallet_id is required",
+            "debug_args": debug_args,
+        }
     wallet_id = validate_client_id(wallet_id)
     require_wallet_member(wallet_id, user, min_role="viewer")
 
@@ -132,6 +157,8 @@ def report_summary(
     }
 
     return {
+        "_impl": "hisabi_backend.api.v1.reports_finance:report_summary",
+        "impl": "hisabi_backend.api.v1.reports_finance:report_summary",
         "accounts": accounts,
         "totals": totals_out,
         "budgets": budgets,

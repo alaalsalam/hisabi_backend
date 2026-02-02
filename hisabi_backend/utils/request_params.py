@@ -7,6 +7,7 @@ For mobile clients, we also accept JSON request bodies (application/json).
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import parse_qs
 
 import frappe
 
@@ -46,6 +47,17 @@ def get_request_param(name: str) -> Any:
             val = None
         if val is not None and val != "":
             return val
+        # Some deployments may not populate `request.args` but still have a raw query string.
+        try:
+            qs = getattr(req, "query_string", None) or b""
+            if isinstance(qs, bytes):
+                qs = qs.decode("utf-8", errors="ignore")
+            parsed = parse_qs(qs, keep_blank_values=False)
+            raw = parsed.get(name)
+            if raw and raw[0] != "":
+                return raw[0]
+        except Exception:
+            pass
         try:
             val = req.form.get(name)
         except Exception:
