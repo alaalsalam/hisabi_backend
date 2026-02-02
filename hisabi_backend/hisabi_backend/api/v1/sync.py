@@ -577,6 +577,14 @@ def sync_push(
     if items is None:
         items = form_dict.get("items")
 
+    if request:
+        if device_id is None:
+            device_id = request.form.get("device_id") or request.args.get("device_id")
+        if wallet_id is None:
+            wallet_id = request.form.get("wallet_id") or request.args.get("wallet_id")
+        if items is None:
+            items = request.form.get("items") or request.args.get("items")
+
     if device_id is None and json_body:
         device_id = json_body.get("device_id")
     if wallet_id is None and json_body:
