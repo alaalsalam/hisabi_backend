@@ -141,6 +141,7 @@ RATE_LIMIT_MAX = 60
 RATE_LIMIT_WINDOW_SEC = 600
 MAX_PUSH_ITEMS = 200
 MAX_PAYLOAD_BYTES = 100 * 1024
+SYNC_PUSH_IMPL_STAMP = "hisabi_backend.api.v1.sync:sync_push@c3f9db4"
 
 SERVER_AUTH_FIELDS = {
     "Hisabi Account": {"current_balance"},
@@ -604,6 +605,19 @@ def sync_push(
         except json.JSONDecodeError:
             items = None
 
+    has_form = 1 if form_dict else 0
+    has_json = 1 if json_body else 0
+    items_type = type(items).__name__ if items is not None else "none"
+    try:
+        frappe.local.response.setdefault("http_headers", []).append(
+            ("X-Hisabi-Sync-Impl", SYNC_PUSH_IMPL_STAMP)
+        )
+        frappe.local.response.setdefault("http_headers", []).append(
+            ("X-Hisabi-Sync-Args", f"has_form={has_form}; has_json={has_json}; items_type={items_type}")
+        )
+    except Exception:
+        pass
+
     if not device_id:
         frappe.throw("device_id is required", frappe.ValidationError)
     if not wallet_id:
@@ -907,7 +921,7 @@ def sync_push(
         recalc_jameyas(user, affected_jameyas)
 
     device.last_sync_at = now_datetime()
-    device.last_sync_ms = int(device.last_sync_at.timestamp() * 1000)
+    device.last_sync_ms = min(int(device.last_sync_at.timestamp() * 1000), 2147483647)
     device.save(ignore_permissions=True)
 
     return {"results": results, "server_time": now_datetime().isoformat()}
