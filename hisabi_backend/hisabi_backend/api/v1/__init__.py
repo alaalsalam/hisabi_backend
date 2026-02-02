@@ -63,8 +63,6 @@ def me():
     for row in wallets:
         row["isDefault"] = row.get("wallet") == default_wallet_id
     return {
-        "_impl": "hisabi_backend.api.v1.__init__:me",
-        "impl": "hisabi_backend.api.v1.__init__:me",
         "user": _serialize_user(user),
         "device": {"device_id": device.device_id, "status": device.status, "last_seen_at": device.last_seen_at},
         "default_wallet_id": default_wallet_id,
