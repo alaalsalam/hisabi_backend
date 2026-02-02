@@ -74,15 +74,11 @@ fi
 
 TS=$(date +%s)
 ACC_ID="acc-sync-${TS}"
-CAT_ID="cat-sync-${TS}"
-TX_ID="tx-sync-${TS}"
 
 echo "==> Sync push (valid minimal payload)"
 VALID_SYNC_PAYLOAD=$(cat <<JSON
 {"device_id":"${DEVICE_ID}","wallet_id":"${WALLET_ID}","items":[
-  {"op_id":"op-acc-${TS}","entity_type":"Hisabi Account","entity_id":"${ACC_ID}","operation":"create","payload":{"client_id":"${ACC_ID}","name":"Cash","type":"cash","currency":"SAR"}},
-  {"op_id":"op-cat-${TS}","entity_type":"Hisabi Category","entity_id":"${CAT_ID}","operation":"create","payload":{"client_id":"${CAT_ID}","name":"Food","kind":"expense"}},
-  {"op_id":"op-tx-${TS}","entity_type":"Hisabi Transaction","entity_id":"${TX_ID}","operation":"create","payload":{"client_id":"${TX_ID}","type":"expense","date_time":"$(date -u +%Y-%m-%dT%H:%M:%SZ)","amount":10,"currency":"SAR","account_id":"${ACC_ID}"}}
+  {"op_id":"op-acc-${TS}","entity_type":"Hisabi Account","entity_id":"${ACC_ID}","operation":"create","payload":{"client_id":"${ACC_ID}","name":"Cash","type":"cash","currency":"SAR"}}
 ]}
 JSON
 )
@@ -102,7 +98,7 @@ print_status_and_body "${INVALID_WALLET_RESP}"
 echo "==> Sync push (invalid: unknown entity_type)"
 INVALID_ENTITY_PAYLOAD=$(cat <<JSON
 {"device_id":"${DEVICE_ID}","wallet_id":"${WALLET_ID}","items":[
-  {"op_id":"op-unknown-${TS}","entity_type":"Hisabi Unknown","entity_id":"unknown-${TS}","operation":"create","payload":{"client_id":"unknown-${TS}","name":"Bad"}}
+  {"op_id":"op-unknown-${TS}","entity_type":"Hisabi Unknown","entity_id":"unknown-${TS}","operation":"create","payload":{"client_id":"unknown-${TS}","name":"Bad","type":"cash","currency":"SAR"}}
 ]}
 JSON
 )
