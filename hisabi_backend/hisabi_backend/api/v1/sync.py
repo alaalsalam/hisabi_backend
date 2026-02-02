@@ -988,22 +988,88 @@ def sync_push(
 
 
 @frappe.whitelist(allow_guest=False)
-def sync_pull(device_id: str, wallet_id: str, cursor: Optional[str] = None, limit: int = 500) -> Dict[str, Any]:
+def sync_pull(
+    device_id: Optional[str] = None,
+    wallet_id: Optional[str] = None,
+    cursor: Optional[str] = None,
+    limit: int = 500,
+    since: Optional[str] = None,
+) -> Dict[str, Any]:
     """Return server changes since cursor using server_modified."""
+
+    def _build_sync_response(payload: Dict[str, Any], status_code: int = 200) -> Response:
+        response = Response()
+        response.mimetype = "application/json"
+        response.status_code = status_code
+        response.data = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+        return response
+
+    form_dict = frappe.form_dict or {}
+    request = getattr(frappe.local, "request", None)
+    json_body = None
+
+    if device_id is None:
+        device_id = form_dict.get("device_id")
+    if wallet_id is None:
+        wallet_id = form_dict.get("wallet_id")
+    if cursor is None:
+        cursor = form_dict.get("cursor")
+    if since is None:
+        since = form_dict.get("since")
+    if limit is None:
+        limit = form_dict.get("limit")
+
+    if request:
+        if device_id is None:
+            device_id = request.form.get("device_id") or request.args.get("device_id")
+        if wallet_id is None:
+            wallet_id = request.form.get("wallet_id") or request.args.get("wallet_id")
+        if cursor is None:
+            cursor = request.form.get("cursor") or request.args.get("cursor")
+        if since is None:
+            since = request.form.get("since") or request.args.get("since")
+        if limit is None:
+            limit = request.form.get("limit") or request.args.get("limit")
+
+    if request and request.data:
+        raw = request.data.decode("utf-8")
+        if raw:
+            try:
+                json_body = json.loads(raw)
+            except json.JSONDecodeError:
+                json_body = None
+
+    if isinstance(json_body, dict):
+        if device_id is None:
+            device_id = json_body.get("device_id")
+        if wallet_id is None:
+            wallet_id = json_body.get("wallet_id")
+        if cursor is None:
+            cursor = json_body.get("cursor")
+        if since is None:
+            since = json_body.get("since")
+        if limit is None:
+            limit = json_body.get("limit")
+
+    if not device_id:
+        return _build_sync_response({"error": "device_id is required"}, status_code=417)
+    if not wallet_id:
+        return _build_sync_response({"error": "wallet_id is required"}, status_code=417)
+
     user, device = _require_device_auth(device_id)
     wallet_id = validate_client_id(wallet_id)
     require_wallet_member(wallet_id, user, min_role="viewer")
     limit = min(int(limit or 500), 500)
 
-    since = None
-    if cursor:
-        since = get_datetime(cursor)
-        if not since:
-            frappe.throw(_("Invalid cursor"), frappe.ValidationError)
+    cursor_value = cursor or since
+    since_dt = None
+    if cursor_value:
+        since_dt = get_datetime(cursor_value)
+        if not since_dt:
+            return _build_sync_response({"error": "invalid_cursor"}, status_code=417)
 
     next_cursor = now_datetime()
-
-    changes: Dict[str, List[Dict[str, Any]]] = {}
+    items: List[Dict[str, Any]] = []
     remaining = limit
 
     for doctype in DOCTYPE_LIST:
@@ -1027,8 +1093,8 @@ def sync_pull(device_id: str, wallet_id: str, cursor: Optional[str] = None, limi
         else:
             filters["owner"] = user
 
-        if since:
-            filters["server_modified"] = [">", since]
+        if since_dt:
+            filters["server_modified"] = [">", since_dt]
 
         records = frappe.get_all(
             doctype,
@@ -1040,25 +1106,36 @@ def sync_pull(device_id: str, wallet_id: str, cursor: Optional[str] = None, limi
         if not records:
             continue
 
-        docs = [
-            _sanitize_pull_record(doctype, frappe.get_doc(doctype, row.name).as_dict()) for row in records
-        ]
-        changes[doctype] = docs
-        remaining -= len(records)
+        for row in records:
+            doc = _sanitize_pull_record(doctype, frappe.get_doc(doctype, row.name).as_dict())
+            client_id = doc.get("client_id") or doc.get("name")
+            item = {
+                "entity_type": doctype,
+                "entity_id": client_id,
+                "client_id": client_id,
+                "doc_version": doc.get("doc_version"),
+                "server_modified": _to_iso(doc.get("server_modified")),
+                "payload": doc,
+                "is_deleted": doc.get("is_deleted"),
+                "deleted_at": _to_iso(doc.get("deleted_at")),
+            }
+            items.append(item)
+            remaining -= 1
 
-        for doc in docs:
             server_modified = doc.get("server_modified")
             if server_modified:
                 server_modified_dt = get_datetime(server_modified)
                 if server_modified_dt > next_cursor:
                     next_cursor = server_modified_dt
 
+            if remaining <= 0:
+                break
+
     device.last_pull_at = now_datetime()
-    device.last_pull_ms = int(device.last_pull_at.timestamp() * 1000)
+    device.last_pull_ms = min(int(device.last_pull_at.timestamp() * 1000), 2147483647)
     device.save(ignore_permissions=True)
 
-    return {
-        "changes": changes,
-        "next_cursor": next_cursor.isoformat(),
-        "server_time": now_datetime().isoformat(),
-    }
+    return _build_sync_response(
+        {"message": {"items": items, "next_cursor": next_cursor.isoformat(), "server_time": now_datetime().isoformat()}},
+        status_code=200,
+    )

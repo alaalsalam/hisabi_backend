@@ -1,3 +1,5 @@
+import json
+
 import frappe
 from frappe.tests.utils import FrappeTestCase
 from frappe.utils.password import update_password
@@ -15,6 +17,14 @@ from hisabi_backend.install import ensure_roles
 
 
 class TestSharedWallets(FrappeTestCase):
+    def _pull_message(self, response):
+        if isinstance(response, dict):
+            return response
+        if hasattr(response, "get_data"):
+            payload = json.loads(response.get_data(as_text=True) or "{}")
+            return payload.get("message", payload)
+        return response
+
     def _new_user(self, prefix: str) -> frappe.model.document.Document:
         email = f"{prefix}_{frappe.generate_hash(length=6)}@example.com"
         user = frappe.get_doc(
@@ -64,9 +74,10 @@ class TestSharedWallets(FrappeTestCase):
         self.assertTrue(frappe.db.exists("Hisabi Audit Log", {"event_type": "wallet_invite_created"}))
         self.assertTrue(frappe.db.exists("Hisabi Audit Log", {"event_type": "wallet_invite_accepted"}))
 
-        pull = sync_pull(device_id=device2_id, wallet_id=wallet_id)
-        self.assertIn("Hisabi Wallet", pull.get("changes", {}))
-        self.assertIn("Hisabi Wallet Member", pull.get("changes", {}))
+        pull = self._pull_message(sync_pull(device_id=device2_id, wallet_id=wallet_id))
+        items = pull.get("items", [])
+        self.assertTrue(any(row.get("entity_type") == "Hisabi Wallet" for row in items))
+        self.assertTrue(any(row.get("entity_type") == "Hisabi Wallet Member" for row in items))
 
         wl = wallets_list(device_id=device2_id)["wallets"]
         self.assertTrue(any((row.get("wallet") == wallet_id) for row in wl))

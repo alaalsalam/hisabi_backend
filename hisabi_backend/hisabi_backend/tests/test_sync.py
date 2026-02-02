@@ -1,3 +1,5 @@
+import json
+
 import frappe
 from frappe.tests.utils import FrappeTestCase
 from frappe.utils import now_datetime
@@ -10,6 +12,14 @@ from hisabi_backend.install import ensure_roles
 
 
 class TestSyncV1(FrappeTestCase):
+    def _pull_message(self, response):
+        if isinstance(response, dict):
+            return response
+        if hasattr(response, "get_data"):
+            payload = json.loads(response.get_data(as_text=True) or "{}")
+            return payload.get("message", payload)
+        return response
+
     def setUp(self):
         ensure_roles()
         email = f"sync_test_{frappe.generate_hash(length=6)}@example.com"
@@ -410,8 +420,8 @@ class TestSyncV1(FrappeTestCase):
             ],
         )
 
-        pull = sync_pull(device_id=self.device_id, wallet_id=self.wallet_id)
-        self.assertIn("Hisabi Account", pull["changes"])
+        pull = self._pull_message(sync_pull(device_id=self.device_id, wallet_id=self.wallet_id))
+        self.assertTrue(any(item.get("entity_type") == "Hisabi Account" for item in pull.get("items", [])))
         cursor = pull["next_cursor"]
         self.assertIsInstance(cursor, str)
 
@@ -432,8 +442,10 @@ class TestSyncV1(FrappeTestCase):
             ],
         )
 
-        pull_after = sync_pull(device_id=self.device_id, wallet_id=self.wallet_id, cursor=cursor)
-        account_changes = pull_after["changes"].get("Hisabi Account", [])
+        pull_after = self._pull_message(sync_pull(device_id=self.device_id, wallet_id=self.wallet_id, cursor=cursor))
+        account_changes = [
+            row for row in pull_after.get("items", []) if row.get("entity_type") == "Hisabi Account"
+        ]
         self.assertTrue(any(row.get("client_id") == "acc-3" for row in account_changes))
         deleted_row = next(row for row in account_changes if row.get("client_id") == "acc-3")
         self.assertEqual(deleted_row.get("is_deleted"), 1)
@@ -476,7 +488,7 @@ class TestSyncV1(FrappeTestCase):
         acc = frappe.get_doc("Hisabi Account", "acc-del")
         self.assertEqual(acc.current_balance, 70)
 
-        pull_before = sync_pull(device_id=self.device_id, wallet_id=self.wallet_id)
+        pull_before = self._pull_message(sync_pull(device_id=self.device_id, wallet_id=self.wallet_id))
         cursor = pull_before["next_cursor"]
 
         sync_push(
@@ -502,8 +514,10 @@ class TestSyncV1(FrappeTestCase):
         self.assertEqual(tx.is_deleted, 1)
         self.assertTrue(tx.deleted_at)
 
-        pull_after = sync_pull(device_id=self.device_id, wallet_id=self.wallet_id, cursor=cursor)
-        tx_changes = pull_after["changes"].get("Hisabi Transaction", [])
+        pull_after = self._pull_message(sync_pull(device_id=self.device_id, wallet_id=self.wallet_id, cursor=cursor))
+        tx_changes = [
+            row for row in pull_after.get("items", []) if row.get("entity_type") == "Hisabi Transaction"
+        ]
         self.assertTrue(any(row.get("client_id") == "tx-del" for row in tx_changes))
 
     def test_duplicate_op_returns_stored_result(self):
