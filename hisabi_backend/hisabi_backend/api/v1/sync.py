@@ -142,7 +142,6 @@ RATE_LIMIT_MAX = 60
 RATE_LIMIT_WINDOW_SEC = 600
 MAX_PUSH_ITEMS = 200
 MAX_PAYLOAD_BYTES = 100 * 1024
-SYNC_PUSH_IMPL_STAMP = "hisabi_backend.api.v1.sync:sync_push@c3f9db4"
 
 SERVER_AUTH_FIELDS = {
     "Hisabi Account": {"current_balance"},
@@ -615,16 +614,10 @@ def sync_push(
         except json.JSONDecodeError:
             items = None
 
-    has_form = 1 if form_dict else 0
-    has_json = 1 if json_body else 0
-    items_type = type(items).__name__ if items is not None else "none"
-
     def _build_sync_response(payload: Dict[str, Any], status_code: int = 200) -> Response:
         response = Response()
         response.mimetype = "application/json"
         response.status_code = status_code
-        response.headers["X-Hisabi-Sync-Impl"] = SYNC_PUSH_IMPL_STAMP
-        response.headers["X-Hisabi-Sync-Args"] = f"has_form={has_form}; has_json={has_json}; items_type={items_type}"
         response.data = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
         return response
 
