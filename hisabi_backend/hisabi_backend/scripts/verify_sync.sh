@@ -109,4 +109,12 @@ JSON
 INVALID_ENTITY_RESP=$(curl_with_status POST "${BASE_URL}/api/method/hisabi_backend.api.v1.sync.sync_push" "${INVALID_ENTITY_PAYLOAD}" "${TOKEN}")
 print_status_and_body "${INVALID_ENTITY_RESP}"
 
+echo "==> Sync push (form-encoded params)"
+FORM_PAYLOAD="device_id=${DEVICE_ID}&wallet_id=${WALLET_ID}&items=%5B%5D"
+FORM_RESP=$(curl -s -w "\nHTTP_STATUS:%{http_code}\n" -X POST "${BASE_URL}/api/method/hisabi_backend.api.v1.sync.sync_push" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "${FORM_PAYLOAD}")
+print_status_and_body "${FORM_RESP}"
+
 echo "Done."
