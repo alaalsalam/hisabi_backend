@@ -46,6 +46,10 @@ function print_status_and_body() {
   body=$(echo "${response}" | sed '/HTTP_STATUS:/d')
   echo "HTTP ${status}"
   echo "${body}"
+  if echo "${body}" | rg -q "http_headers"; then
+    echo "Unexpected diagnostics found: http_headers" >&2
+    exit 1
+  fi
 }
 
 echo "==> Register user"

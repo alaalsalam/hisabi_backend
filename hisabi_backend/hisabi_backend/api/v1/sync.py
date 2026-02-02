@@ -650,6 +650,11 @@ def sync_push(
     budgets_dirty = False
     goals_dirty = False
 
+    for item in items:
+        validation_error = _validate_sync_push_item(item, wallet_id)
+        if validation_error and validation_error.get("error") in {"unsupported_entity_type", "doctype_not_installed"}:
+            return _build_sync_response({"error": validation_error.get("error")}, status_code=417)
+
     # Wallet creation via sync: allow create for Hisabi Wallet even if user is not yet a member.
     # For all other mutations, require membership (viewer is read-only).
     member_info = None
