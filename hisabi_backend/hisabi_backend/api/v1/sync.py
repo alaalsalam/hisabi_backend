@@ -355,86 +355,129 @@ def _invalid_field_types(payload: Dict[str, Any], fields: set[str]) -> Dict[str,
     return invalid
 
 
+ERROR_MESSAGE_MAP = {
+    "entity_type_required": "entity_type is required",
+    "unsupported_entity_type": "unsupported_entity_type",
+    "doctype_not_installed": "doctype_not_installed",
+    "invalid_operation": "invalid operation",
+    "entity_id_required": "entity_id is required",
+    "payload_must_be_object": "payload must be an object",
+    "wallet_id_mismatch": "wallet_id mismatch",
+    "entity_id_mismatch": "entity_id does not match payload client_id",
+    "invalid_client_id": "invalid client_id",
+    "base_version_required": "base_version is required",
+    "base_version_invalid": "base_version must be a number",
+    "missing_required_fields": "missing required fields",
+    "invalid_field_type": "invalid field type",
+    "not_found": "record not found",
+    "payload_too_large": "payload too large",
+    "wallet_id_must_equal_client_id": "wallet_id must equal client_id",
+}
+
+
+def _build_item_error(
+    *,
+    error_code: str,
+    entity_type: Optional[str] = None,
+    client_id: Optional[str] = None,
+    detail: Any = None,
+) -> Dict[str, Any]:
+    payload: Dict[str, Any] = {
+        "status": "error",
+        "error": error_code,
+        "error_code": error_code,
+        "error_message": ERROR_MESSAGE_MAP.get(error_code, error_code),
+    }
+    if entity_type:
+        payload["entity_type"] = entity_type
+    if client_id:
+        payload["client_id"] = client_id
+    if detail is not None:
+        payload["detail"] = detail
+    return payload
+
+
 def _validate_sync_push_item(item: Dict[str, Any], wallet_id: str) -> Optional[Dict[str, Any]]:
     entity_type = item.get("entity_type")
     if not entity_type:
-        return {"status": "error", "error": "entity_type_required"}
+        return _build_item_error(error_code="entity_type_required")
 
     if entity_type not in SYNC_PUSH_ALLOWLIST:
-        return {"status": "error", "entity_type": entity_type, "error": "unsupported_entity_type"}
+        return _build_item_error(error_code="unsupported_entity_type", entity_type=entity_type)
 
     if not frappe.db.exists("DocType", entity_type):
-        return {"status": "error", "entity_type": entity_type, "error": "doctype_not_installed"}
+        return _build_item_error(error_code="doctype_not_installed", entity_type=entity_type)
 
     operation = item.get("operation")
     if operation not in {"create", "update", "delete"}:
-        return {"status": "error", "entity_type": entity_type, "error": "invalid_operation"}
+        return _build_item_error(error_code="invalid_operation", entity_type=entity_type)
 
     entity_id = item.get("entity_id")
     if not isinstance(entity_id, str) or not entity_id.strip():
-        return {"status": "error", "entity_type": entity_type, "error": "entity_id_required"}
+        return _build_item_error(error_code="entity_id_required", entity_type=entity_type)
 
     payload = item.get("payload") or {}
     if not isinstance(payload, dict):
-        return {"status": "error", "entity_type": entity_type, "error": "payload_must_be_object"}
+        return _build_item_error(error_code="payload_must_be_object", entity_type=entity_type)
 
     if payload.get("wallet_id") and payload.get("wallet_id") != wallet_id:
-        return {
-            "status": "error",
-            "entity_type": entity_type,
-            "error": "wallet_id_mismatch",
-        }
+        return _build_item_error(error_code="wallet_id_mismatch", entity_type=entity_type)
 
     try:
         ensure_entity_id_matches(entity_id, payload.get("client_id"))
     except Exception:
-        return {"status": "error", "entity_type": entity_type, "error": "entity_id_mismatch"}
+        return _build_item_error(error_code="entity_id_mismatch", entity_type=entity_type)
 
     client_id = payload.get("client_id") or entity_id
     try:
         validate_client_id(client_id)
     except Exception:
-        return {"status": "error", "entity_type": entity_type, "client_id": client_id, "error": "invalid_client_id"}
+        return _build_item_error(error_code="invalid_client_id", entity_type=entity_type, client_id=client_id)
 
     if operation in {"update", "delete"}:
         base_version = item.get("base_version")
         if base_version is None:
-            return {"status": "error", "entity_type": entity_type, "client_id": client_id, "error": "base_version_required"}
+            return _build_item_error(
+                error_code="base_version_required",
+                entity_type=entity_type,
+                client_id=client_id,
+            )
         if not _is_number(base_version):
-            return {"status": "error", "entity_type": entity_type, "client_id": client_id, "error": "base_version_invalid"}
+            return _build_item_error(
+                error_code="base_version_invalid",
+                entity_type=entity_type,
+                client_id=client_id,
+            )
 
     if operation == "create":
         normalized = _apply_field_map(entity_type, payload)
         required = SYNC_PUSH_REQUIRED_FIELDS_CREATE.get(entity_type, set())
         missing = [field for field in required if normalized.get(field) in (None, "")]
         if missing:
-            return {
-                "status": "error",
-                "entity_type": entity_type,
-                "client_id": client_id,
-                "error": "missing_required_fields",
-                "detail": missing,
-            }
+            return _build_item_error(
+                error_code="missing_required_fields",
+                entity_type=entity_type,
+                client_id=client_id,
+                detail=missing,
+            )
 
         for group in SYNC_PUSH_REQUIRED_FIELD_GROUPS.get(entity_type, []):
             if not any(normalized.get(field) not in (None, "") for field in group):
-                return {
-                    "status": "error",
-                    "entity_type": entity_type,
-                    "client_id": client_id,
-                    "error": "missing_required_fields",
-                    "detail": sorted(group),
-                }
+                return _build_item_error(
+                    error_code="missing_required_fields",
+                    entity_type=entity_type,
+                    client_id=client_id,
+                    detail=sorted(group),
+                )
 
         invalid_types = _invalid_field_types(normalized, required)
         if invalid_types:
-            return {
-                "status": "error",
-                "entity_type": entity_type,
-                "client_id": client_id,
-                "error": "invalid_field_type",
-                "detail": invalid_types,
-            }
+            return _build_item_error(
+                error_code="invalid_field_type",
+                entity_type=entity_type,
+                client_id=client_id,
+                detail=invalid_types,
+            )
 
     return None
 
@@ -730,12 +773,11 @@ def sync_push(
             continue
 
         if operation in {"update", "delete"} and not existing:
-            result = {
-                "status": "error",
-                "entity_type": entity_type,
-                "client_id": client_id,
-                "error": "not_found",
-            }
+            result = _build_item_error(
+                error_code="not_found",
+                entity_type=entity_type,
+                client_id=client_id,
+            )
             results.append(result)
             _store_op_id(
                 user=user,
@@ -786,12 +828,11 @@ def sync_push(
         payload_json = frappe.as_json(payload)
         if len(payload_json.encode("utf-8")) > MAX_PAYLOAD_BYTES:
             results.append(
-                {
-                    "status": "error",
-                    "entity_type": entity_type,
-                    "client_id": client_id,
-                    "error": "payload_too_large",
-                }
+                _build_item_error(
+                    error_code="payload_too_large",
+                    entity_type=entity_type,
+                    client_id=client_id,
+                )
             )
             continue
 
@@ -804,7 +845,13 @@ def sync_push(
         # Wallet creation special case: create wallet + owner member.
         if entity_type == "Hisabi Wallet" and operation == "create":
             if client_id != wallet_id:
-                results.append({"status": "error", "entity_type": entity_type, "client_id": client_id, "error": "wallet_id must equal client_id"})
+                results.append(
+                    _build_item_error(
+                        error_code="wallet_id_must_equal_client_id",
+                        entity_type=entity_type,
+                        client_id=client_id,
+                    )
+                )
                 continue
 
         if entity_type != "Hisabi Wallet":
