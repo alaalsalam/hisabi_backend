@@ -552,8 +552,65 @@ def _check_rate_limit(device_id: str) -> None:
 
 
 @frappe.whitelist(allow_guest=False)
-def sync_push(device_id: str, wallet_id: str, items: List[Dict[str, Any]]) -> Dict[str, Any]:
+def sync_push(
+    device_id: Optional[str] = None,
+    wallet_id: Optional[str] = None,
+    items: Optional[List[Dict[str, Any]] | str] = None,
+    **kwargs,
+) -> Dict[str, Any]:
     """Apply client changes to the server."""
+    request = getattr(frappe, "request", None)
+    form_dict = getattr(frappe, "form_dict", {}) or {}
+    json_body = None
+
+    if request:
+        try:
+            json_body = request.get_json(silent=True)
+        except Exception:
+            json_body = None
+
+    if device_id is None:
+        device_id = form_dict.get("device_id")
+    if wallet_id is None:
+        wallet_id = form_dict.get("wallet_id")
+    if items is None:
+        items = form_dict.get("items")
+
+    if device_id is None and json_body:
+        device_id = json_body.get("device_id")
+    if wallet_id is None and json_body:
+        wallet_id = json_body.get("wallet_id")
+    if items is None and json_body:
+        items = json_body.get("items")
+
+    if items is None and request:
+        raw = request.data.decode("utf-8") if request.data else ""
+        if raw:
+            try:
+                parsed = json.loads(raw)
+            except json.JSONDecodeError:
+                parsed = None
+            if isinstance(parsed, dict):
+                if device_id is None:
+                    device_id = parsed.get("device_id")
+                if wallet_id is None:
+                    wallet_id = parsed.get("wallet_id")
+                if items is None:
+                    items = parsed.get("items")
+
+    if isinstance(items, str):
+        try:
+            items = json.loads(items)
+        except json.JSONDecodeError:
+            items = None
+
+    if not device_id:
+        frappe.throw("device_id is required", frappe.ValidationError)
+    if not wallet_id:
+        frappe.throw("wallet_id is required", frappe.ValidationError)
+    if items is None:
+        frappe.throw("items is required", frappe.ValidationError)
+
     user, device = _require_device_auth(device_id)
     _check_rate_limit(device_id)
     wallet_id = validate_client_id(wallet_id)
