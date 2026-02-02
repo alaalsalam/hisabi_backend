@@ -19,7 +19,6 @@ from hisabi_backend.utils.security import require_device_auth
 from hisabi_backend.utils.sync_common import apply_common_sync_fields
 from hisabi_backend.utils.wallet_acl import require_wallet_member
 from hisabi_backend.utils.validators import (
-    ensure_base_version,
     ensure_entity_id_matches,
     ensure_link_ownership,
     validate_client_id,
@@ -50,6 +49,93 @@ DOCTYPE_LIST = [
     "Hisabi Custom Currency",
     "Hisabi Audit Log",
 ]
+
+SYNC_PUSH_ALLOWLIST = {
+    "Hisabi Wallet",
+    "Hisabi Wallet Member",
+    "Hisabi Account",
+    "Hisabi Category",
+    "Hisabi Transaction",
+    "Hisabi Debt",
+    "Hisabi Debt Installment",
+    "Hisabi Debt Request",
+    "Hisabi Budget",
+    "Hisabi Goal",
+    "Hisabi Bucket",
+    "Hisabi Allocation Rule",
+    "Hisabi Allocation Rule Line",
+    "Hisabi Transaction Allocation",
+    "Hisabi Jameya",
+    "Hisabi Jameya Payment",
+    "Hisabi Attachment",
+}
+
+SYNC_PUSH_REQUIRED_FIELDS_CREATE = {
+    "Hisabi Wallet": {"wallet_name", "status"},
+    "Hisabi Wallet Member": {"wallet", "user", "role", "status"},
+    "Hisabi Account": {"account_name", "account_type", "currency"},
+    "Hisabi Category": {"category_name", "kind"},
+    "Hisabi Transaction": {"transaction_type", "date_time", "amount", "currency", "account"},
+    "Hisabi Debt": {"debt_name", "direction", "principal_amount"},
+    "Hisabi Debt Installment": {"debt", "amount"},
+    "Hisabi Debt Request": set(),
+    "Hisabi Budget": {"budget_name", "period", "scope_type"},
+    "Hisabi Goal": {"goal_name", "goal_type"},
+    "Hisabi Bucket": {"bucket_name"},
+    "Hisabi Allocation Rule": {"rule_name", "scope_type"},
+    "Hisabi Allocation Rule Line": {"rule", "bucket"},
+    "Hisabi Transaction Allocation": {"transaction", "bucket"},
+    "Hisabi Jameya": {"jameya_name", "monthly_amount", "total_members", "my_turn", "start_date"},
+    "Hisabi Jameya Payment": {"jameya"},
+    "Hisabi Attachment": {"owner_entity_type", "owner_client_id", "file_mime", "file_size"},
+}
+
+SYNC_PUSH_REQUIRED_FIELD_GROUPS = {
+    "Hisabi Budget": [{"amount", "amount_base"}],
+    "Hisabi Goal": [{"target_amount", "target_amount_base"}],
+}
+
+SYNC_PUSH_FIELD_TYPES = {
+    "wallet_name": "string",
+    "status": "string",
+    "wallet": "string",
+    "user": "string",
+    "role": "string",
+    "account_name": "string",
+    "account_type": "string",
+    "currency": "string",
+    "category_name": "string",
+    "kind": "string",
+    "transaction_type": "string",
+    "date_time": "string",
+    "account": "string",
+    "debt_name": "string",
+    "direction": "string",
+    "budget_name": "string",
+    "period": "string",
+    "scope_type": "string",
+    "goal_name": "string",
+    "goal_type": "string",
+    "bucket_name": "string",
+    "rule_name": "string",
+    "transaction": "string",
+    "jameya_name": "string",
+    "start_date": "string",
+    "owner_entity_type": "string",
+    "owner_client_id": "string",
+    "file_mime": "string",
+    "amount": "number",
+    "amount_base": "number",
+    "principal_amount": "number",
+    "target_amount": "number",
+    "target_amount_base": "number",
+    "monthly_amount": "number",
+    "total_members": "number",
+    "my_turn": "number",
+    "file_size": "number",
+}
+
+SYNC_PAYLOAD_LOG_IGNORE_KEYS = {"id"}
 
 RATE_LIMIT_MAX = 60
 RATE_LIMIT_WINDOW_SEC = 600
@@ -188,6 +274,11 @@ def _filter_payload_fields(doc: frappe.model.document.Document, payload: Dict[st
     if not payload:
         return {}
     allowed = {field.fieldname for field in doc.meta.fields}
+    unknown = [key for key in payload.keys() if key not in allowed and key not in SYNC_PAYLOAD_LOG_IGNORE_KEYS]
+    if unknown:
+        frappe.logger("hisabi_sync").warning(
+            "sync_push ignoring unknown fields for %s: %s", doc.doctype, ", ".join(sorted(unknown))
+        )
     return {key: value for key, value in payload.items() if key in allowed}
 
 
@@ -243,6 +334,108 @@ def _ensure_supported_doctype(doctype: str) -> None:
     if not frappe.db.exists("DocType", doctype):
         frappe.throw(_("DocType not installed: {0}").format(doctype), frappe.ValidationError)
     frappe.get_meta(doctype)
+
+
+def _is_number(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def _invalid_field_types(payload: Dict[str, Any], fields: set[str]) -> Dict[str, str]:
+    invalid: Dict[str, str] = {}
+    for field in fields:
+        expected = SYNC_PUSH_FIELD_TYPES.get(field)
+        if not expected or field not in payload:
+            continue
+        value = payload.get(field)
+        if expected == "string" and not isinstance(value, str):
+            invalid[field] = "string"
+        elif expected == "number" and not _is_number(value):
+            invalid[field] = "number"
+    return invalid
+
+
+def _validate_sync_push_item(item: Dict[str, Any], wallet_id: str) -> Optional[Dict[str, Any]]:
+    entity_type = item.get("entity_type")
+    if not entity_type:
+        return {"status": "error", "error": "entity_type_required"}
+
+    if entity_type not in SYNC_PUSH_ALLOWLIST:
+        return {"status": "error", "entity_type": entity_type, "error": "unsupported_entity_type"}
+
+    if not frappe.db.exists("DocType", entity_type):
+        return {"status": "error", "entity_type": entity_type, "error": "doctype_not_installed"}
+
+    operation = item.get("operation")
+    if operation not in {"create", "update", "delete"}:
+        return {"status": "error", "entity_type": entity_type, "error": "invalid_operation"}
+
+    entity_id = item.get("entity_id")
+    if not isinstance(entity_id, str) or not entity_id.strip():
+        return {"status": "error", "entity_type": entity_type, "error": "entity_id_required"}
+
+    payload = item.get("payload") or {}
+    if not isinstance(payload, dict):
+        return {"status": "error", "entity_type": entity_type, "error": "payload_must_be_object"}
+
+    if payload.get("wallet_id") and payload.get("wallet_id") != wallet_id:
+        return {
+            "status": "error",
+            "entity_type": entity_type,
+            "error": "wallet_id_mismatch",
+        }
+
+    try:
+        ensure_entity_id_matches(entity_id, payload.get("client_id"))
+    except Exception:
+        return {"status": "error", "entity_type": entity_type, "error": "entity_id_mismatch"}
+
+    client_id = payload.get("client_id") or entity_id
+    try:
+        validate_client_id(client_id)
+    except Exception:
+        return {"status": "error", "entity_type": entity_type, "client_id": client_id, "error": "invalid_client_id"}
+
+    if operation in {"update", "delete"}:
+        base_version = item.get("base_version")
+        if base_version is None:
+            return {"status": "error", "entity_type": entity_type, "client_id": client_id, "error": "base_version_required"}
+        if not _is_number(base_version):
+            return {"status": "error", "entity_type": entity_type, "client_id": client_id, "error": "base_version_invalid"}
+
+    if operation == "create":
+        normalized = _apply_field_map(entity_type, payload)
+        required = SYNC_PUSH_REQUIRED_FIELDS_CREATE.get(entity_type, set())
+        missing = [field for field in required if normalized.get(field) in (None, "")]
+        if missing:
+            return {
+                "status": "error",
+                "entity_type": entity_type,
+                "client_id": client_id,
+                "error": "missing_required_fields",
+                "detail": missing,
+            }
+
+        for group in SYNC_PUSH_REQUIRED_FIELD_GROUPS.get(entity_type, []):
+            if not any(normalized.get(field) not in (None, "") for field in group):
+                return {
+                    "status": "error",
+                    "entity_type": entity_type,
+                    "client_id": client_id,
+                    "error": "missing_required_fields",
+                    "detail": sorted(group),
+                }
+
+        invalid_types = _invalid_field_types(normalized, required)
+        if invalid_types:
+            return {
+                "status": "error",
+                "entity_type": entity_type,
+                "client_id": client_id,
+                "error": "invalid_field_type",
+                "detail": invalid_types,
+            }
+
+    return None
 
 
 def _prepare_doc_for_write(
@@ -396,29 +589,18 @@ def sync_push(device_id: str, wallet_id: str, items: List[Dict[str, Any]]) -> Di
                 frappe.throw(_("Viewer role cannot sync_push mutations"), frappe.PermissionError)
 
     for item in items:
+        validation_error = _validate_sync_push_item(item, wallet_id)
+        if validation_error:
+            results.append(validation_error)
+            continue
+
         entity_type = item.get("entity_type")
         op_id = item.get("op_id")
         operation = item.get("operation")
         payload = item.get("payload") or {}
         base_version = item.get("base_version")
         entity_id = item.get("entity_id")
-
-        if not entity_type:
-            results.append({"status": "error", "error": "entity_type required"})
-            continue
-
-        _ensure_supported_doctype(entity_type)
-
-        if operation not in {"create", "update", "delete"}:
-            results.append({"status": "error", "entity_type": entity_type, "error": "invalid operation"})
-            continue
-
-        ensure_entity_id_matches(entity_id, payload.get("client_id"))
-
         client_id = payload.get("client_id") or entity_id
-        if not client_id:
-            results.append({"status": "error", "entity_type": entity_type, "error": "client_id required"})
-            continue
 
         if op_id and _check_duplicate_op(user, device_id, op_id):
             stored = _get_op_result(user, device_id, op_id)
@@ -435,17 +617,6 @@ def sync_push(device_id: str, wallet_id: str, items: List[Dict[str, Any]]) -> Di
             continue
 
         existing = _get_doc_by_client_id(entity_type, user, client_id, wallet_id=wallet_id)
-
-        if operation in {"update", "delete"} and not ensure_base_version(base_version):
-            results.append(
-                {
-                    "status": "error",
-                    "entity_type": entity_type,
-                    "client_id": client_id,
-                    "error": "base_version required",
-                }
-            )
-            continue
 
         if operation == "create" and existing:
             result = {
