@@ -991,9 +991,10 @@ def sync_push(
 def sync_pull(
     device_id: Optional[str] = None,
     wallet_id: Optional[str] = None,
-    cursor: Optional[str] = None,
-    limit: int = 500,
     since: Optional[str] = None,
+    cursor: Optional[str] = None,
+    limit: Optional[int] = None,
+    **kwargs: Any,
 ) -> Dict[str, Any]:
     """Return server changes since cursor using server_modified."""
 
@@ -1004,6 +1005,8 @@ def sync_pull(
         response.data = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
         return response
 
+    from urllib.parse import parse_qs
+
     form_dict = frappe.form_dict or {}
     request = getattr(frappe.local, "request", None)
     json_body = None
@@ -1012,24 +1015,36 @@ def sync_pull(
         device_id = form_dict.get("device_id")
     if wallet_id is None:
         wallet_id = form_dict.get("wallet_id")
-    if cursor is None:
-        cursor = form_dict.get("cursor")
     if since is None:
         since = form_dict.get("since")
+    if cursor is None:
+        cursor = form_dict.get("cursor")
     if limit is None:
         limit = form_dict.get("limit")
 
-    if request:
+    if request and request.args:
         if device_id is None:
-            device_id = request.form.get("device_id") or request.args.get("device_id")
+            device_id = request.args.get("device_id")
         if wallet_id is None:
-            wallet_id = request.form.get("wallet_id") or request.args.get("wallet_id")
-        if cursor is None:
-            cursor = request.form.get("cursor") or request.args.get("cursor")
+            wallet_id = request.args.get("wallet_id")
         if since is None:
-            since = request.form.get("since") or request.args.get("since")
+            since = request.args.get("since")
+        if cursor is None:
+            cursor = request.args.get("cursor")
         if limit is None:
-            limit = request.form.get("limit") or request.args.get("limit")
+            limit = request.args.get("limit")
+
+    if request and request.form:
+        if device_id is None:
+            device_id = request.form.get("device_id")
+        if wallet_id is None:
+            wallet_id = request.form.get("wallet_id")
+        if since is None:
+            since = request.form.get("since")
+        if cursor is None:
+            cursor = request.form.get("cursor")
+        if limit is None:
+            limit = request.form.get("limit")
 
     if request and request.data:
         raw = request.data.decode("utf-8")
@@ -1044,12 +1059,25 @@ def sync_pull(
             device_id = json_body.get("device_id")
         if wallet_id is None:
             wallet_id = json_body.get("wallet_id")
-        if cursor is None:
-            cursor = json_body.get("cursor")
         if since is None:
             since = json_body.get("since")
+        if cursor is None:
+            cursor = json_body.get("cursor")
         if limit is None:
             limit = json_body.get("limit")
+
+    if request and getattr(request, "query_string", None):
+        parsed = parse_qs(request.query_string.decode("utf-8"))
+        if device_id is None:
+            device_id = (parsed.get("device_id") or [None])[0]
+        if wallet_id is None:
+            wallet_id = (parsed.get("wallet_id") or [None])[0]
+        if since is None:
+            since = (parsed.get("since") or [None])[0]
+        if cursor is None:
+            cursor = (parsed.get("cursor") or [None])[0]
+        if limit is None:
+            limit = (parsed.get("limit") or [None])[0]
 
     if not device_id:
         return _build_sync_response({"error": "device_id is required"}, status_code=417)
