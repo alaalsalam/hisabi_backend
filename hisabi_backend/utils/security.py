@@ -99,6 +99,7 @@ def issue_device_token_for_device(
     platform: str,
     device_name: str | None = None,
     allow_reassign: bool = False,
+    wallet_id: str | None = None,
 ) -> tuple[str, frappe.model.document.Document]:
     """Upsert device and rotate token. Returns (raw_token, device_doc)."""
     if not user or user == "Guest":
@@ -110,14 +111,28 @@ def issue_device_token_for_device(
     name = frappe.get_value("Hisabi Device", {"device_id": device_id})
     if name:
         device = frappe.get_doc("Hisabi Device", name)
-        if device.user != user and device.status != "revoked":
-            if allow_reassign:
+        if getattr(device, "status", None) == "blocked":
+            audit_security_event(
+                "device_blocked",
+                user=user,
+                device_id=device.device_id,
+                payload={"reason": "blocked"},
+            )
+            frappe.throw("Device blocked", frappe.PermissionError)
+        if device.user != user:
+            if device.status == "revoked" and allow_reassign:
                 audit_security_event(
                     "device_reassigned",
                     user=user,
                     payload={"device_id": device.device_id, "from_user": device.user},
                 )
             else:
+                audit_security_event(
+                    "device_reuse_blocked",
+                    user=user,
+                    device_id=device.device_id,
+                    payload={"reason": "linked_to_other_user", "from_user": device.user},
+                )
                 frappe.throw("Device already linked to another user", frappe.PermissionError)
     else:
         device = frappe.new_doc("Hisabi Device")
@@ -129,16 +144,27 @@ def issue_device_token_for_device(
     device.platform = platform
     if device_name:
         device.device_name = device_name
+    if getattr(device, "status", None) == "blocked":
+        audit_security_event(
+            "device_blocked",
+            user=user,
+            device_id=device.device_id,
+            payload={"reason": "blocked"},
+        )
+        frappe.throw("Device blocked", frappe.PermissionError)
     device.status = "active"
     device.last_seen_at = frappe.utils.now_datetime()
 
     # Ensure wallet_id is set when required by schema.
-    if hasattr(device, "wallet_id") and not getattr(device, "wallet_id", None):
-        wallet_id = frappe.get_value("Hisabi User", {"user": user}, "default_wallet")
-        if not wallet_id:
-            wallet_id = frappe.get_value("Hisabi Wallet Member", {"user": user, "status": "active"}, "wallet")
+    if hasattr(device, "wallet_id"):
         if wallet_id:
             device.wallet_id = wallet_id
+        elif not getattr(device, "wallet_id", None):
+            wallet_id = frappe.get_value("Hisabi User", {"user": user}, "default_wallet")
+            if not wallet_id:
+                wallet_id = frappe.get_value("Hisabi Wallet Member", {"user": user, "status": "active"}, "wallet")
+            if wallet_id:
+                device.wallet_id = wallet_id
 
     token = generate_device_token_v2()
     device.token_hash = hash_device_token_v2(token)
@@ -175,8 +201,22 @@ def require_device_token_auth(*, expected_device_id: str | None = None) -> tuple
     if expected_device_id and device.device_id != expected_device_id:
         frappe.throw("device_id does not match token", frappe.AuthenticationError)
 
-    if device.status == "revoked":
-        audit_security_event("token_revoked", user=device.user, device_id=device.device_id, payload={"reason": "revoked"})
+    if device.status != "active":
+        reason = device.status or "inactive"
+        if reason == "revoked":
+            audit_security_event(
+                "token_revoked",
+                user=device.user,
+                device_id=device.device_id,
+                payload={"reason": "revoked"},
+            )
+            frappe.throw("token_revoked", frappe.AuthenticationError)
+        audit_security_event(
+            "device_inactive",
+            user=device.user,
+            device_id=device.device_id,
+            payload={"reason": reason},
+        )
         frappe.throw("token_revoked", frappe.AuthenticationError)
 
     if getattr(device, "expires_at", None) and device.expires_at < frappe.utils.now_datetime():
@@ -210,7 +250,7 @@ def require_device_auth(device_id: str) -> tuple[str, frappe.model.document.Docu
         if not device_name:
             raise
         device = frappe.get_doc("Hisabi Device", device_name)
-        if device.status == "revoked":
+        if device.status != "active":
             frappe.throw("Device revoked", frappe.PermissionError)
         if not verify_device_token(getattr(device, "device_token_hash", ""), token):
             raise

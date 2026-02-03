@@ -78,7 +78,7 @@
    "fieldname": "status",
    "fieldtype": "Select",
    "label": "Status",
-   "options": "active\nrevoked"
+   "options": "active\nrevoked\nblocked"
   },
   {
    "fieldname": "device_token_hash",

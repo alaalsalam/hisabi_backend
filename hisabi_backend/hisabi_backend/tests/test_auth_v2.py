@@ -29,6 +29,7 @@ class TestAuthV2(FrappeTestCase):
         )
         self.assertTrue(res.get("auth", {}).get("token"))
         self.assertEqual(res.get("device", {}).get("device_id"), device_id)
+        self.assertTrue(res.get("default_wallet_id"))
 
         res2 = login_v2(
             identifier=phone,
@@ -51,6 +52,49 @@ class TestAuthV2(FrappeTestCase):
 
         res = login_v2(identifier=email, password=password, device={"device_id": device_id, "platform": "web"})
         self.assertEqual(res.get("user", {}).get("email"), email)
+
+    def test_register_response_has_token_and_wallet(self):
+        phone = f"+1555{frappe.generate_hash(length=6)}"
+        password = "testpass123"
+        device_id = f"dev-{frappe.generate_hash(length=8)}"
+
+        res = register_user_v2(
+            phone=phone,
+            full_name="Token User",
+            password=password,
+            device={"device_id": device_id, "platform": "android"},
+        )
+        self.assertTrue(res.get("auth", {}).get("token"))
+        self.assertTrue(res.get("default_wallet_id"))
+
+    def test_register_user_type_is_website(self):
+        phone = f"+1555{frappe.generate_hash(length=6)}"
+        password = "testpass123"
+        device_id = f"dev-{frappe.generate_hash(length=8)}"
+
+        res = register_user_v2(
+            phone=phone,
+            full_name="Type User",
+            password=password,
+            device={"device_id": device_id, "platform": "android"},
+        )
+        user = res.get("user", {}).get("name")
+        user_type = frappe.get_value("User", user, "user_type")
+        self.assertNotEqual(user_type, "System User")
+
+    def test_register_clears_server_messages(self):
+        phone = f"+1555{frappe.generate_hash(length=6)}"
+        password = "testpass123"
+        device_id = f"dev-{frappe.generate_hash(length=8)}"
+
+        register_user_v2(
+            phone=phone,
+            full_name="Msg User",
+            password=password,
+            device={"device_id": device_id, "platform": "android"},
+        )
+        message_log = getattr(frappe.local, "message_log", None) or []
+        self.assertEqual(len(message_log), 0)
 
     def test_me_requires_token(self):
         frappe.local.request = frappe._dict(headers={})
@@ -148,4 +192,43 @@ class TestAuthV2(FrappeTestCase):
                 login_v2(identifier=phone, password="wrongpass", device={"device_id": device_id, "platform": "android"})
 
         with self.assertRaises(frappe.AuthenticationError):
+            login_v2(identifier=phone, password=password, device={"device_id": device_id, "platform": "android"})
+
+    def test_register_rejects_device_reuse(self):
+        device_id = f"dev-shared-{frappe.generate_hash(length=6)}"
+        password = "testpass123"
+
+        register_user_v2(
+            phone=f"+1555{frappe.generate_hash(length=6)}",
+            full_name="User A",
+            password=password,
+            device={"device_id": device_id, "platform": "android"},
+        )
+
+        with self.assertRaises(frappe.PermissionError):
+            register_user_v2(
+                phone=f"+1555{frappe.generate_hash(length=6)}",
+                full_name="User B",
+                password=password,
+                device={"device_id": device_id, "platform": "android"},
+            )
+
+    def test_blocked_device_cannot_login(self):
+        phone = f"+1555{frappe.generate_hash(length=6)}"
+        password = "testpass123"
+        device_id = f"dev-{frappe.generate_hash(length=8)}"
+
+        register_user_v2(
+            phone=phone,
+            full_name="User",
+            password=password,
+            device={"device_id": device_id, "platform": "android"},
+        )
+
+        device_name = frappe.get_value("Hisabi Device", {"device_id": device_id})
+        device = frappe.get_doc("Hisabi Device", device_name)
+        device.status = "blocked"
+        device.save(ignore_permissions=True)
+
+        with self.assertRaises(frappe.PermissionError):
             login_v2(identifier=phone, password=password, device={"device_id": device_id, "platform": "android"})

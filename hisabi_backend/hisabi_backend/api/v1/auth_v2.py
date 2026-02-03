@@ -45,10 +45,10 @@ def _resolve_user(identifier: str) -> str:
     identifier = identifier.strip()
 
     if "@" in identifier:
-        user = frappe.get_value("User", {"email": identifier})
+        user = frappe.get_value("User", {"email": identifier.lower()})
         if user:
             return user
-        frappe.throw(_("User not found"), frappe.AuthenticationError)
+        frappe.throw(_("Invalid credentials"), frappe.AuthenticationError)
 
     phone = normalize_phone_digits(identifier, strict=True)
     user = (
@@ -58,7 +58,7 @@ def _resolve_user(identifier: str) -> str:
     )
     if user:
         return user
-    frappe.throw(_("User not found"), frappe.AuthenticationError)
+    frappe.throw(_("Invalid credentials"), frappe.AuthenticationError)
 
 
 def _serialize_user(user: str) -> Dict[str, Any]:
@@ -71,16 +71,17 @@ def _serialize_user(user: str) -> Dict[str, Any]:
     }
 
 
-def _ensure_user_email(email: Optional[str], *, phone: Optional[str]) -> str:
+def _ensure_user_email(email: Optional[str], *, phone_digits: Optional[str]) -> str:
     """Frappe User.name is email in most setups; for phone-only create a synthetic email."""
     if email:
-        return email.strip().lower()
-    if not phone:
+        email_norm = email.strip().lower()
+        if email_norm:
+            return email_norm
+    if not phone_digits:
         frappe.throw(_("email or phone is required"), frappe.ValidationError)
 
     # Stable synthetic email; user still logs in via phone.
-    digits = "".join(PHONE_DIGITS_RE.findall(phone))
-    return f"{digits}@phone.hisabi.local"
+    return f"{phone_digits}@phone.hisabi.local"
 
 
 
@@ -102,8 +103,8 @@ def register_user(
         frappe.throw(_("password is required"), frappe.ValidationError)
     validate_password_strength(password)
 
-    email_norm = _ensure_user_email(email, phone=phone)
     phone_norm = normalize_phone_digits(phone, strict=True) if phone else None
+    email_norm = _ensure_user_email(email, phone_digits=phone_norm)
     if not (email_norm or phone_norm):
         frappe.throw(_("email or phone is required"), frappe.ValidationError)
 
@@ -111,7 +112,9 @@ def register_user(
 
     if frappe.db.exists("User", {"email": email_norm}):
         frappe.throw(_("Account already exists"), frappe.ValidationError)
-    if phone_norm and (frappe.db.exists("User", {"phone": phone_norm}) or frappe.db.exists("User", {"mobile_no": phone_norm})):
+    if phone_norm and (
+        frappe.db.exists("User", {"phone": phone_norm}) or frappe.db.exists("User", {"mobile_no": phone_norm})
+    ):
         frappe.throw(_("Account already exists"), frappe.ValidationError)
 
     device = device or {}
@@ -133,6 +136,7 @@ def register_user(
             "user_type": "Website User",
             "roles": [{"role": "Hisabi User"}],
             "phone": phone_norm,
+            "mobile_no": phone_norm,
         }
     ).insert(ignore_permissions=True)
     update_password(user_doc.name, password)
@@ -147,9 +151,11 @@ def register_user(
         platform=platform,
         device_name=device_name,
         allow_reassign=True,
+        wallet_id=wallet_id,
     )
     audit_security_event("login_success", user=user_doc.name, device_id=device_id, payload={"action": "register"})
 
+    frappe.clear_messages()
     return {
         "user": _serialize_user(user_doc.name),
         "device": {"device_id": device_doc.device_id, "status": device_doc.status},
@@ -189,7 +195,7 @@ def login(
     except Exception:
         rate_limit(f"login:ip:{ip}:id:{identifier_key}", limit=5, window_seconds=300)
         on_login_failed(identifier, user=user, device_id=(device or {}).get("device_id"))
-        raise
+        frappe.throw(_("Invalid credentials"), frappe.AuthenticationError)
     login_manager.post_login()
     on_login_success(user, device_id=(device or {}).get("device_id"))
 
@@ -207,9 +213,11 @@ def login(
         device_id=device_id,
         platform=platform,
         device_name=device_name,
+        wallet_id=wallet_id,
     )
     audit_security_event("token_rotated", user=user, device_id=device_id)
 
+    frappe.clear_messages()
     return {
         "user": _serialize_user(user),
         "device": {"device_id": device_doc.device_id, "status": device_doc.status},
