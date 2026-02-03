@@ -905,6 +905,10 @@ def sync_push(
                 doc.current_balance = doc.opening_balance
 
         apply_common_sync_fields(doc, payload, bump_version=True, mark_deleted=mark_deleted)
+        if entity_type == "Hisabi Account" and operation == "delete":
+            doc.is_deleted = 1
+            if not doc.deleted_at:
+                doc.deleted_at = now_datetime()
         doc.save(ignore_permissions=True)
         if entity_type == "Hisabi Account" and doc.name != doc.client_id:
             doc = _rename_doc_to_client_id(doc, doc.client_id)
@@ -929,7 +933,7 @@ def sync_push(
             goals_dirty = True
 
         if entity_type == "Hisabi Account":
-            if operation != "create":
+            if operation == "update":
                 affected_accounts.add(doc.name)
             goals_dirty = True
 
