@@ -501,8 +501,13 @@ def _prepare_doc_for_write(
 
     if not existing:
         doc.name = client_id
+        if doctype == "Hisabi Account":
+            doc.flags.name_set = True
     elif doc.name != client_id:
-        frappe.throw(_("name must equal client_id"), frappe.ValidationError)
+        if doctype == "Hisabi Account":
+            doc = _rename_doc_to_client_id(doc, client_id)
+        else:
+            frappe.throw(_("name must equal client_id"), frappe.ValidationError)
 
     payload = _apply_field_map(doctype, payload)
     payload = _strip_server_auth_fields(doctype, payload)
@@ -512,6 +517,21 @@ def _prepare_doc_for_write(
     ensure_link_ownership(doctype, payload, user, wallet_id=getattr(doc, "wallet_id", None))
 
     return doc
+
+
+def _rename_doc_to_client_id(
+    doc: frappe.model.document.Document, client_id: str
+) -> frappe.model.document.Document:
+    if doc.name == client_id:
+        return doc
+    frappe.rename_doc(
+        doc.doctype,
+        doc.name,
+        client_id,
+        force=True,
+        ignore_permissions=True,
+    )
+    return frappe.get_doc(doc.doctype, client_id)
 
 
 def _to_iso(value: Any) -> Optional[str]:
@@ -744,12 +764,16 @@ def sync_push(
         existing = _get_doc_by_client_id(entity_type, user, client_id, wallet_id=wallet_id)
 
         if operation == "create" and existing:
+            doc = existing
+            if entity_type == "Hisabi Account":
+                doc = _prepare_doc_for_write(entity_type, payload, user, existing=existing)
+                doc.save(ignore_permissions=True)
             result = {
                 "status": "accepted",
                 "entity_type": entity_type,
-                "client_id": existing.client_id,
-                "doc_version": existing.doc_version,
-                "server_modified": _to_iso(existing.server_modified),
+                "client_id": doc.client_id,
+                "doc_version": doc.doc_version,
+                "server_modified": _to_iso(doc.server_modified),
             }
             results.append(result)
             _store_op_id(
