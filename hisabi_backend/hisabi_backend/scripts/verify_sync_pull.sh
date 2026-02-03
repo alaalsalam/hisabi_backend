@@ -266,14 +266,43 @@ for item in items:
         continue
     if item.get("client_id") != acc and item.get("entity_id") != acc:
         continue
-    if item.get("is_deleted") or item.get("deleted_at"):
+    if item.get("is_deleted") and item.get("deleted_at"):
         print("yes")
         raise SystemExit
 print("no")
 PY
 )
 if [[ "${HAS_DELETE}" != "yes" ]]; then
-  echo "Expected deleted flags for ${ACC_ID} in pull response" >&2
+  echo "Expected is_deleted + deleted_at for ${ACC_ID} in pull response" >&2
+  exit 1
+fi
+
+NEXT_CURSOR_AFTER=$(echo "${PULL_AFTER_BODY}" | json_get message.next_cursor || true)
+if [[ -z "${NEXT_CURSOR_AFTER}" ]]; then
+  echo "Missing next_cursor after delete pull response" >&2
+  exit 1
+fi
+
+echo "==> Sync pull (repeat cursor, expect empty)"
+PULL_REPEAT_RESP=$(curl_with_status_get "${BASE_URL}/api/method/hisabi_backend.api.v1.sync.sync_pull" "${TOKEN}" \
+  --data-urlencode "device_id=${DEVICE_ID}" \
+  --data-urlencode "wallet_id=${WALLET_ID}" \
+  --data-urlencode "cursor=${NEXT_CURSOR_AFTER}" \
+  --data-urlencode "limit=50")
+print_status_and_body "${PULL_REPEAT_RESP}"
+assert_status "${PULL_REPEAT_RESP}" "200"
+
+PULL_REPEAT_BODY=$(response_body "${PULL_REPEAT_RESP}")
+HAS_ANY_ITEMS=$(PULL_REPEAT_BODY="${PULL_REPEAT_BODY}" python3 - <<'PY'
+import json,os
+raw=os.environ.get("PULL_REPEAT_BODY","")
+data=json.loads(raw) if raw else {}
+items=(data.get("message") or {}).get("items") or []
+print("yes" if items else "no")
+PY
+)
+if [[ "${HAS_ANY_ITEMS}" != "no" ]]; then
+  echo "Expected empty items on repeat cursor pull" >&2
   exit 1
 fi
 
