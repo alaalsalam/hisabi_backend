@@ -711,6 +711,7 @@ def sync_push(
     affected_goals = set()
     affected_debts = set()
     affected_jameyas = set()
+    deleted_accounts = set()
     budgets_dirty = False
     goals_dirty = False
 
@@ -912,6 +913,14 @@ def sync_push(
         doc.save(ignore_permissions=True)
         if entity_type == "Hisabi Account" and doc.name != doc.client_id:
             doc = _rename_doc_to_client_id(doc, doc.client_id)
+        if entity_type == "Hisabi Account" and operation == "delete":
+            if not doc.deleted_at:
+                doc.deleted_at = now_datetime()
+            if doc.is_deleted != 1:
+                doc.is_deleted = 1
+            doc.db_set("is_deleted", 1, update_modified=False)
+            doc.db_set("deleted_at", doc.deleted_at, update_modified=False)
+            deleted_accounts.add(doc.name)
 
         if entity_type == "Hisabi Wallet" and operation == "create":
             # Ensure membership row exists for owner.
@@ -1008,6 +1017,18 @@ def sync_push(
 
     if affected_jameyas:
         recalc_jameyas(user, affected_jameyas)
+
+    for account_name in deleted_accounts:
+        try:
+            acc = frappe.get_doc("Hisabi Account", account_name)
+        except Exception:
+            continue
+        if not acc.deleted_at:
+            acc.deleted_at = now_datetime()
+        if acc.is_deleted != 1:
+            acc.is_deleted = 1
+        acc.db_set("is_deleted", 1, update_modified=False)
+        acc.db_set("deleted_at", acc.deleted_at, update_modified=False)
 
     device.last_sync_at = now_datetime()
     device.last_sync_ms = min(int(device.last_sync_at.timestamp() * 1000), 2147483647)
