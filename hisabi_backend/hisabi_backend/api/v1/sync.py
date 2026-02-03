@@ -906,6 +906,8 @@ def sync_push(
 
         apply_common_sync_fields(doc, payload, bump_version=True, mark_deleted=mark_deleted)
         doc.save(ignore_permissions=True)
+        if entity_type == "Hisabi Account" and doc.name != doc.client_id:
+            doc = _rename_doc_to_client_id(doc, doc.client_id)
 
         if entity_type == "Hisabi Wallet" and operation == "create":
             # Ensure membership row exists for owner.
@@ -927,7 +929,8 @@ def sync_push(
             goals_dirty = True
 
         if entity_type == "Hisabi Account":
-            affected_accounts.add(doc.name)
+            if operation != "create":
+                affected_accounts.add(doc.name)
             goals_dirty = True
 
         if entity_type == "Hisabi Budget":
