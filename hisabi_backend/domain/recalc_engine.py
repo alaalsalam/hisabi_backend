@@ -89,7 +89,7 @@ def recalc_budget_spent(user: str, budget_id: str) -> None:
 
     spent = frappe.db.sql(
         f"""
-        SELECT COALESCE(SUM(amount), 0)
+        SELECT COALESCE(SUM(COALESCE(amount_base, amount)), 0)
         FROM `tabHisabi Transaction`
         WHERE {' AND '.join(conditions)}
         """,

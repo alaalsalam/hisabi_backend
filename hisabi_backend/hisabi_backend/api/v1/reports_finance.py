@@ -45,8 +45,8 @@ def report_summary(
     totals = frappe.db.sql(
         f"""
         SELECT
-            COALESCE(SUM(CASE WHEN transaction_type='income' THEN amount ELSE 0 END), 0) AS total_income,
-            COALESCE(SUM(CASE WHEN transaction_type='expense' THEN amount ELSE 0 END), 0) AS total_expense
+            COALESCE(SUM(CASE WHEN transaction_type='income' THEN COALESCE(amount_base, amount) ELSE 0 END), 0) AS total_income,
+            COALESCE(SUM(CASE WHEN transaction_type='expense' THEN COALESCE(amount_base, amount) ELSE 0 END), 0) AS total_expense
         FROM `tabHisabi Transaction`
         WHERE {' AND '.join(date_filters)}
         """,
