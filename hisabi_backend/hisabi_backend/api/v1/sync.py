@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import datetime
 import json
-import subprocess
 from typing import Any, Dict, List, Optional, Tuple
 
 import frappe
@@ -1010,37 +1009,45 @@ def sync_pull(
         return value
 
     def _build_sync_response(payload: Dict[str, Any], status_code: int = 200) -> Response:
-        try:
-            short_head = (
-                subprocess.check_output(
-                    ["git", "rev-parse", "--short", "HEAD"],
-                    cwd="/home/frappe/frappe-bench/apps/hisabi_backend",
-                )
-                .decode()
-                .strip()
-            )
-        except Exception:
-            short_head = "unknown"
-
         response = Response()
         response.mimetype = "application/json"
         response.status_code = status_code
         response.data = frappe.as_json(payload)
-        response.headers["X-Hisabi-Pull-Impl"] = f"hisabi_backend.api.v1.sync:sync_pull@{short_head}"
-        response.headers["X-Hisabi-Pull-Args"] = (
-            f"has_form={int(has_form)}; has_args={int(has_args)}; has_json={int(has_json)}; has_qs={int(has_qs)}"
-        )
         return response
+
+    def _parse_since_value(value: Any) -> Optional[datetime.datetime]:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return None
+            if stripped.lstrip("-").isdigit():
+                try:
+                    numeric = int(stripped)
+                except ValueError:
+                    return None
+                seconds = numeric / 1000 if numeric >= 10**12 else numeric
+                try:
+                    return datetime.datetime.utcfromtimestamp(seconds)
+                except (OverflowError, OSError, ValueError):
+                    return None
+        elif isinstance(value, (int, float)):
+            numeric = int(value)
+            seconds = numeric / 1000 if numeric >= 10**12 else numeric
+            try:
+                return datetime.datetime.utcfromtimestamp(seconds)
+            except (OverflowError, OSError, ValueError):
+                return None
+
+        dt = get_datetime(value)
+        return dt if dt else None
 
     from urllib.parse import parse_qs
 
     form_dict = frappe.form_dict or {}
     request = getattr(frappe.local, "request", None)
     json_body = None
-    has_form = bool(form_dict)
-    has_args = bool(getattr(request, "args", None))
-    has_json = False
-    has_qs = bool(getattr(request, "query_string", None))
 
     if device_id is None:
         device_id = form_dict.get("device_id")
@@ -1087,7 +1094,6 @@ def sync_pull(
                 json_body = None
 
     if isinstance(json_body, dict):
-        has_json = True
         if device_id is None:
             device_id = json_body.get("device_id")
         if wallet_id is None:
@@ -1112,7 +1118,7 @@ def sync_pull(
     cursor_value = cursor or since
     since_dt = None
     if cursor_value:
-        since_dt = get_datetime(cursor_value)
+        since_dt = _parse_since_value(cursor_value)
         if not since_dt:
             return _build_sync_response({"error": "invalid_cursor"}, status_code=417)
 

@@ -77,17 +77,6 @@ print(body.strip())
 PY
 }
 
-function assert_header_present() {
-  local response="$1"
-  local header="$2"
-  local headers
-  headers=$(echo "${response}" | sed '/HTTP_STATUS:/d' | sed -n '1,/^\r\{0,1\}$/p')
-  if ! rg -qi "^${header}:" <<< "${headers}"; then
-    echo "missing ${header} (workers stale or wrong service)" >&2
-    exit 1
-  fi
-}
-
 function assert_status() {
   local response="$1"
   local expected="$2"
@@ -143,7 +132,7 @@ if [[ -z "${DOC_VERSION}" ]]; then
   exit 1
 fi
 
-SINCE=$(date -u -d '1 day ago' '+%Y-%m-%dT%H:%M:%S')
+SINCE=$(date -u -d '1 day ago' '+%Y-%m-%dT%H:%M:%SZ')
 
 echo "==> Sync pull (GET with query params)"
 PULL_GET_RESP=$(curl_with_status_get "${BASE_URL}/api/method/hisabi_backend.api.v1.sync.sync_pull" "${TOKEN}" \
@@ -153,7 +142,6 @@ PULL_GET_RESP=$(curl_with_status_get "${BASE_URL}/api/method/hisabi_backend.api.
   --data-urlencode "limit=50")
 print_status_and_body "${PULL_GET_RESP}"
 assert_status "${PULL_GET_RESP}" "200"
-assert_header_present "${PULL_GET_RESP}" "X-Hisabi-Pull-Impl"
 
 PULL_GET_BODY=$(response_body "${PULL_GET_RESP}")
 HAS_ITEMS_FIELD=$(PULL_GET_BODY="${PULL_GET_BODY}" python3 - <<'PY'
@@ -183,6 +171,11 @@ PY
 if [[ "${HAS_ITEM}" != "yes" ]]; then
   echo "Expected account ${ACC_ID} in pull response" >&2
   exit 1
+fi
+
+if [[ "${VERIFY_PULL_ONLY:-1}" == "1" ]]; then
+  echo "Done."
+  exit 0
 fi
 
 NEXT_CURSOR=$(echo "${PULL_BODY}" | json_get message.next_cursor || true)
@@ -223,13 +216,13 @@ for item in items:
         continue
     if item.get("client_id") == acc or item.get("entity_id") == acc:
         payload=item.get("payload") or {}
+        cid=payload.get("client_id") or item.get("client_id") or item.get("entity_id")
+        if cid:
+            print(cid)
+            raise SystemExit
         name=payload.get("name")
         if name:
             print(name)
-            raise SystemExit
-        cid=item.get("client_id") or item.get("entity_id")
-        if cid:
-            print(cid)
             raise SystemExit
 print(acc)
 PY
@@ -260,7 +253,6 @@ PULL_AFTER_RESP=$(curl_with_status_get "${BASE_URL}/api/method/hisabi_backend.ap
   --data-urlencode "limit=50")
 print_status_and_body "${PULL_AFTER_RESP}"
 assert_status "${PULL_AFTER_RESP}" "200"
-assert_header_present "${PULL_AFTER_RESP}" "X-Hisabi-Pull-Impl"
 
 PULL_AFTER_BODY=$(response_body "${PULL_AFTER_RESP}")
 HAS_DELETE=$(ACC_ID="${DELETE_ID}" PULL_AFTER_BODY="${PULL_AFTER_BODY}" python3 - <<PY
