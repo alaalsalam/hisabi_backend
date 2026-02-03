@@ -135,6 +135,7 @@ SYNC_PUSH_FIELD_TYPES = {
     "total_members": "number",
     "my_turn": "number",
     "file_size": "number",
+    "fx_rate_used": "number",
 }
 
 SYNC_PAYLOAD_LOG_IGNORE_KEYS = {"id"}
@@ -148,7 +149,6 @@ SERVER_AUTH_FIELDS = {
     "Hisabi Account": {"current_balance"},
     "Hisabi Budget": {"spent_amount"},
     "Hisabi Goal": {"current_amount", "progress_percent", "remaining_amount"},
-    "Hisabi Transaction": {"amount_base", "fx_rate_used"},
     "Hisabi Debt": {"remaining_amount", "status"},
     "Hisabi Jameya": {"status", "total_amount"},
 }
