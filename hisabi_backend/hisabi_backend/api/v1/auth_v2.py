@@ -20,9 +20,11 @@ from frappe.utils.password import update_password
 
 from hisabi_backend.install import ensure_roles
 from hisabi_backend.utils.security import (
+    ensure_device_for_user,
     issue_device_token_for_device,
     require_device_token_auth,
 )
+from hisabi_backend.utils.api_errors import error_response
 from hisabi_backend.utils.security_rate_limit import rate_limit
 from hisabi_backend.utils.validators import validate_password_strength, validate_platform
 from hisabi_backend.utils.wallet_acl import (
@@ -95,73 +97,101 @@ def register_user(
     device: Optional[dict] = None,
 ) -> Dict[str, Any]:
     """Register a user and issue a device token."""
-    # Rate limit by IP (and globally per site db_name prefix).
-    rate_limit(f"register:ip:{get_request_ip() or 'unknown'}", limit=3, window_seconds=600)
-    ensure_roles()
+    try:
+        # Rate limit by IP (and globally per site db_name prefix).
+        rate_limit(f"register:ip:{get_request_ip() or 'unknown'}", limit=3, window_seconds=600)
+        ensure_roles()
 
-    if not password:
-        frappe.throw(_("password is required"), frappe.ValidationError)
-    validate_password_strength(password)
+        if not password:
+            frappe.throw(_("password is required"), frappe.ValidationError)
+        validate_password_strength(password)
 
-    phone_norm = normalize_phone_digits(phone, strict=True) if phone else None
-    email_norm = _ensure_user_email(email, phone_digits=phone_norm)
-    if not (email_norm or phone_norm):
-        frappe.throw(_("email or phone is required"), frappe.ValidationError)
+        phone_norm = normalize_phone_digits(phone, strict=True) if phone else None
+        email_norm = _ensure_user_email(email, phone_digits=phone_norm)
+        if not (email_norm or phone_norm):
+            frappe.throw(_("email or phone is required"), frappe.ValidationError)
 
-    full_name = (full_name or "").strip() or "Hisabi User"
+        full_name = (full_name or "").strip() or "Hisabi User"
 
-    if frappe.db.exists("User", {"email": email_norm}):
-        frappe.throw(_("Account already exists"), frappe.ValidationError)
-    if phone_norm and (
-        frappe.db.exists("User", {"phone": phone_norm}) or frappe.db.exists("User", {"mobile_no": phone_norm})
-    ):
-        frappe.throw(_("Account already exists"), frappe.ValidationError)
+        if frappe.db.exists("User", {"email": email_norm}):
+            frappe.throw(_("Account already exists"), frappe.ValidationError)
+        if phone_norm and (
+            frappe.db.exists("User", {"phone": phone_norm}) or frappe.db.exists("User", {"mobile_no": phone_norm})
+        ):
+            frappe.throw(_("Account already exists"), frappe.ValidationError)
 
-    device = device or {}
-    device_id = (device.get("device_id") or "").strip()
-    if not device_id:
-        frappe.throw(_("device.device_id is required"), frappe.ValidationError)
+        device = device or {}
+        device_id = (device.get("device_id") or "").strip()
+        if not device_id:
+            frappe.throw(_("device.device_id is required"), frappe.ValidationError)
 
-    platform = device.get("platform") or "web"
-    platform = validate_platform(platform)
-    device_name = (device.get("device_name") or "").strip() or None
+        platform = device.get("platform") or "web"
+        platform = validate_platform(platform)
+        device_name = (device.get("device_name") or "").strip() or None
 
-    user_doc = frappe.get_doc(
-        {
-            "doctype": "User",
-            "email": email_norm,
-            "first_name": full_name,
-            "enabled": 1,
-            "send_welcome_email": 0,
-            "user_type": "Website User",
-            "roles": [{"role": "Hisabi User"}],
-            "phone": phone_norm,
-            "mobile_no": phone_norm,
+        _device, error = ensure_device_for_user(user=email_norm, device_id=device_id)
+        if error:
+            return error
+
+        user_doc = frappe.get_doc(
+            {
+                "doctype": "User",
+                "email": email_norm,
+                "first_name": full_name,
+                "enabled": 1,
+                "send_welcome_email": 0,
+                "user_type": "Website User",
+                "roles": [{"role": "Hisabi User"}],
+                "phone": phone_norm,
+                "mobile_no": phone_norm,
+            }
+        ).insert(ignore_permissions=True)
+        update_password(user_doc.name, password)
+
+        get_or_create_hisabi_user(user_doc.name)
+
+        wallet_id = ensure_default_wallet_for_user(user_doc.name, device_id=device_id)
+
+        token, device_doc = issue_device_token_for_device(
+            user=user_doc.name,
+            device_id=device_id,
+            platform=platform,
+            device_name=device_name,
+            wallet_id=wallet_id,
+        )
+        audit_security_event("login_success", user=user_doc.name, device_id=device_id, payload={"action": "register"})
+
+        frappe.clear_messages()
+        return {
+            "user": _serialize_user(user_doc.name),
+            "device": {"device_id": device_doc.device_id, "status": device_doc.status},
+            "auth": {"token": token, "token_type": "device_token"},
+            "default_wallet_id": wallet_id,
         }
-    ).insert(ignore_permissions=True)
-    update_password(user_doc.name, password)
-
-    get_or_create_hisabi_user(user_doc.name)
-
-    wallet_id = ensure_default_wallet_for_user(user_doc.name, device_id=device_id)
-
-    token, device_doc = issue_device_token_for_device(
-        user=user_doc.name,
-        device_id=device_id,
-        platform=platform,
-        device_name=device_name,
-        allow_reassign=True,
-        wallet_id=wallet_id,
-    )
-    audit_security_event("login_success", user=user_doc.name, device_id=device_id, payload={"action": "register"})
-
-    frappe.clear_messages()
-    return {
-        "user": _serialize_user(user_doc.name),
-        "device": {"device_id": device_doc.device_id, "status": device_doc.status},
-        "auth": {"token": token, "token_type": "device_token"},
-        "default_wallet_id": wallet_id,
-    }
+    except frappe.ValidationError as exc:
+        return error_response(
+            status_code=400,
+            code="VALIDATION_ERROR",
+            message=str(exc),
+            user_message="بيانات غير صحيحة. يرجى التحقق والمحاولة مرة أخرى.",
+            action="retry",
+        )
+    except frappe.AuthenticationError as exc:
+        return error_response(
+            status_code=401,
+            code="UNAUTHORIZED",
+            message=str(exc),
+            user_message="تعذر تسجيل الدخول. يرجى التحقق من البيانات.",
+            action="retry",
+        )
+    except frappe.PermissionError as exc:
+        return error_response(
+            status_code=403,
+            code="FORBIDDEN",
+            message=str(exc),
+            user_message="غير مصرح.",
+            action="contact_support",
+        )
 
 
 @frappe.whitelist(allow_guest=True)
@@ -171,59 +201,88 @@ def login(
     device: Optional[dict] = None,
 ) -> Dict[str, Any]:
     """Login by email or phone and issue/rotate device token."""
-    if not identifier:
-        frappe.throw(_("identifier is required"), frappe.ValidationError)
-    if not password:
-        frappe.throw(_("password is required"), frappe.ValidationError)
-
-    ip = get_request_ip() or "unknown"
-    identifier_key = identifier.strip().lower()
     try:
-        user = _resolve_user(identifier)
-    except Exception:
-        # Prevent enumeration/bruteforce for unknown identifiers.
-        rate_limit(f"login:ip:{ip}:id:{identifier_key}", limit=5, window_seconds=300)
-        on_login_failed(identifier, user=None, device_id=(device or {}).get("device_id"))
-        raise
+        if not identifier:
+            frappe.throw(_("identifier is required"), frappe.ValidationError)
+        if not password:
+            frappe.throw(_("password is required"), frappe.ValidationError)
 
-    raise_if_locked(user)
+        ip = get_request_ip() or "unknown"
+        identifier_key = identifier.strip().lower()
+        try:
+            user = _resolve_user(identifier)
+        except Exception:
+            # Prevent enumeration/bruteforce for unknown identifiers.
+            rate_limit(f"login:ip:{ip}:id:{identifier_key}", limit=5, window_seconds=300)
+            on_login_failed(identifier, user=None, device_id=(device or {}).get("device_id"))
+            raise
 
-    # Validate password using LoginManager to respect Frappe authentication backends.
-    login_manager = LoginManager()
-    try:
-        login_manager.authenticate(user=user, pwd=password)
-    except Exception:
-        rate_limit(f"login:ip:{ip}:id:{identifier_key}", limit=5, window_seconds=300)
-        on_login_failed(identifier, user=user, device_id=(device or {}).get("device_id"))
-        frappe.throw(_("Invalid credentials"), frappe.AuthenticationError)
-    login_manager.post_login()
-    on_login_success(user, device_id=(device or {}).get("device_id"))
+        raise_if_locked(user)
 
-    device = device or {}
-    device_id = (device.get("device_id") or "").strip()
-    if not device_id:
-        frappe.throw(_("device.device_id is required"), frappe.ValidationError)
-    platform = validate_platform(device.get("platform") or "web")
-    device_name = (device.get("device_name") or "").strip() or None
+        # Validate password using LoginManager to respect Frappe authentication backends.
+        login_manager = LoginManager()
+        try:
+            login_manager.authenticate(user=user, pwd=password)
+        except Exception:
+            rate_limit(f"login:ip:{ip}:id:{identifier_key}", limit=5, window_seconds=300)
+            on_login_failed(identifier, user=user, device_id=(device or {}).get("device_id"))
+            frappe.throw(_("Invalid credentials"), frappe.AuthenticationError)
+        login_manager.post_login()
+        on_login_success(user, device_id=(device or {}).get("device_id"))
 
-    wallet_id = ensure_default_wallet_for_user(user, device_id=device_id)
+        device = device or {}
+        device_id = (device.get("device_id") or "").strip()
+        if not device_id:
+            frappe.throw(_("device.device_id is required"), frappe.ValidationError)
+        platform = validate_platform(device.get("platform") or "web")
+        device_name = (device.get("device_name") or "").strip() or None
 
-    token, device_doc = issue_device_token_for_device(
-        user=user,
-        device_id=device_id,
-        platform=platform,
-        device_name=device_name,
-        wallet_id=wallet_id,
-    )
-    audit_security_event("token_rotated", user=user, device_id=device_id)
+        _device, error = ensure_device_for_user(user=user, device_id=device_id)
+        if error:
+            return error
 
-    frappe.clear_messages()
-    return {
-        "user": _serialize_user(user),
-        "device": {"device_id": device_doc.device_id, "status": device_doc.status},
-        "auth": {"token": token, "token_type": "device_token"},
-        "default_wallet_id": wallet_id,
-    }
+        wallet_id = ensure_default_wallet_for_user(user, device_id=device_id)
+
+        token, device_doc = issue_device_token_for_device(
+            user=user,
+            device_id=device_id,
+            platform=platform,
+            device_name=device_name,
+            wallet_id=wallet_id,
+        )
+        audit_security_event("token_rotated", user=user, device_id=device_id)
+
+        frappe.clear_messages()
+        return {
+            "user": _serialize_user(user),
+            "device": {"device_id": device_doc.device_id, "status": device_doc.status},
+            "auth": {"token": token, "token_type": "device_token"},
+            "default_wallet_id": wallet_id,
+        }
+    except frappe.ValidationError as exc:
+        return error_response(
+            status_code=400,
+            code="VALIDATION_ERROR",
+            message=str(exc),
+            user_message="بيانات غير صحيحة. يرجى التحقق والمحاولة مرة أخرى.",
+            action="retry",
+        )
+    except frappe.AuthenticationError as exc:
+        return error_response(
+            status_code=401,
+            code="INVALID_CREDENTIALS",
+            message=str(exc),
+            user_message="بيانات الدخول غير صحيحة.",
+            action="retry",
+        )
+    except frappe.PermissionError as exc:
+        return error_response(
+            status_code=403,
+            code="FORBIDDEN",
+            message=str(exc),
+            user_message="غير مصرح.",
+            action="contact_support",
+        )
 
 
 @frappe.whitelist(allow_guest=False)

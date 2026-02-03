@@ -11,6 +11,70 @@ from frappe.utils.password import get_decrypted_password, passlibctx, set_encryp
 
 from hisabi_backend.utils.request_context import get_request_ip, get_user_agent
 from hisabi_backend.utils.audit_security import audit_security_event
+from hisabi_backend.utils.api_errors import error_response
+
+
+def ensure_device_for_user(
+    *,
+    user: str,
+    device_id: str,
+) -> tuple[frappe.model.document.Document | None, dict | None]:
+    """Validate device ownership for a user, returning device or an error payload.
+
+    - Same user: ok (idempotent)
+    - Different user: 409 DEVICE_IN_USE
+    - Blocked device: 403 DEVICE_BLOCKED
+    """
+    device_id = (device_id or "").strip()
+    if not device_id:
+        return (
+            None,
+            error_response(
+                status_code=400,
+                code="DEVICE_ID_REQUIRED",
+                message="device_id is required",
+                user_message="معرّف الجهاز مطلوب.",
+                action="retry",
+            ),
+        )
+
+    name = frappe.get_value("Hisabi Device", {"device_id": device_id})
+    if not name:
+        return None, None
+
+    device = frappe.get_doc("Hisabi Device", name)
+    if getattr(device, "status", None) == "blocked":
+        audit_security_event("device_blocked", user=user, device_id=device.device_id, payload={"reason": "blocked"})
+        return (
+            None,
+            error_response(
+                status_code=403,
+                code="DEVICE_BLOCKED",
+                message="Device blocked",
+                user_message="تم حظر هذا الجهاز. يرجى التواصل مع الدعم.",
+                action="contact_support",
+            ),
+        )
+
+    if device.user != user:
+        audit_security_event(
+            "device_reuse_blocked",
+            user=user,
+            device_id=device.device_id,
+            payload={"reason": "linked_to_other_user"},
+        )
+        return (
+            None,
+            error_response(
+                status_code=409,
+                code="DEVICE_IN_USE",
+                message="Device already linked to another user",
+                user_message="هذا الجهاز مرتبط بحساب آخر ضمن هوية تثبيت مختلفة.",
+                action="rotate_device_id",
+            ),
+        )
+
+    return device, None
 
 
 def get_or_create_api_credentials(user: str) -> dict:

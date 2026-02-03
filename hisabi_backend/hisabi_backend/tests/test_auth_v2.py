@@ -38,6 +38,7 @@ class TestAuthV2(FrappeTestCase):
         )
         self.assertTrue(res2.get("auth", {}).get("token"))
         self.assertNotEqual(res2["auth"]["token"], res["auth"]["token"])  # rotation
+        self.assertTrue(res2.get("default_wallet_id"))
 
     def test_login_by_email(self):
         email = f"u_{frappe.generate_hash(length=8)}@example.com"
@@ -205,13 +206,15 @@ class TestAuthV2(FrappeTestCase):
             device={"device_id": device_id, "platform": "android"},
         )
 
-        with self.assertRaises(frappe.PermissionError):
-            register_user_v2(
-                phone=f"+1555{frappe.generate_hash(length=6)}",
-                full_name="User B",
-                password=password,
-                device={"device_id": device_id, "platform": "android"},
-            )
+        frappe.local.response = {}
+        res = register_user_v2(
+            phone=f"+1555{frappe.generate_hash(length=6)}",
+            full_name="User B",
+            password=password,
+            device={"device_id": device_id, "platform": "android"},
+        )
+        self.assertEqual(res.get("error", {}).get("code"), "DEVICE_IN_USE")
+        self.assertEqual(frappe.local.response.get("http_status_code"), 409)
 
     def test_blocked_device_cannot_login(self):
         phone = f"+1555{frappe.generate_hash(length=6)}"
@@ -230,5 +233,56 @@ class TestAuthV2(FrappeTestCase):
         device.status = "blocked"
         device.save(ignore_permissions=True)
 
-        with self.assertRaises(frappe.PermissionError):
-            login_v2(identifier=phone, password=password, device={"device_id": device_id, "platform": "android"})
+        frappe.local.response = {}
+        res = login_v2(identifier=phone, password=password, device={"device_id": device_id, "platform": "android"})
+        self.assertEqual(res.get("error", {}).get("code"), "DEVICE_BLOCKED")
+        self.assertEqual(frappe.local.response.get("http_status_code"), 403)
+
+    def test_device_reuse_same_user_ok(self):
+        phone = f"+1555{frappe.generate_hash(length=6)}"
+        password = "testpass123"
+        device_id = f"dev-{frappe.generate_hash(length=8)}"
+
+        res = register_user_v2(
+            phone=phone,
+            full_name="User",
+            password=password,
+            device={"device_id": device_id, "platform": "android"},
+        )
+        self.assertTrue(res.get("auth", {}).get("token"))
+
+        res2 = login_v2(
+            identifier=phone,
+            password=password,
+            device={"device_id": device_id, "platform": "android"},
+        )
+        self.assertTrue(res2.get("auth", {}).get("token"))
+
+    def test_device_reuse_different_user_conflict_409(self):
+        password = "testpass123"
+        device_id = f"dev-{frappe.generate_hash(length=8)}"
+
+        user_a = register_user_v2(
+            phone=f"+1555{frappe.generate_hash(length=6)}",
+            full_name="User A",
+            password=password,
+            device={"device_id": device_id, "platform": "android"},
+        )
+        self.assertTrue(user_a.get("auth", {}).get("token"))
+
+        user_b_phone = f"+1555{frappe.generate_hash(length=6)}"
+        register_user_v2(
+            phone=user_b_phone,
+            full_name="User B",
+            password=password,
+            device={"device_id": f"dev-{frappe.generate_hash(length=8)}", "platform": "android"},
+        )
+
+        frappe.local.response = {}
+        res = login_v2(
+            identifier=user_b_phone,
+            password=password,
+            device={"device_id": device_id, "platform": "android"},
+        )
+        self.assertEqual(res.get("error", {}).get("code"), "DEVICE_IN_USE")
+        self.assertEqual(frappe.local.response.get("http_status_code"), 409)

@@ -68,10 +68,10 @@ bash hisabi_backend/hisabi_backend/scripts/verify_auth_smoke.sh
 ## CORS Verification (Single Source)
 Requirement: CORS must be configured only via Frappe `allow_cors` in site_config.json. No custom app middleware and no Nginx CORS headers.
 
-Verify:
+Verify (checks three endpoints: `me`, `login`, `register_user`):
 ```bash
 BASE_URL=https://hisabi.yemenfrappe.com \
-ORIGIN=https://hisabi.yemenfrappe.com \
+ORIGIN=http://95.111.251.41:8081 \
 bash hisabi_backend/hisabi_backend/scripts/verify_cors.sh
 ```
 
