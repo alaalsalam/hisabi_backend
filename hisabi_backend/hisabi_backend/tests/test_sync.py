@@ -210,6 +210,33 @@ class TestSyncV1(FrappeTestCase):
         tx = frappe.get_doc("Hisabi Transaction", "tx-cat")
         self.assertEqual(tx.category, "cat-1")
 
+    def test_category_pull_payload_has_stable_name_and_client_id(self):
+        sync_push(
+            device_id=self.device_id,
+            wallet_id=self.wallet_id,
+            items=[
+                {
+                    "op_id": "op-cat-stable-1",
+                    "entity_type": "Hisabi Category",
+                    "entity_id": "cat-stable-1",
+                    "operation": "create",
+                    "payload": {
+                        "client_id": "cat-stable-1",
+                        "category_name": "Stable Category",
+                        "kind": "expense",
+                    },
+                }
+            ],
+        )
+
+        pull = self._pull_message(sync_pull(device_id=self.device_id, wallet_id=self.wallet_id))
+        categories = [item for item in pull.get("items", []) if item.get("entity_type") == "Hisabi Category"]
+        row = next((item for item in categories if item.get("client_id") == "cat-stable-1"), None)
+        self.assertIsNotNone(row)
+        payload = row.get("payload") or {}
+        self.assertEqual(payload.get("client_id"), "cat-stable-1")
+        self.assertEqual(payload.get("name"), "cat-stable-1")
+
     def test_bucket_rule_and_allocation_records(self):
         response = sync_push(
             device_id=self.device_id,
@@ -520,6 +547,84 @@ class TestSyncV1(FrappeTestCase):
             row for row in pull_after.get("items", []) if row.get("entity_type") == "Hisabi Transaction"
         ]
         self.assertTrue(any(row.get("client_id") == "tx-del" for row in tx_changes))
+
+    def test_update_transaction_recalculates_previous_and_new_accounts(self):
+        sync_push(
+            device_id=self.device_id,
+            wallet_id=self.wallet_id,
+            items=[
+                {
+                    "op_id": "op-acc-a-upd",
+                    "entity_type": "Hisabi Account",
+                    "entity_id": "acc-upd-a",
+                    "operation": "create",
+                    "payload": {
+                        "client_id": "acc-upd-a",
+                        "account_name": "Account A",
+                        "account_type": "cash",
+                        "currency": "SAR",
+                        "opening_balance": 100,
+                    },
+                },
+                {
+                    "op_id": "op-acc-b-upd",
+                    "entity_type": "Hisabi Account",
+                    "entity_id": "acc-upd-b",
+                    "operation": "create",
+                    "payload": {
+                        "client_id": "acc-upd-b",
+                        "account_name": "Account B",
+                        "account_type": "cash",
+                        "currency": "SAR",
+                        "opening_balance": 50,
+                    },
+                },
+                {
+                    "op_id": "op-tx-upd-account-create",
+                    "entity_type": "Hisabi Transaction",
+                    "entity_id": "tx-upd-account",
+                    "operation": "create",
+                    "payload": {
+                        "client_id": "tx-upd-account",
+                        "transaction_type": "expense",
+                        "date_time": now_datetime(),
+                        "amount": 20,
+                        "currency": "SAR",
+                        "account": "acc-upd-a",
+                    },
+                },
+            ],
+        )
+
+        account_a = frappe.get_doc("Hisabi Account", "acc-upd-a")
+        account_b = frappe.get_doc("Hisabi Account", "acc-upd-b")
+        tx = frappe.get_doc("Hisabi Transaction", "tx-upd-account")
+        self.assertEqual(account_a.current_balance, 80)
+        self.assertEqual(account_b.current_balance, 50)
+        self.assertEqual(tx.doc_version, 1)
+
+        sync_push(
+            device_id=self.device_id,
+            wallet_id=self.wallet_id,
+            items=[
+                {
+                    "op_id": "op-tx-upd-account-update",
+                    "entity_type": "Hisabi Transaction",
+                    "entity_id": "tx-upd-account",
+                    "operation": "update",
+                    "base_version": 1,
+                    "payload": {
+                        "client_id": "tx-upd-account",
+                        "account": "acc-upd-b",
+                    },
+                }
+            ],
+        )
+
+        account_a.reload()
+        account_b.reload()
+        self.assertEqual(account_a.current_balance, 100)
+        self.assertEqual(account_b.current_balance, 30)
 
     def test_duplicate_op_returns_stored_result(self):
         first = sync_push(

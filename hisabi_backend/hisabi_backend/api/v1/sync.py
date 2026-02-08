@@ -483,6 +483,13 @@ FIELD_MAP = {
     },
 }
 
+# Sync identity invariant: these doctypes must keep primary key == client_id.
+# This avoids client/server drift when links and queue items are keyed by client_id.
+SYNC_CLIENT_ID_PRIMARY_KEY_DOCTYPES = {
+    "Hisabi Account",
+    "Hisabi Category",
+}
+
 SYNC_PUSH_DATETIME_FIELDS = {
     "Hisabi Wallet Member": {"joined_at", "removed_at"},
     "Hisabi Transaction": {"date_time", "deleted_at"},
@@ -899,10 +906,10 @@ def _prepare_doc_for_write(
 
     if not existing:
         doc.name = client_id
-        if doctype == "Hisabi Account":
+        if doctype in SYNC_CLIENT_ID_PRIMARY_KEY_DOCTYPES:
             doc.flags.name_set = True
-    elif doc.name != client_id and doctype == "Hisabi Account":
-        # Compatibility: sync identity is `client_id`; non-account doctypes may keep generated `name`.
+    elif doc.name != client_id and doctype in SYNC_CLIENT_ID_PRIMARY_KEY_DOCTYPES:
+        # Keep client identity stable for sync-safe links and deterministic retries.
         doc = _rename_doc_to_client_id(doc, client_id)
 
     payload = _apply_field_map(doctype, payload)
@@ -954,8 +961,9 @@ def _cursor_dt(dt: Any) -> Optional[datetime.datetime]:
 
 
 def _minimal_server_record(doc: frappe.model.document.Document) -> Dict[str, Any]:
+    stable_name = doc.client_id or doc.name
     return {
-        "name": doc.name,
+        "name": stable_name,
         "client_id": doc.client_id,
         "doc_version": doc.doc_version,
         "server_modified": _to_iso(doc.server_modified),
@@ -975,8 +983,14 @@ def _sanitize_pull_record(doctype: str, record: Dict[str, Any]) -> Dict[str, Any
         return {key: value for key, value in cleaned.items() if key not in SYNC_PULL_SYSTEM_FIELDS}
 
     sanitized = {key: cleaned[key] for key in allowed if key in cleaned}
-    # Include stable identifier for doctypes that don't expose client_id (e.g. wallet members).
-    if not sanitized.get("client_id") and cleaned.get("name"):
+    # Contract stability: include both `client_id` and `name` consistently.
+    # For syncable docs, expose `name == client_id` even if legacy DB rows had a different name.
+    stable_client_id = sanitized.get("client_id") or cleaned.get("client_id")
+    if stable_client_id:
+        sanitized["client_id"] = stable_client_id
+        sanitized["name"] = stable_client_id
+    elif cleaned.get("name"):
+        # Backward compatibility for doctypes without client_id (e.g. wallet members).
         sanitized["name"] = cleaned.get("name")
     return sanitized
 
@@ -1365,6 +1379,13 @@ def sync_push(
                 continue
 
         try:
+            prev_tx_account = None
+            prev_tx_to_account = None
+            if entity_type == "Hisabi Transaction" and existing:
+                # Invariant: recalc must cover both pre-update and post-update links.
+                prev_tx_account = getattr(existing, "account", None)
+                prev_tx_to_account = getattr(existing, "to_account", None)
+
             if entity_type in {"Hisabi Budget", "Hisabi Goal"}:
                 payload = dict(payload)
                 base_currency = _resolve_base_currency(wallet_id, user)
@@ -1406,6 +1427,9 @@ def sync_push(
                 doc.db_set("is_deleted", 1, update_modified=False)
                 doc.db_set("deleted_at", doc.deleted_at, update_modified=False)
                 deleted_accounts.add(doc.name)
+            if entity_type == "Hisabi Category" and doc.name != doc.client_id:
+                # Category IDs are used as sync keys across clients; enforce canonical rename.
+                doc = _rename_doc_to_client_id(doc, doc.client_id)
 
             if entity_type == "Hisabi Wallet" and operation == "create":
                 # Ensure membership row exists for owner.
@@ -1419,6 +1443,10 @@ def sync_push(
                     m.save(ignore_permissions=True)
 
             if entity_type == "Hisabi Transaction":
+                if prev_tx_account:
+                    affected_accounts.add(prev_tx_account)
+                if prev_tx_to_account:
+                    affected_accounts.add(prev_tx_to_account)
                 if doc.account:
                     affected_accounts.add(doc.account)
                 if doc.to_account:

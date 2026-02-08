@@ -523,7 +523,7 @@ if [[ -z "${CONFLICT_PULL_VERSION}" || "${CONFLICT_PULL_VERSION}" != "${ACCOUNT_
   exit 1
 fi
 
-# Optional: Category
+# Category (required)
 
 CATEGORY_ID="cat-wp35-${TS}"
 CATEGORY_CREATE_OP="op-cat-create-${TS}"
@@ -531,7 +531,6 @@ CATEGORY_UPDATE_OP="op-cat-update-${TS}"
 CATEGORY_DELETE_OP="op-cat-delete-${TS}"
 CATEGORY_UPDATED_NAME="WP35 Category Updated"
 CATEGORY_CONFLICT_NAME="WP35 Category Conflict"
-CATEGORY_SUPPORTED="yes"
 
 echo "==> Sync push (create category)"
 CATEGORY_CREATE_PAYLOAD=$(cat <<JSON
@@ -542,165 +541,156 @@ JSON
 )
 CATEGORY_CREATE_RESP=$(curl_with_status POST "${BASE_URL}/api/method/hisabi_backend.api.v1.sync.sync_push" "${CATEGORY_CREATE_PAYLOAD}" "${TOKEN}")
 print_status_and_body "${CATEGORY_CREATE_RESP}"
-if ! optional_create_supported "${CATEGORY_CREATE_RESP}" "category"; then
-  CATEGORY_SUPPORTED="no"
+require_http_200 "${CATEGORY_CREATE_RESP}" "Sync push create category failed"
+require_status_exact "${CATEGORY_CREATE_RESP}" "accepted"
+CATEGORY_CREATE_BODY=$(response_body "${CATEGORY_CREATE_RESP}")
+CATEGORY_VERSION=$(echo "${CATEGORY_CREATE_BODY}" | json_get message.results.0.doc_version || true)
+if [[ -z "${CATEGORY_VERSION}" ]]; then
+  fail_with_response "${CATEGORY_CREATE_RESP}" "Missing doc_version on category create"
 fi
 
-if [[ "${CATEGORY_SUPPORTED}" == "yes" ]]; then
-  CATEGORY_CREATE_BODY=$(response_body "${CATEGORY_CREATE_RESP}")
-  CATEGORY_VERSION=$(echo "${CATEGORY_CREATE_BODY}" | json_get message.results.0.doc_version || true)
-  if [[ -z "${CATEGORY_VERSION}" ]]; then
-    fail_with_response "${CATEGORY_CREATE_RESP}" "Missing doc_version on category create"
-  fi
-
-  echo "==> Sync pull (confirm create category)"
-  PULL_BODY=$(pull_since "${SINCE}")
-  require_item_exists "${PULL_BODY}" "Hisabi Category" "${CATEGORY_ID}" "category"
-  CATEGORY_PULL_NAME=$(pull_item_value "${PULL_BODY}" "Hisabi Category" "${CATEGORY_ID}" "payload.name")
-  if [[ -z "${CATEGORY_PULL_NAME}" || "${CATEGORY_PULL_NAME}" != "${CATEGORY_ID}" ]]; then
-    echo "Skipping category: name != client_id (got '${CATEGORY_PULL_NAME}')" >&2
-    CATEGORY_SUPPORTED="no"
-  fi
-  PULL_CATEGORY_VERSION=$(pull_item_value "${PULL_BODY}" "Hisabi Category" "${CATEGORY_ID}" "doc_version")
-  if [[ -n "${PULL_CATEGORY_VERSION}" ]]; then
-    CATEGORY_VERSION="${PULL_CATEGORY_VERSION}"
-  fi
-
-  if [[ "${CATEGORY_SUPPORTED}" != "yes" ]]; then
-    echo "Skipping category E2E checks after create" >&2
-  fi
+echo "==> Sync pull (confirm create category)"
+PULL_BODY=$(pull_since "${SINCE}")
+require_item_exists "${PULL_BODY}" "Hisabi Category" "${CATEGORY_ID}" "category"
+CATEGORY_PULL_NAME=$(pull_item_value "${PULL_BODY}" "Hisabi Category" "${CATEGORY_ID}" "payload.name")
+if [[ -z "${CATEGORY_PULL_NAME}" || "${CATEGORY_PULL_NAME}" != "${CATEGORY_ID}" ]]; then
+  echo "Expected category payload.name to equal client_id ('${CATEGORY_ID}'), got '${CATEGORY_PULL_NAME}'" >&2
+  echo "${PULL_BODY}" >&2
+  exit 1
+fi
+PULL_CATEGORY_VERSION=$(pull_item_value "${PULL_BODY}" "Hisabi Category" "${CATEGORY_ID}" "doc_version")
+if [[ -n "${PULL_CATEGORY_VERSION}" ]]; then
+  CATEGORY_VERSION="${PULL_CATEGORY_VERSION}"
 fi
 
-if [[ "${CATEGORY_SUPPORTED}" == "yes" ]]; then
-  CATEGORY_UPDATE_BASE_VERSION="${CATEGORY_VERSION}"
+CATEGORY_UPDATE_BASE_VERSION="${CATEGORY_VERSION}"
 
-  echo "==> Sync push (update category)"
-  CATEGORY_UPDATE_PAYLOAD=$(cat <<JSON
+echo "==> Sync push (update category)"
+CATEGORY_UPDATE_PAYLOAD=$(cat <<JSON
 {"device_id":"${DEVICE_ID}","wallet_id":"${WALLET_ID}","items":[
   {"op_id":"${CATEGORY_UPDATE_OP}","entity_type":"Hisabi Category","entity_id":"${CATEGORY_ID}","operation":"update","base_version":${CATEGORY_UPDATE_BASE_VERSION},"payload":{"client_id":"${CATEGORY_ID}","category_name":"${CATEGORY_UPDATED_NAME}"}}
 ]}
 JSON
 )
-  CATEGORY_UPDATE_RESP=$(curl_with_status POST "${BASE_URL}/api/method/hisabi_backend.api.v1.sync.sync_push" "${CATEGORY_UPDATE_PAYLOAD}" "${TOKEN}")
-  print_status_and_body "${CATEGORY_UPDATE_RESP}"
-  require_http_200 "${CATEGORY_UPDATE_RESP}" "Sync push update category failed"
-  require_status_exact "${CATEGORY_UPDATE_RESP}" "accepted"
-  CATEGORY_UPDATE_BODY=$(response_body "${CATEGORY_UPDATE_RESP}")
-  CATEGORY_VERSION=$(echo "${CATEGORY_UPDATE_BODY}" | json_get message.results.0.doc_version || true)
-  if [[ -z "${CATEGORY_VERSION}" ]]; then
-    fail_with_response "${CATEGORY_UPDATE_RESP}" "Missing doc_version on category update"
-  fi
+CATEGORY_UPDATE_RESP=$(curl_with_status POST "${BASE_URL}/api/method/hisabi_backend.api.v1.sync.sync_push" "${CATEGORY_UPDATE_PAYLOAD}" "${TOKEN}")
+print_status_and_body "${CATEGORY_UPDATE_RESP}"
+require_http_200 "${CATEGORY_UPDATE_RESP}" "Sync push update category failed"
+require_status_exact "${CATEGORY_UPDATE_RESP}" "accepted"
+CATEGORY_UPDATE_BODY=$(response_body "${CATEGORY_UPDATE_RESP}")
+CATEGORY_VERSION=$(echo "${CATEGORY_UPDATE_BODY}" | json_get message.results.0.doc_version || true)
+if [[ -z "${CATEGORY_VERSION}" ]]; then
+  fail_with_response "${CATEGORY_UPDATE_RESP}" "Missing doc_version on category update"
+fi
 
-  echo "==> Sync pull (confirm update category)"
-  PULL_BODY=$(pull_since "${SINCE}")
-  require_item_exists "${PULL_BODY}" "Hisabi Category" "${CATEGORY_ID}" "category"
-  CATEGORY_NAME=$(pull_item_value "${PULL_BODY}" "Hisabi Category" "${CATEGORY_ID}" "payload.category_name")
-  if [[ "${CATEGORY_NAME}" != "${CATEGORY_UPDATED_NAME}" ]]; then
-    echo "Expected category_name '${CATEGORY_UPDATED_NAME}', got '${CATEGORY_NAME}'" >&2
-    echo "${PULL_BODY}" >&2
-    exit 1
-  fi
-  PULL_CATEGORY_VERSION=$(pull_item_value "${PULL_BODY}" "Hisabi Category" "${CATEGORY_ID}" "doc_version")
-  if [[ -n "${PULL_CATEGORY_VERSION}" ]]; then
-    CATEGORY_VERSION="${PULL_CATEGORY_VERSION}"
-  fi
+echo "==> Sync pull (confirm update category)"
+PULL_BODY=$(pull_since "${SINCE}")
+require_item_exists "${PULL_BODY}" "Hisabi Category" "${CATEGORY_ID}" "category"
+CATEGORY_NAME=$(pull_item_value "${PULL_BODY}" "Hisabi Category" "${CATEGORY_ID}" "payload.category_name")
+if [[ "${CATEGORY_NAME}" != "${CATEGORY_UPDATED_NAME}" ]]; then
+  echo "Expected category_name '${CATEGORY_UPDATED_NAME}', got '${CATEGORY_NAME}'" >&2
+  echo "${PULL_BODY}" >&2
+  exit 1
+fi
+PULL_CATEGORY_VERSION=$(pull_item_value "${PULL_BODY}" "Hisabi Category" "${CATEGORY_ID}" "doc_version")
+if [[ -n "${PULL_CATEGORY_VERSION}" ]]; then
+  CATEGORY_VERSION="${PULL_CATEGORY_VERSION}"
+fi
 
-  echo "==> Sync push (replay update category)"
-  CATEGORY_REPLAY_RESP=$(curl_with_status POST "${BASE_URL}/api/method/hisabi_backend.api.v1.sync.sync_push" "${CATEGORY_UPDATE_PAYLOAD}" "${TOKEN}")
-  print_status_and_body "${CATEGORY_REPLAY_RESP}"
-  require_http_200 "${CATEGORY_REPLAY_RESP}" "Sync push replay update category failed"
-  require_status_allowed "${CATEGORY_REPLAY_RESP}" "accepted" "duplicate" "noop"
+echo "==> Sync push (replay update category)"
+CATEGORY_REPLAY_RESP=$(curl_with_status POST "${BASE_URL}/api/method/hisabi_backend.api.v1.sync.sync_push" "${CATEGORY_UPDATE_PAYLOAD}" "${TOKEN}")
+print_status_and_body "${CATEGORY_REPLAY_RESP}"
+require_http_200 "${CATEGORY_REPLAY_RESP}" "Sync push replay update category failed"
+require_status_allowed "${CATEGORY_REPLAY_RESP}" "accepted" "duplicate" "noop"
 
-  PULL_BODY=$(pull_since "${SINCE}")
-  REPLAY_VERSION=$(pull_item_value "${PULL_BODY}" "Hisabi Category" "${CATEGORY_ID}" "doc_version")
-  if [[ -z "${REPLAY_VERSION}" ]]; then
-    echo "Missing doc_version after category replay pull" >&2
-    echo "${PULL_BODY}" >&2
-    exit 1
-  fi
-  if [[ "${REPLAY_VERSION}" != "${CATEGORY_VERSION}" ]]; then
-    echo "Category doc_version bumped on replay (expected ${CATEGORY_VERSION}, got ${REPLAY_VERSION})" >&2
-    echo "${PULL_BODY}" >&2
-    exit 1
-  fi
+PULL_BODY=$(pull_since "${SINCE}")
+REPLAY_VERSION=$(pull_item_value "${PULL_BODY}" "Hisabi Category" "${CATEGORY_ID}" "doc_version")
+if [[ -z "${REPLAY_VERSION}" ]]; then
+  echo "Missing doc_version after category replay pull" >&2
+  echo "${PULL_BODY}" >&2
+  exit 1
+fi
+if [[ "${REPLAY_VERSION}" != "${CATEGORY_VERSION}" ]]; then
+  echo "Category doc_version bumped on replay (expected ${CATEGORY_VERSION}, got ${REPLAY_VERSION})" >&2
+  echo "${PULL_BODY}" >&2
+  exit 1
+fi
 
-  CATEGORY_CONFLICT_BASE_VERSION=$((CATEGORY_VERSION - 1))
-  if [[ "${CATEGORY_CONFLICT_BASE_VERSION}" -lt 0 ]]; then
-    CATEGORY_CONFLICT_BASE_VERSION=0
-  fi
+CATEGORY_CONFLICT_BASE_VERSION=$((CATEGORY_VERSION - 1))
+if [[ "${CATEGORY_CONFLICT_BASE_VERSION}" -lt 0 ]]; then
+  CATEGORY_CONFLICT_BASE_VERSION=0
+fi
 
-  echo "==> Sync push (conflict update category)"
-  CATEGORY_CONFLICT_PAYLOAD=$(cat <<JSON
+echo "==> Sync push (conflict update category)"
+CATEGORY_CONFLICT_PAYLOAD=$(cat <<JSON
 {"device_id":"${DEVICE_ID}","wallet_id":"${WALLET_ID}","items":[
   {"op_id":"op-cat-conflict-${TS}","entity_type":"Hisabi Category","entity_id":"${CATEGORY_ID}","operation":"update","base_version":${CATEGORY_CONFLICT_BASE_VERSION},"payload":{"client_id":"${CATEGORY_ID}","category_name":"${CATEGORY_CONFLICT_NAME}"}}
 ]}
 JSON
 )
-  CATEGORY_CONFLICT_RESP=$(curl_with_status POST "${BASE_URL}/api/method/hisabi_backend.api.v1.sync.sync_push" "${CATEGORY_CONFLICT_PAYLOAD}" "${TOKEN}")
-  print_status_and_body "${CATEGORY_CONFLICT_RESP}"
-  require_http_200 "${CATEGORY_CONFLICT_RESP}" "Sync push conflict update category failed"
-  require_status_exact "${CATEGORY_CONFLICT_RESP}" "conflict"
-  CATEGORY_CONFLICT_BODY=$(response_body "${CATEGORY_CONFLICT_RESP}")
-  SERVER_VERSION=$(echo "${CATEGORY_CONFLICT_BODY}" | json_get message.results.0.server_record.doc_version || true)
-  if [[ -z "${SERVER_VERSION}" || "${SERVER_VERSION}" != "${CATEGORY_VERSION}" ]]; then
-    fail_with_response "${CATEGORY_CONFLICT_RESP}" "Category conflict server_record doc_version mismatch"
-  fi
+CATEGORY_CONFLICT_RESP=$(curl_with_status POST "${BASE_URL}/api/method/hisabi_backend.api.v1.sync.sync_push" "${CATEGORY_CONFLICT_PAYLOAD}" "${TOKEN}")
+print_status_and_body "${CATEGORY_CONFLICT_RESP}"
+require_http_200 "${CATEGORY_CONFLICT_RESP}" "Sync push conflict update category failed"
+require_status_exact "${CATEGORY_CONFLICT_RESP}" "conflict"
+CATEGORY_CONFLICT_BODY=$(response_body "${CATEGORY_CONFLICT_RESP}")
+SERVER_VERSION=$(echo "${CATEGORY_CONFLICT_BODY}" | json_get message.results.0.server_record.doc_version || true)
+if [[ -z "${SERVER_VERSION}" || "${SERVER_VERSION}" != "${CATEGORY_VERSION}" ]]; then
+  fail_with_response "${CATEGORY_CONFLICT_RESP}" "Category conflict server_record doc_version mismatch"
+fi
 
-  PULL_BODY=$(pull_since "${SINCE}")
-  CONFLICT_PULL_VERSION=$(pull_item_value "${PULL_BODY}" "Hisabi Category" "${CATEGORY_ID}" "doc_version")
-  if [[ -z "${CONFLICT_PULL_VERSION}" || "${CONFLICT_PULL_VERSION}" != "${CATEGORY_VERSION}" ]]; then
-    echo "Category doc_version changed after conflict (expected ${CATEGORY_VERSION}, got ${CONFLICT_PULL_VERSION})" >&2
-    echo "${PULL_BODY}" >&2
-    exit 1
-  fi
+PULL_BODY=$(pull_since "${SINCE}")
+CONFLICT_PULL_VERSION=$(pull_item_value "${PULL_BODY}" "Hisabi Category" "${CATEGORY_ID}" "doc_version")
+if [[ -z "${CONFLICT_PULL_VERSION}" || "${CONFLICT_PULL_VERSION}" != "${CATEGORY_VERSION}" ]]; then
+  echo "Category doc_version changed after conflict (expected ${CATEGORY_VERSION}, got ${CONFLICT_PULL_VERSION})" >&2
+  echo "${PULL_BODY}" >&2
+  exit 1
+fi
 
-  echo "==> Sync push (delete category)"
-  CATEGORY_DELETE_PAYLOAD=$(cat <<JSON
+echo "==> Sync push (delete category)"
+CATEGORY_DELETE_PAYLOAD=$(cat <<JSON
 {"device_id":"${DEVICE_ID}","wallet_id":"${WALLET_ID}","items":[
   {"op_id":"${CATEGORY_DELETE_OP}","entity_type":"Hisabi Category","entity_id":"${CATEGORY_ID}","operation":"delete","base_version":${CATEGORY_VERSION},"payload":{"client_id":"${CATEGORY_ID}"}}
 ]}
 JSON
 )
-  CATEGORY_DELETE_RESP=$(curl_with_status POST "${BASE_URL}/api/method/hisabi_backend.api.v1.sync.sync_push" "${CATEGORY_DELETE_PAYLOAD}" "${TOKEN}")
-  print_status_and_body "${CATEGORY_DELETE_RESP}"
-  require_http_200 "${CATEGORY_DELETE_RESP}" "Sync push delete category failed"
-  require_status_allowed "${CATEGORY_DELETE_RESP}" "accepted" "duplicate" "noop"
-  CATEGORY_DELETE_BODY=$(response_body "${CATEGORY_DELETE_RESP}")
-  CATEGORY_DELETE_VERSION=$(echo "${CATEGORY_DELETE_BODY}" | json_get message.results.0.doc_version || true)
+CATEGORY_DELETE_RESP=$(curl_with_status POST "${BASE_URL}/api/method/hisabi_backend.api.v1.sync.sync_push" "${CATEGORY_DELETE_PAYLOAD}" "${TOKEN}")
+print_status_and_body "${CATEGORY_DELETE_RESP}"
+require_http_200 "${CATEGORY_DELETE_RESP}" "Sync push delete category failed"
+require_status_allowed "${CATEGORY_DELETE_RESP}" "accepted" "duplicate" "noop"
+CATEGORY_DELETE_BODY=$(response_body "${CATEGORY_DELETE_RESP}")
+CATEGORY_DELETE_VERSION=$(echo "${CATEGORY_DELETE_BODY}" | json_get message.results.0.doc_version || true)
 
-  echo "==> Sync pull (confirm delete category)"
-  PULL_BODY=$(pull_since "${SINCE}")
-  require_item_exists "${PULL_BODY}" "Hisabi Category" "${CATEGORY_ID}" "category"
-  CATEGORY_DELETED=$(pull_item_value "${PULL_BODY}" "Hisabi Category" "${CATEGORY_ID}" "is_deleted")
-  CATEGORY_DELETED_AT=$(pull_item_value "${PULL_BODY}" "Hisabi Category" "${CATEGORY_ID}" "deleted_at")
-  if [[ "${CATEGORY_DELETED}" != "1" || -z "${CATEGORY_DELETED_AT}" ]]; then
-    echo "Expected category is_deleted=1 and deleted_at set" >&2
-    echo "${PULL_BODY}" >&2
-    exit 1
-  fi
-  PULL_CATEGORY_VERSION=$(pull_item_value "${PULL_BODY}" "Hisabi Category" "${CATEGORY_ID}" "doc_version")
-  if [[ -n "${PULL_CATEGORY_VERSION}" ]]; then
-    CATEGORY_DELETE_VERSION="${PULL_CATEGORY_VERSION}"
-  fi
+echo "==> Sync pull (confirm delete category)"
+PULL_BODY=$(pull_since "${SINCE}")
+require_item_exists "${PULL_BODY}" "Hisabi Category" "${CATEGORY_ID}" "category"
+CATEGORY_DELETED=$(pull_item_value "${PULL_BODY}" "Hisabi Category" "${CATEGORY_ID}" "is_deleted")
+CATEGORY_DELETED_AT=$(pull_item_value "${PULL_BODY}" "Hisabi Category" "${CATEGORY_ID}" "deleted_at")
+if [[ "${CATEGORY_DELETED}" != "1" || -z "${CATEGORY_DELETED_AT}" ]]; then
+  echo "Expected category is_deleted=1 and deleted_at set" >&2
+  echo "${PULL_BODY}" >&2
+  exit 1
+fi
+PULL_CATEGORY_VERSION=$(pull_item_value "${PULL_BODY}" "Hisabi Category" "${CATEGORY_ID}" "doc_version")
+if [[ -n "${PULL_CATEGORY_VERSION}" ]]; then
+  CATEGORY_DELETE_VERSION="${PULL_CATEGORY_VERSION}"
+fi
 
-  echo "==> Sync push (replay delete category)"
-  CATEGORY_DELETE_REPLAY_RESP=$(curl_with_status POST "${BASE_URL}/api/method/hisabi_backend.api.v1.sync.sync_push" "${CATEGORY_DELETE_PAYLOAD}" "${TOKEN}")
-  print_status_and_body "${CATEGORY_DELETE_REPLAY_RESP}"
-  require_http_200 "${CATEGORY_DELETE_REPLAY_RESP}" "Sync push replay delete category failed"
-  require_status_allowed "${CATEGORY_DELETE_REPLAY_RESP}" "accepted" "duplicate" "noop"
+echo "==> Sync push (replay delete category)"
+CATEGORY_DELETE_REPLAY_RESP=$(curl_with_status POST "${BASE_URL}/api/method/hisabi_backend.api.v1.sync.sync_push" "${CATEGORY_DELETE_PAYLOAD}" "${TOKEN}")
+print_status_and_body "${CATEGORY_DELETE_REPLAY_RESP}"
+require_http_200 "${CATEGORY_DELETE_REPLAY_RESP}" "Sync push replay delete category failed"
+require_status_allowed "${CATEGORY_DELETE_REPLAY_RESP}" "accepted" "duplicate" "noop"
 
-  PULL_BODY=$(pull_since "${SINCE}")
-  REPLAY_VERSION=$(pull_item_value "${PULL_BODY}" "Hisabi Category" "${CATEGORY_ID}" "doc_version")
-  if [[ -z "${REPLAY_VERSION}" ]]; then
-    echo "Missing doc_version after category delete replay pull" >&2
-    echo "${PULL_BODY}" >&2
-    exit 1
-  fi
-  if [[ -n "${CATEGORY_DELETE_VERSION}" && "${REPLAY_VERSION}" != "${CATEGORY_DELETE_VERSION}" ]]; then
-    echo "Category doc_version bumped on delete replay (expected ${CATEGORY_DELETE_VERSION}, got ${REPLAY_VERSION})" >&2
-    echo "${PULL_BODY}" >&2
-    exit 1
-  fi
+PULL_BODY=$(pull_since "${SINCE}")
+REPLAY_VERSION=$(pull_item_value "${PULL_BODY}" "Hisabi Category" "${CATEGORY_ID}" "doc_version")
+if [[ -z "${REPLAY_VERSION}" ]]; then
+  echo "Missing doc_version after category delete replay pull" >&2
+  echo "${PULL_BODY}" >&2
+  exit 1
+fi
+if [[ -n "${CATEGORY_DELETE_VERSION}" && "${REPLAY_VERSION}" != "${CATEGORY_DELETE_VERSION}" ]]; then
+  echo "Category doc_version bumped on delete replay (expected ${CATEGORY_DELETE_VERSION}, got ${REPLAY_VERSION})" >&2
+  echo "${PULL_BODY}" >&2
+  exit 1
 fi
 
 # Transaction (required)
