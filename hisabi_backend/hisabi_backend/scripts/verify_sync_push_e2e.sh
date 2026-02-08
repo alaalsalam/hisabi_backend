@@ -318,6 +318,33 @@ function require_name_matches_client_id() {
   fi
 }
 
+function report_has_account() {
+  local wallet_id="$1"
+  local account_id="$2"
+  local response
+  response=$(curl_with_status_get "${BASE_URL}/api/method/hisabi_backend.api.v1.reports_finance.report_summary" "${TOKEN}" \
+    --data-urlencode "wallet_id=${wallet_id}")
+  print_status_and_body "${response}" >&2
+  require_http_200 "${response}" "Report summary failed"
+  local body
+  body=$(response_body "${response}")
+  REPORT_BODY="${body}" ACCOUNT_ID="${account_id}" python3 - <<'PY'
+import json
+import os
+body = os.environ.get("REPORT_BODY", "")
+account_id = os.environ.get("ACCOUNT_ID", "")
+try:
+    data = json.loads(body) if body else {}
+except json.JSONDecodeError:
+    print("no")
+    raise SystemExit
+msg = data.get("message") if isinstance(data.get("message"), dict) else data
+accounts = msg.get("accounts") or []
+has_account = any((row.get("name") == account_id or row.get("account") == account_id) for row in accounts if isinstance(row, dict))
+print("yes" if has_account else "no")
+PY
+}
+
 TS=$(date +%s)
 SINCE=$(date -u -d '1 day ago' '+%Y-%m-%dT%H:%M:%SZ')
 
@@ -898,6 +925,14 @@ fi
 PULL_ACCOUNT_VERSION=$(pull_item_value "${PULL_BODY}" "Hisabi Account" "${ACCOUNT_ID}" "doc_version")
 if [[ -n "${PULL_ACCOUNT_VERSION}" ]]; then
   ACCOUNT_DELETE_VERSION="${PULL_ACCOUNT_VERSION}"
+fi
+
+# Data integrity: deleted accounts must not appear in report aggregates.
+echo "==> Report summary (confirm deleted account excluded)"
+REPORT_HAS_ACCOUNT=$(report_has_account "${WALLET_ID}" "${ACCOUNT_ID}")
+if [[ "${REPORT_HAS_ACCOUNT}" != "no" ]]; then
+  echo "Deleted account ${ACCOUNT_ID} still appears in report_summary accounts" >&2
+  exit 1
 fi
 
 # Account: delete replay
