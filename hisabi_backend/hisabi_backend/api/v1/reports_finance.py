@@ -26,6 +26,38 @@ def _build_invalid_request(message: str, *, param: Optional[str] = None, status_
     return response
 
 
+def _resolve_wallet_id_param(wallet_id: Optional[str]) -> str | Response:
+    # Be explicit: Frappe RPC sometimes doesn't populate `wallet_id` into function args.
+    wallet_id = wallet_id or frappe.form_dict.get("wallet_id") or get_request_param("wallet_id")
+    if not wallet_id:
+        return _build_invalid_request("wallet_id is required", param="wallet_id")
+    try:
+        return validate_client_id(wallet_id)
+    except Exception:
+        return _build_invalid_request("wallet_id is invalid", param="wallet_id")
+
+
+def _build_tx_filters(
+    *,
+    wallet_id: str,
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    currency: Optional[str] = None,
+) -> tuple[list[str], Dict[str, Any]]:
+    params: Dict[str, Any] = {"wallet_id": wallet_id}
+    filters = ["wallet_id=%(wallet_id)s", "is_deleted=0"]
+    if from_date:
+        params["from_date"] = get_datetime(from_date)
+        filters.append("date_time >= %(from_date)s")
+    if to_date:
+        params["to_date"] = get_datetime(to_date)
+        filters.append("date_time <= %(to_date)s")
+    if currency:
+        params["currency"] = currency
+        filters.append("currency = %(currency)s")
+    return filters, params
+
+
 @frappe.whitelist(allow_guest=False)
 def report_summary(
     from_date: Optional[str] = None,
@@ -35,29 +67,19 @@ def report_summary(
     device_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     user, _device = require_device_token_auth()
-    # Be explicit: Frappe RPC sometimes doesn't populate `wallet_id` into function args.
-    # Read from form_dict and then fall back to request parsing helper (args/query_string/json body).
-    wallet_id = wallet_id or frappe.form_dict.get("wallet_id") or get_request_param("wallet_id")
-    if not wallet_id:
-        return _build_invalid_request("wallet_id is required", param="wallet_id")
-    try:
-        wallet_id = validate_client_id(wallet_id)
-    except Exception:
-        return _build_invalid_request("wallet_id is invalid", param="wallet_id")
+    wallet_id_resolved = _resolve_wallet_id_param(wallet_id)
+    if isinstance(wallet_id_resolved, Response):
+        return wallet_id_resolved
+    wallet_id = wallet_id_resolved
     require_wallet_member(wallet_id, user, min_role="viewer")
 
-    params: Dict[str, Any] = {"wallet_id": wallet_id}
     # Reporting must exclude soft-deleted rows unless explicitly requested.
-    date_filters = ["wallet_id=%(wallet_id)s", "is_deleted=0"]
-    if from_date:
-        params["from_date"] = get_datetime(from_date)
-        date_filters.append("date_time >= %(from_date)s")
-    if to_date:
-        params["to_date"] = get_datetime(to_date)
-        date_filters.append("date_time <= %(to_date)s")
-    if currency:
-        params["currency"] = currency
-        date_filters.append("currency = %(currency)s")
+    date_filters, params = _build_tx_filters(
+        wallet_id=wallet_id,
+        from_date=from_date,
+        to_date=to_date,
+        currency=currency,
+    )
 
     totals = frappe.db.sql(
         f"""
@@ -162,6 +184,177 @@ def report_summary(
 
 
 @frappe.whitelist(allow_guest=False)
+def category_breakdown(
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    currency: Optional[str] = None,
+    wallet_id: Optional[str] = None,
+    device_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    user, _device = require_device_token_auth()
+    wallet_id_resolved = _resolve_wallet_id_param(wallet_id)
+    if isinstance(wallet_id_resolved, Response):
+        return wallet_id_resolved
+    wallet_id = wallet_id_resolved
+    require_wallet_member(wallet_id, user, min_role="viewer")
+
+    tx_filters, params = _build_tx_filters(
+        wallet_id=wallet_id,
+        from_date=from_date,
+        to_date=to_date,
+        currency=currency,
+    )
+    tx_filters.append("transaction_type IN ('income', 'expense')")
+
+    rows = frappe.db.sql(
+        f"""
+        SELECT
+            tx.category AS category_id,
+            COALESCE(cat.category_name, tx.category, 'uncategorized') AS category_name,
+            COALESCE(cat.kind, tx.transaction_type) AS kind,
+            COUNT(*) AS tx_count,
+            COALESCE(SUM(CASE
+                WHEN tx.transaction_type='income' THEN COALESCE(tx.amount_base, tx.amount)
+                ELSE 0
+            END), 0) AS total_income,
+            COALESCE(SUM(CASE
+                WHEN tx.transaction_type='expense' THEN COALESCE(tx.amount_base, tx.amount)
+                ELSE 0
+            END), 0) AS total_expense
+        FROM `tabHisabi Transaction` tx
+        LEFT JOIN `tabHisabi Category` cat
+            ON (cat.name = tx.category OR cat.client_id = tx.category)
+            AND cat.wallet_id = tx.wallet_id
+            AND cat.is_deleted = 0
+        WHERE {' AND '.join(f'tx.{flt}' for flt in tx_filters)}
+        GROUP BY tx.category, COALESCE(cat.category_name, tx.category, 'uncategorized'), COALESCE(cat.kind, tx.transaction_type)
+        ORDER BY
+            (
+                COALESCE(SUM(CASE
+                    WHEN tx.transaction_type='income' THEN COALESCE(tx.amount_base, tx.amount)
+                    ELSE 0
+                END), 0)
+                +
+                COALESCE(SUM(CASE
+                    WHEN tx.transaction_type='expense' THEN COALESCE(tx.amount_base, tx.amount)
+                    ELSE 0
+                END), 0)
+            ) DESC,
+            category_name ASC
+        """,
+        params,
+        as_dict=True,
+    )
+
+    categories = []
+    total_income = 0
+    total_expense = 0
+    for row in rows:
+        income_amount = row.get("total_income") or 0
+        expense_amount = row.get("total_expense") or 0
+        total_income += income_amount
+        total_expense += expense_amount
+        category_id = row.get("category_id") or "uncategorized"
+        categories.append(
+            {
+                "category_id": category_id,
+                "category_name": row.get("category_name") or category_id,
+                "kind": row.get("kind") or "expense",
+                "tx_count": row.get("tx_count") or 0,
+                "total_income": income_amount,
+                "total_expense": expense_amount,
+                "net": income_amount - expense_amount,
+            }
+        )
+
+    return {
+        "categories": categories,
+        "totals": {
+            "income": total_income,
+            "expense": total_expense,
+            "net": total_income - total_expense,
+        },
+        "from_date": from_date,
+        "to_date": to_date,
+        "server_time": now_datetime().isoformat(),
+    }
+
+
+@frappe.whitelist(allow_guest=False)
+def cashflow(
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    currency: Optional[str] = None,
+    wallet_id: Optional[str] = None,
+    device_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    user, _device = require_device_token_auth()
+    wallet_id_resolved = _resolve_wallet_id_param(wallet_id)
+    if isinstance(wallet_id_resolved, Response):
+        return wallet_id_resolved
+    wallet_id = wallet_id_resolved
+    require_wallet_member(wallet_id, user, min_role="viewer")
+
+    tx_filters, params = _build_tx_filters(
+        wallet_id=wallet_id,
+        from_date=from_date,
+        to_date=to_date,
+        currency=currency,
+    )
+    tx_filters.append("transaction_type IN ('income', 'expense')")
+
+    rows = frappe.db.sql(
+        f"""
+        SELECT
+            DATE(date_time) AS day,
+            COALESCE(SUM(CASE
+                WHEN transaction_type='income' THEN COALESCE(amount_base, amount)
+                ELSE 0
+            END), 0) AS income,
+            COALESCE(SUM(CASE
+                WHEN transaction_type='expense' THEN COALESCE(amount_base, amount)
+                ELSE 0
+            END), 0) AS expense
+        FROM `tabHisabi Transaction`
+        WHERE {' AND '.join(tx_filters)}
+        GROUP BY DATE(date_time)
+        ORDER BY DATE(date_time) ASC
+        """,
+        params,
+        as_dict=True,
+    )
+
+    points = []
+    total_income = 0
+    total_expense = 0
+    for row in rows:
+        income_amount = row.get("income") or 0
+        expense_amount = row.get("expense") or 0
+        total_income += income_amount
+        total_expense += expense_amount
+        points.append(
+            {
+                "date": str(row.get("day")),
+                "income": income_amount,
+                "expense": expense_amount,
+                "net": income_amount - expense_amount,
+            }
+        )
+
+    return {
+        "points": points,
+        "totals": {
+            "income": total_income,
+            "expense": total_expense,
+            "net": total_income - total_expense,
+        },
+        "from_date": from_date,
+        "to_date": to_date,
+        "server_time": now_datetime().isoformat(),
+    }
+
+
+@frappe.whitelist(allow_guest=False)
 def report_budgets(
     from_date: Optional[str] = None,
     to_date: Optional[str] = None,
@@ -169,13 +362,10 @@ def report_budgets(
     device_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     user, _device = require_device_token_auth()
-    wallet_id = wallet_id or get_request_param("wallet_id")
-    if not wallet_id:
-        return _build_invalid_request("wallet_id is required", param="wallet_id")
-    try:
-        wallet_id = validate_client_id(wallet_id)
-    except Exception:
-        return _build_invalid_request("wallet_id is invalid", param="wallet_id")
+    wallet_id_resolved = _resolve_wallet_id_param(wallet_id)
+    if isinstance(wallet_id_resolved, Response):
+        return wallet_id_resolved
+    wallet_id = wallet_id_resolved
     require_wallet_member(wallet_id, user, min_role="viewer")
 
     budgets = frappe.get_all(
@@ -209,13 +399,10 @@ def report_budgets(
 @frappe.whitelist(allow_guest=False)
 def report_goals(wallet_id: Optional[str] = None, device_id: Optional[str] = None) -> Dict[str, Any]:
     user, _device = require_device_token_auth()
-    wallet_id = wallet_id or get_request_param("wallet_id")
-    if not wallet_id:
-        return _build_invalid_request("wallet_id is required", param="wallet_id")
-    try:
-        wallet_id = validate_client_id(wallet_id)
-    except Exception:
-        return _build_invalid_request("wallet_id is invalid", param="wallet_id")
+    wallet_id_resolved = _resolve_wallet_id_param(wallet_id)
+    if isinstance(wallet_id_resolved, Response):
+        return wallet_id_resolved
+    wallet_id = wallet_id_resolved
     require_wallet_member(wallet_id, user, min_role="viewer")
     goals = frappe.get_all(
         "Hisabi Goal",
@@ -239,13 +426,10 @@ def report_goals(wallet_id: Optional[str] = None, device_id: Optional[str] = Non
 @frappe.whitelist(allow_guest=False)
 def report_debts(wallet_id: Optional[str] = None, device_id: Optional[str] = None) -> Dict[str, Any]:
     user, _device = require_device_token_auth()
-    wallet_id = wallet_id or get_request_param("wallet_id")
-    if not wallet_id:
-        return _build_invalid_request("wallet_id is required", param="wallet_id")
-    try:
-        wallet_id = validate_client_id(wallet_id)
-    except Exception:
-        return _build_invalid_request("wallet_id is invalid", param="wallet_id")
+    wallet_id_resolved = _resolve_wallet_id_param(wallet_id)
+    if isinstance(wallet_id_resolved, Response):
+        return wallet_id_resolved
+    wallet_id = wallet_id_resolved
     require_wallet_member(wallet_id, user, min_role="viewer")
     debts = frappe.get_all(
         "Hisabi Debt",
