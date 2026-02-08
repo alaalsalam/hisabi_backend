@@ -1633,12 +1633,16 @@ def sync_pull(
         if cursor_tuple:
             filters["server_modified"] = [">=", cursor_tuple[0]]
 
+        fields = ["name", "server_modified"]
+        if meta.has_field("client_id"):
+            fields.append("client_id")
+
         records = frappe.get_all(
             doctype,
             filters=filters,
             limit=limit + 1,
             order_by="server_modified asc, name asc",
-            fields=["name", "server_modified"],
+            fields=fields,
         )
         if not records:
             continue
@@ -1647,19 +1651,21 @@ def sync_pull(
             server_modified_dt = _cursor_dt(row.server_modified)
             if not server_modified_dt:
                 continue
-            key = (server_modified_dt, doctype, row.name)
+            cursor_entity_id = row.get("client_id") or row.name
+            key = (server_modified_dt, doctype, cursor_entity_id)
             if cursor_tuple and key <= cursor_tuple:
                 continue
             candidates.append(
                 {
                     "doctype": doctype,
                     "name": row.name,
+                    "entity_id": cursor_entity_id,
                     "server_modified": server_modified_dt,
                     "key": key,
                 }
             )
 
-    # Sync: deterministic pagination prevents duplicates/misses.
+    # Sync pagination: prevent missing/duplicate pages.
     candidates.sort(key=lambda row: row["key"])
     selected = candidates[:limit]
     has_more = len(candidates) > limit
