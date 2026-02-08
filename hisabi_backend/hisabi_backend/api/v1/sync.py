@@ -1495,6 +1495,32 @@ def sync_pull(
         dt = get_datetime(value)
         return dt if dt else None
 
+    def _parse_cursor_tuple(value: Any) -> Optional[Tuple[datetime.datetime, str, str]]:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            raw = value.strip()
+            if not raw:
+                return None
+            if "|" in raw:
+                parts = raw.split("|", 2)
+                if len(parts) == 3:
+                    ts = _parse_since_value(parts[0])
+                    if ts:
+                        return (ts, parts[1], parts[2])
+            ts = _parse_since_value(raw)
+            if ts:
+                return (ts, "", "")
+            return None
+        ts = _parse_since_value(value)
+        if ts:
+            return (ts, "", "")
+        return None
+
+    def _encode_cursor_tuple(cursor_tuple: Tuple[datetime.datetime, str, str]) -> str:
+        dt, doctype, name = cursor_tuple
+        return f"{dt.isoformat()}|{doctype}|{name}"
+
     from urllib.parse import parse_qs
 
     form_dict = frappe.form_dict or {}
@@ -1573,22 +1599,20 @@ def sync_pull(
             str(exc) or "sync auth failed",
             status_code=_sync_status_for_exception(exc),
         )
-    limit = min(int(limit or 500), 500)
+    try:
+        parsed_limit = int(limit or 500)
+    except (TypeError, ValueError):
+        parsed_limit = 500
+    limit = min(max(parsed_limit, 1), 500)
 
     cursor_value = cursor or since
-    since_dt = None
-    if cursor_value:
-        since_dt = _parse_since_value(cursor_value)
-        if not since_dt:
-            return _build_sync_error("invalid_cursor", "invalid_cursor", status_code=417)
+    cursor_tuple = _parse_cursor_tuple(cursor_value) if cursor_value else None
+    if cursor_value and not cursor_tuple:
+        return _build_sync_error("invalid_cursor", "invalid_cursor", status_code=417)
 
-    next_cursor = now_datetime()
-    items: List[Dict[str, Any]] = []
-    remaining = limit
+    candidates: List[Dict[str, Any]] = []
 
     for doctype in DOCTYPE_LIST:
-        if remaining <= 0:
-            break
         if not frappe.db.exists("DocType", doctype):
             continue
         meta = frappe.get_meta(doctype)
@@ -1607,24 +1631,46 @@ def sync_pull(
         else:
             filters["owner"] = user
 
-        if since_dt:
-            filters["server_modified"] = [">", since_dt]
+        if cursor_tuple:
+            filters["server_modified"] = [">=", cursor_tuple[0]]
 
         records = frappe.get_all(
             doctype,
             filters=filters,
-            limit=remaining,
-            order_by="server_modified asc",
+            limit=limit + 1,
+            order_by="server_modified asc, name asc",
             fields=["name", "server_modified"],
         )
         if not records:
             continue
 
         for row in records:
-            doc = _sanitize_pull_record(doctype, frappe.get_doc(doctype, row.name).as_dict())
-            doc = _coerce_json(doc)
-            client_id = doc.get("client_id") or doc.get("name")
-            item = {
+            server_modified_dt = get_datetime(row.server_modified)
+            key = (server_modified_dt, doctype, row.name)
+            if cursor_tuple and key <= cursor_tuple:
+                continue
+            candidates.append(
+                {
+                    "doctype": doctype,
+                    "name": row.name,
+                    "server_modified": server_modified_dt,
+                    "key": key,
+                }
+            )
+
+    # Sync: deterministic pagination prevents duplicates/misses.
+    candidates.sort(key=lambda row: row["key"])
+    selected = candidates[:limit]
+    has_more = len(candidates) > limit
+    items: List[Dict[str, Any]] = []
+
+    for row in selected:
+        doctype = row["doctype"]
+        doc = _sanitize_pull_record(doctype, frappe.get_doc(doctype, row["name"]).as_dict())
+        doc = _coerce_json(doc)
+        client_id = doc.get("client_id") or doc.get("name")
+        items.append(
+            {
                 "entity_type": doctype,
                 "entity_id": client_id,
                 "client_id": client_id,
@@ -1634,17 +1680,15 @@ def sync_pull(
                 "is_deleted": doc.get("is_deleted"),
                 "deleted_at": _to_iso(doc.get("deleted_at")),
             }
-            items.append(item)
-            remaining -= 1
+        )
 
-            server_modified = doc.get("server_modified")
-            if server_modified:
-                server_modified_dt = get_datetime(server_modified)
-                if server_modified_dt > next_cursor:
-                    next_cursor = server_modified_dt
-
-            if remaining <= 0:
-                break
+    if selected:
+        last_key = selected[-1]["key"]
+        next_cursor = _encode_cursor_tuple(last_key)
+    elif cursor_tuple:
+        next_cursor = _encode_cursor_tuple(cursor_tuple)
+    else:
+        next_cursor = _encode_cursor_tuple((now_datetime(), "", ""))
 
     device.last_pull_at = now_datetime()
     device.last_pull_ms = min(int(device.last_pull_at.timestamp() * 1000), 2147483647)
@@ -1652,6 +1696,13 @@ def sync_pull(
     device.db_set("last_pull_ms", device.last_pull_ms, update_modified=False)
 
     return _build_sync_response(
-        {"message": {"items": items, "next_cursor": next_cursor.isoformat(), "server_time": now_datetime().isoformat()}},
+        {
+            "message": {
+                "items": items,
+                "next_cursor": next_cursor,
+                "has_more": has_more,
+                "server_time": now_datetime().isoformat(),
+            }
+        },
         status_code=200,
     )
