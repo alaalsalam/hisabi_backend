@@ -2,15 +2,28 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any, Dict, Optional
 
 import frappe
 from frappe.utils import get_datetime, now_datetime
+from werkzeug.wrappers import Response
 
 from hisabi_backend.utils.security import require_device_token_auth
 from hisabi_backend.utils.request_params import get_request_param
 from hisabi_backend.utils.validators import validate_client_id
 from hisabi_backend.utils.wallet_acl import require_wallet_member
+
+
+def _build_invalid_request(message: str, *, param: Optional[str] = None, status_code: int = 422) -> Response:
+    payload: Dict[str, Any] = {"error": {"code": "invalid_request", "message": message}}
+    if param:
+        payload["error"]["param"] = param
+    response = Response()
+    response.mimetype = "application/json"
+    response.status_code = status_code
+    response.data = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    return response
 
 
 @frappe.whitelist(allow_guest=False)
@@ -26,8 +39,11 @@ def report_summary(
     # Read from form_dict and then fall back to request parsing helper (args/query_string/json body).
     wallet_id = wallet_id or frappe.form_dict.get("wallet_id") or get_request_param("wallet_id")
     if not wallet_id:
-        frappe.throw("wallet_id is required", frappe.ValidationError)
-    wallet_id = validate_client_id(wallet_id)
+        return _build_invalid_request("wallet_id is required", param="wallet_id")
+    try:
+        wallet_id = validate_client_id(wallet_id)
+    except Exception:
+        return _build_invalid_request("wallet_id is invalid", param="wallet_id")
     require_wallet_member(wallet_id, user, min_role="viewer")
 
     params: Dict[str, Any] = {"wallet_id": wallet_id}
@@ -155,8 +171,11 @@ def report_budgets(
     user, _device = require_device_token_auth()
     wallet_id = wallet_id or get_request_param("wallet_id")
     if not wallet_id:
-        frappe.throw("wallet_id is required", frappe.ValidationError)
-    wallet_id = validate_client_id(wallet_id)
+        return _build_invalid_request("wallet_id is required", param="wallet_id")
+    try:
+        wallet_id = validate_client_id(wallet_id)
+    except Exception:
+        return _build_invalid_request("wallet_id is invalid", param="wallet_id")
     require_wallet_member(wallet_id, user, min_role="viewer")
 
     budgets = frappe.get_all(
@@ -192,8 +211,11 @@ def report_goals(wallet_id: Optional[str] = None, device_id: Optional[str] = Non
     user, _device = require_device_token_auth()
     wallet_id = wallet_id or get_request_param("wallet_id")
     if not wallet_id:
-        frappe.throw("wallet_id is required", frappe.ValidationError)
-    wallet_id = validate_client_id(wallet_id)
+        return _build_invalid_request("wallet_id is required", param="wallet_id")
+    try:
+        wallet_id = validate_client_id(wallet_id)
+    except Exception:
+        return _build_invalid_request("wallet_id is invalid", param="wallet_id")
     require_wallet_member(wallet_id, user, min_role="viewer")
     goals = frappe.get_all(
         "Hisabi Goal",
@@ -219,8 +241,11 @@ def report_debts(wallet_id: Optional[str] = None, device_id: Optional[str] = Non
     user, _device = require_device_token_auth()
     wallet_id = wallet_id or get_request_param("wallet_id")
     if not wallet_id:
-        frappe.throw("wallet_id is required", frappe.ValidationError)
-    wallet_id = validate_client_id(wallet_id)
+        return _build_invalid_request("wallet_id is required", param="wallet_id")
+    try:
+        wallet_id = validate_client_id(wallet_id)
+    except Exception:
+        return _build_invalid_request("wallet_id is invalid", param="wallet_id")
     require_wallet_member(wallet_id, user, min_role="viewer")
     debts = frappe.get_all(
         "Hisabi Debt",
