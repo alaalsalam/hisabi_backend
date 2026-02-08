@@ -1,12 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BASE_URL=${BASE_URL:-"https://hisabi.yemenfrappe.com"}
-ORIGIN=${ORIGIN:-"https://hisabi.yemenfrappe.com"}
+BASE_URL=${BASE_URL:-"https://expense.yemenfrappe.com"}
+ORIGIN=${ORIGIN:-"http://localhost:8082"}
 UNIQUE_SUFFIX=${UNIQUE_SUFFIX:-"$(date +%s)-$RANDOM"}
-PHONE=${PHONE:-"+1555${UNIQUE_SUFFIX}"}
 PASSWORD=${PASSWORD:-"Test1234!"}
 DEVICE_ID=${DEVICE_ID:-"dev-${UNIQUE_SUFFIX}"}
+
+generate_valid_phone() {
+  local seed
+  seed=$(printf '%s' "${UNIQUE_SUFFIX}" | tr -cd '0-9')
+  if [[ -z "${seed}" ]]; then
+    seed="$(date +%s)$$"
+  fi
+  local suffix
+  suffix=$(printf '%08d' "$((10#${seed} % 100000000))")
+  printf '+9677%s' "${suffix}"
+}
+# QA: generated PHONE must satisfy backend validation rules to avoid false failures.
+PHONE=${PHONE:-"$(generate_valid_phone)"}
 
 function require_jq() {
   if ! command -v jq >/dev/null 2>&1; then

@@ -1,10 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BASE_URL=${BASE_URL:-"https://hisabi.yemenfrappe.com"}
-PHONE=${PHONE:-"+1555$(date +%s | tail -c 6)"}
+BASE_URL=${BASE_URL:-"https://expense.yemenfrappe.com"}
+UNIQUE_SUFFIX=${UNIQUE_SUFFIX:-"$(date +%s)-$RANDOM"}
 PASSWORD=${PASSWORD:-"Test1234!"}
 DEVICE_ID=${DEVICE_ID:-"dev-sync-push-$(date +%s)"}
+
+generate_valid_phone() {
+  local seed
+  seed=$(printf '%s' "${UNIQUE_SUFFIX}" | tr -cd '0-9')
+  if [[ -z "${seed}" ]]; then
+    seed="$(date +%s)$$"
+  fi
+  local suffix
+  suffix=$(printf '%08d' "$((10#${seed} % 100000000))")
+  printf '+9677%s' "${suffix}"
+}
+# QA: generated PHONE must satisfy backend validation rules to avoid false failures.
+PHONE=${PHONE:-"$(generate_valid_phone)"}
 
 function json_get() {
   python3 -c $'import json,sys\nraw=sys.stdin.read()\npath=sys.argv[1].split(".")\ndata=json.loads(raw)\nfor p in path:\n    if isinstance(data, dict):\n        data = data.get(p)\n    elif isinstance(data, list) and p.isdigit():\n        idx = int(p)\n        data = data[idx] if 0 <= idx < len(data) else None\n    else:\n        data = None\n    if data is None:\n        break\nif data is None:\n    sys.exit(1)\nprint(data)\n' "$1"
