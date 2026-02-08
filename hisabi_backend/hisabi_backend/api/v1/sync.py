@@ -748,13 +748,7 @@ def _validate_sync_push_item(item: Dict[str, Any], wallet_id: str) -> Optional[D
 
     if operation in {"update", "delete"}:
         base_version = item.get("base_version")
-        if base_version is None:
-            return _build_item_error(
-                error_code="base_version_required",
-                entity_type=entity_type,
-                client_id=client_id,
-            )
-        if not _is_number(base_version):
+        if base_version is not None and not _is_number(base_version):
             return _build_item_error(
                 error_code="base_version_invalid",
                 entity_type=entity_type,
@@ -1170,7 +1164,39 @@ def sync_push(
             )
             continue
 
+        if operation in {"update", "delete"} and base_version is None:
+            current_version = int(existing.doc_version or 0) if existing else 0
+            if current_version != 0:
+                result = _build_item_error(
+                    error_code="base_version_required",
+                    entity_type=entity_type,
+                    client_id=client_id,
+                )
+                results.append(result)
+                _store_op_id(
+                    user=user,
+                    device_id=device_id,
+                    wallet_id=wallet_id,
+                    op_id=op_id or "",
+                    entity_type=entity_type,
+                    entity_client_id=client_id,
+                    status="error",
+                    payload=item,
+                    result=result,
+                )
+                _write_audit_log(
+                    user=user,
+                    device_id=device_id,
+                    op_id=op_id or "",
+                    entity_type=entity_type,
+                    entity_client_id=client_id,
+                    status="error",
+                    payload=item,
+                )
+                continue
+
         if existing and base_version is not None:
+            # Concurrency: base_version prevents blind overwrites.
             if int(base_version) != int(existing.doc_version or 0):
                 conflict = _conflict_response(entity_type, existing)
                 results.append(conflict)
@@ -1262,6 +1288,7 @@ def sync_push(
             if not doc.current_balance and doc.opening_balance is not None:
                 doc.current_balance = doc.opening_balance
 
+        # Keep doc_version monotonic for every accepted mutation.
         apply_common_sync_fields(doc, payload, bump_version=True, mark_deleted=mark_deleted)
         if entity_type == "Hisabi Account" and operation == "delete":
             doc.is_deleted = 1
