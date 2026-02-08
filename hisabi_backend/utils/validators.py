@@ -40,8 +40,15 @@ def validate_platform(platform: str) -> str:
 
 
 def normalize_phone(phone: str) -> str:
-    """Normalize phone for compatibility with existing API callers."""
-    return normalize_and_validate_phone(phone)
+    """Normalize phone by removing spaces and punctuation."""
+    if not phone:
+        frappe.throw(_("phone is required"), frappe.ValidationError)
+    phone = phone.strip()
+    if phone.startswith("+"):
+        prefix = "+"
+        digits = re.sub(r"\D", "", phone[1:])
+        return prefix + digits
+    return re.sub(r"\D", "", phone)
 
 
 def normalize_and_validate_phone(phone: str) -> str:
