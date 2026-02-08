@@ -1641,6 +1641,8 @@ def sync_pull(
 
     candidates: List[Dict[str, Any]] = []
 
+    per_doctype_target = limit + 1
+
     for doctype in DOCTYPE_LIST:
         if not frappe.db.exists("DocType", doctype):
             continue
@@ -1664,36 +1666,54 @@ def sync_pull(
             filters["server_modified"] = [">=", cursor_tuple[0]]
 
         fields = ["name", "server_modified"]
+        order_secondary_field = "name"
         if meta.has_field("client_id"):
             fields.append("client_id")
+            order_secondary_field = "client_id"
 
-        records = frappe.get_all(
-            doctype,
-            filters=filters,
-            limit=limit + 1,
-            order_by="server_modified asc, name asc",
-            fields=fields,
-        )
-        if not records:
-            continue
-
-        for row in records:
-            server_modified_dt = _cursor_dt(row.server_modified)
-            if not server_modified_dt:
-                continue
-            cursor_entity_id = row.get("client_id") or row.name
-            key = (server_modified_dt, doctype, cursor_entity_id)
-            if cursor_tuple and key <= cursor_tuple:
-                continue
-            candidates.append(
-                {
-                    "doctype": doctype,
-                    "name": row.name,
-                    "entity_id": cursor_entity_id,
-                    "server_modified": server_modified_dt,
-                    "key": key,
-                }
+        # Sync pagination: keep scanning each doctype until we collect limit+1 post-cursor rows.
+        # This prevents cursor-boundary rows from masking newer rows and incorrectly flipping has_more.
+        start = 0
+        page_length = max(per_doctype_target, 50)
+        order_by = f"server_modified asc, {order_secondary_field} asc, name asc"
+        doctype_candidates: List[Dict[str, Any]] = []
+        while len(doctype_candidates) < per_doctype_target:
+            records = frappe.get_all(
+                doctype,
+                filters=filters,
+                limit_start=start,
+                limit_page_length=page_length,
+                order_by=order_by,
+                fields=fields,
             )
+            if not records:
+                break
+
+            for row in records:
+                server_modified_dt = _cursor_dt(row.server_modified)
+                if not server_modified_dt:
+                    continue
+                cursor_entity_id = row.get("client_id") or row.name
+                key = (server_modified_dt, doctype, cursor_entity_id)
+                if cursor_tuple and key <= cursor_tuple:
+                    continue
+                doctype_candidates.append(
+                    {
+                        "doctype": doctype,
+                        "name": row.name,
+                        "entity_id": cursor_entity_id,
+                        "server_modified": server_modified_dt,
+                        "key": key,
+                    }
+                )
+                if len(doctype_candidates) >= per_doctype_target:
+                    break
+
+            if len(records) < page_length:
+                break
+            start += len(records)
+
+        candidates.extend(doctype_candidates)
 
     # Sync pagination: prevent missing/duplicate pages.
     candidates.sort(key=lambda row: row["key"])
