@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
+import os
 import subprocess
 
 import frappe
@@ -21,6 +21,10 @@ def ping() -> dict:
 
 
 def _resolve_git_commit() -> str | None:
+    env_commit = os.environ.get("HISABI_BACKEND_COMMIT") or os.environ.get("GIT_COMMIT")
+    if env_commit:
+        return env_commit.strip()[:12] or None
+
     try:
         current = Path(__file__).resolve()
         for parent in current.parents:
@@ -38,10 +42,12 @@ def _resolve_git_commit() -> str | None:
 
 
 def _resolve_app_version() -> str | None:
+    # Runtime source of truth for this app package version.
     try:
-        return version("hisabi_backend")
-    except PackageNotFoundError:
+        import hisabi_backend as app_module
+    except Exception:
         return None
+    return getattr(app_module, "__version__", None)
 
 
 @frappe.whitelist(allow_guest=True)
