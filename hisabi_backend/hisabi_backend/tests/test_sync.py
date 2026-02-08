@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timezone
 
 import frappe
 from frappe.tests.utils import FrappeTestCase
@@ -7,7 +8,7 @@ from frappe.utils.password import update_password
 
 from hisabi_backend.api.v1.auth import register_device
 from hisabi_backend.api.v1 import wallet_create
-from hisabi_backend.api.v1.sync import sync_pull, sync_push
+from hisabi_backend.api.v1.sync import _cursor_dt, sync_pull, sync_push
 from hisabi_backend.install import ensure_roles
 
 
@@ -564,3 +565,16 @@ class TestSyncV1(FrappeTestCase):
         )
 
         self.assertEqual(second["results"][0], first_result)
+
+    def test_cursor_dt_normalizes_aware_and_naive_for_tuple_compare(self):
+        aware = datetime(2026, 2, 8, 12, 30, 45, tzinfo=timezone.utc)
+        naive = datetime(2026, 2, 8, 12, 30, 45)
+        aware_norm = _cursor_dt(aware)
+        naive_norm = _cursor_dt(naive)
+
+        self.assertEqual(aware_norm, naive_norm)
+        self.assertIsNone(aware_norm.tzinfo)
+
+        from_cursor = (_cursor_dt("2026-02-08T12:30:45+00:00"), "Hisabi Account", "acc-1")
+        from_db = (_cursor_dt("2026-02-08 12:30:45"), "Hisabi Account", "acc-2")
+        self.assertTrue(from_db > from_cursor)

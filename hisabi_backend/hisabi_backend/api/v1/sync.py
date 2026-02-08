@@ -855,6 +855,21 @@ def _to_iso(value: Any) -> Optional[str]:
     return dt.isoformat() if dt else None
 
 
+def _cursor_dt(dt: Any) -> Optional[datetime.datetime]:
+    """Cursor safety: normalize datetime to UTC-naive for stable tuple comparisons.
+    Fixes aware vs naive TypeError in sync_pull.
+    """
+    if dt is None:
+        return None
+    parsed = dt if isinstance(dt, datetime.datetime) else get_datetime(dt)
+    if not parsed:
+        return None
+    # Normalize both cursor/input timestamps to a single representation before tuple compare.
+    if parsed.tzinfo is not None:
+        return parsed.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+    return parsed
+
+
 def _minimal_server_record(doc: frappe.model.document.Document) -> Dict[str, Any]:
     return {
         "name": doc.name,
@@ -1481,19 +1496,18 @@ def sync_pull(
                     return None
                 seconds = numeric / 1000 if numeric >= 10**12 else numeric
                 try:
-                    return datetime.datetime.utcfromtimestamp(seconds)
+                    return _cursor_dt(datetime.datetime.utcfromtimestamp(seconds))
                 except (OverflowError, OSError, ValueError):
                     return None
         elif isinstance(value, (int, float)):
             numeric = int(value)
             seconds = numeric / 1000 if numeric >= 10**12 else numeric
             try:
-                return datetime.datetime.utcfromtimestamp(seconds)
+                return _cursor_dt(datetime.datetime.utcfromtimestamp(seconds))
             except (OverflowError, OSError, ValueError):
                 return None
 
-        dt = get_datetime(value)
-        return dt if dt else None
+        return _cursor_dt(value)
 
     def _parse_cursor_tuple(value: Any) -> Optional[Tuple[datetime.datetime, str, str]]:
         if value is None:
@@ -1519,7 +1533,8 @@ def sync_pull(
 
     def _encode_cursor_tuple(cursor_tuple: Tuple[datetime.datetime, str, str]) -> str:
         dt, doctype, name = cursor_tuple
-        return f"{dt.isoformat()}|{doctype}|{name}"
+        normalized_dt = _cursor_dt(dt) or _cursor_dt(now_datetime())
+        return f"{normalized_dt.isoformat()}|{doctype}|{name}"
 
     from urllib.parse import parse_qs
 
@@ -1645,7 +1660,9 @@ def sync_pull(
             continue
 
         for row in records:
-            server_modified_dt = get_datetime(row.server_modified)
+            server_modified_dt = _cursor_dt(row.server_modified)
+            if not server_modified_dt:
+                continue
             key = (server_modified_dt, doctype, row.name)
             if cursor_tuple and key <= cursor_tuple:
                 continue
