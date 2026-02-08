@@ -1092,22 +1092,14 @@ def sync_push(
                 )
 
     for item in items:
-        validation_error = _validate_sync_push_item(item, wallet_id)
-        if validation_error:
-            if validation_error.get("error") in {"unsupported_entity_type", "doctype_not_installed"}:
-                return _build_sync_response({"error": validation_error.get("error")}, status_code=417)
-            results.append(validation_error)
-            continue
-
-        entity_type = item.get("entity_type")
         op_id = item.get("op_id")
-        operation = item.get("operation")
-        payload = item.get("payload") or {}
-        base_version = item.get("base_version")
+        entity_type = item.get("entity_type")
         entity_id = item.get("entity_id")
+        payload = item.get("payload") or {}
         client_id = payload.get("client_id") or entity_id
 
-        if _check_duplicate_op(user, device_id, wallet_id, op_id):
+        # Sync reliability: retries must be safe; op_id provides idempotency.
+        if isinstance(op_id, str) and op_id.strip() and _check_duplicate_op(user, device_id, wallet_id, op_id):
             stored = _get_op_result(user, device_id, wallet_id, op_id)
             if stored:
                 duplicate_result = dict(stored)
@@ -1124,6 +1116,16 @@ def sync_push(
                     }
                 )
             continue
+
+        validation_error = _validate_sync_push_item(item, wallet_id)
+        if validation_error:
+            if validation_error.get("error") in {"unsupported_entity_type", "doctype_not_installed"}:
+                return _build_sync_response({"error": validation_error.get("error")}, status_code=417)
+            results.append(validation_error)
+            continue
+
+        operation = item.get("operation")
+        base_version = item.get("base_version")
 
         existing = _get_doc_by_client_id(entity_type, user, client_id, wallet_id=wallet_id)
 

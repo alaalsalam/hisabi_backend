@@ -306,10 +306,13 @@ function require_name_matches_client_id() {
   local entity_type="$2"
   local client_id="$3"
   local label="$4"
+  local payload_client_id
+  payload_client_id=$(pull_item_value "${body}" "${entity_type}" "${client_id}" "payload.client_id")
   local name
   name=$(pull_item_value "${body}" "${entity_type}" "${client_id}" "payload.name")
-  if [[ -z "${name}" || "${name}" != "${client_id}" ]]; then
-    echo "Expected ${label} name to equal client_id (${client_id}), got '${name}'" >&2
+  local effective_id="${payload_client_id:-${name}}"
+  if [[ -z "${effective_id}" || "${effective_id}" != "${client_id}" ]]; then
+    echo "Expected ${label} payload identifier to equal client_id (${client_id}), got '${effective_id}'" >&2
     echo "${body}" >&2
     exit 1
   fi
@@ -371,6 +374,27 @@ ACCOUNT_VERSION=$(echo "${ACCOUNT_CREATE_BODY}" | json_get message.results.0.doc
 if [[ -z "${ACCOUNT_VERSION}" ]]; then
   fail_with_response "${ACCOUNT_CREATE_RESP}" "Missing doc_version on account create"
 fi
+
+# Account: idempotency replay for create
+echo "==> Sync push (replay create account)"
+ACCOUNT_CREATE_REPLAY_RESP=$(curl_with_status POST "${BASE_URL}/api/method/hisabi_backend.api.v1.sync.sync_push" "${ACCOUNT_CREATE_PAYLOAD}" "${TOKEN}")
+print_status_and_body "${ACCOUNT_CREATE_REPLAY_RESP}"
+require_http_200 "${ACCOUNT_CREATE_REPLAY_RESP}" "Sync push replay create account failed"
+require_status_allowed "${ACCOUNT_CREATE_REPLAY_RESP}" "accepted" "duplicate" "noop"
+
+PULL_BODY=$(pull_since "${SINCE}")
+CREATE_REPLAY_VERSION=$(pull_item_value "${PULL_BODY}" "Hisabi Account" "${ACCOUNT_ID}" "doc_version")
+if [[ -z "${CREATE_REPLAY_VERSION}" ]]; then
+  echo "Missing doc_version after create replay pull" >&2
+  echo "${PULL_BODY}" >&2
+  exit 1
+fi
+if [[ "${CREATE_REPLAY_VERSION}" != "${ACCOUNT_VERSION}" ]]; then
+  echo "Account doc_version bumped on create replay (expected ${ACCOUNT_VERSION}, got ${CREATE_REPLAY_VERSION})" >&2
+  echo "${PULL_BODY}" >&2
+  exit 1
+fi
+ACCOUNT_VERSION="${CREATE_REPLAY_VERSION}"
 
 # Account: pull confirm create
 
