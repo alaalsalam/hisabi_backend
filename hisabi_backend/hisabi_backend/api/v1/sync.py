@@ -651,6 +651,7 @@ ERROR_MESSAGE_MAP = {
     "invalid_client_id": "invalid client_id",
     "base_version_required": "base_version is required",
     "base_version_invalid": "base_version must be a number",
+    "base_version_not_allowed": "base_version must be absent for create",
     "missing_required_fields": "missing required fields",
     "invalid_field": "invalid field",
     "invalid_field_type": "invalid field type",
@@ -746,14 +747,26 @@ def _validate_sync_push_item(item: Dict[str, Any], wallet_id: str) -> Optional[D
     except Exception:
         return _build_item_error(error_code="invalid_client_id", entity_type=entity_type, client_id=client_id)
 
+    base_version = item.get("base_version")
     if operation in {"update", "delete"}:
-        base_version = item.get("base_version")
-        if base_version is not None and not _is_number(base_version):
+        if base_version is None:
+            return _build_item_error(
+                error_code="base_version_required",
+                entity_type=entity_type,
+                client_id=client_id,
+            )
+        if not _is_number(base_version):
             return _build_item_error(
                 error_code="base_version_invalid",
                 entity_type=entity_type,
                 client_id=client_id,
             )
+    if operation == "create" and base_version is not None:
+        return _build_item_error(
+            error_code="base_version_not_allowed",
+            entity_type=entity_type,
+            client_id=client_id,
+        )
 
     normalized = _apply_field_map(entity_type, payload)
     unknown_fields = _unknown_payload_fields(entity_type, normalized)
@@ -1194,39 +1207,8 @@ def sync_push(
             )
             continue
 
-        if operation in {"update", "delete"} and base_version is None:
-            current_version = int(existing.doc_version or 0) if existing else 0
-            if current_version != 0:
-                result = _build_item_error(
-                    error_code="base_version_required",
-                    entity_type=entity_type,
-                    client_id=client_id,
-                )
-                results.append(result)
-                _store_op_id(
-                    user=user,
-                    device_id=device_id,
-                    wallet_id=wallet_id,
-                    op_id=op_id or "",
-                    entity_type=entity_type,
-                    entity_client_id=client_id,
-                    status="error",
-                    payload=item,
-                    result=result,
-                )
-                _write_audit_log(
-                    user=user,
-                    device_id=device_id,
-                    op_id=op_id or "",
-                    entity_type=entity_type,
-                    entity_client_id=client_id,
-                    status="error",
-                    payload=item,
-                )
-                continue
-
         if existing and base_version is not None:
-            # Concurrency: base_version prevents blind overwrites.
+            # Concurrency: prevent blind overwrites across devices.
             if int(base_version) != int(existing.doc_version or 0):
                 conflict = _conflict_response(
                     entity_type,
