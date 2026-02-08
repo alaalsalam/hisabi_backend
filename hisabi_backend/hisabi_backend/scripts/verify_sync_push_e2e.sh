@@ -703,7 +703,7 @@ JSON
   fi
 fi
 
-# Optional: Transaction
+# Transaction (required)
 
 TX_ID="tx-wp35-${TS}"
 TX_CREATE_OP="op-tx-create-${TS}"
@@ -724,9 +724,8 @@ JSON
 )
 TX_CREATE_RESP=$(curl_with_status POST "${BASE_URL}/api/method/hisabi_backend.api.v1.sync.sync_push" "${TX_CREATE_PAYLOAD}" "${TOKEN}")
 print_status_and_body "${TX_CREATE_RESP}"
-if ! optional_create_supported "${TX_CREATE_RESP}" "transaction"; then
-  TX_SUPPORTED="no"
-fi
+require_http_200 "${TX_CREATE_RESP}" "Sync push create transaction failed"
+require_status_exact "${TX_CREATE_RESP}" "accepted"
 
 if [[ "${TX_SUPPORTED}" == "yes" ]]; then
   TX_CREATE_BODY=$(response_body "${TX_CREATE_RESP}")
@@ -738,18 +737,9 @@ if [[ "${TX_SUPPORTED}" == "yes" ]]; then
   echo "==> Sync pull (confirm create transaction)"
   PULL_BODY=$(pull_since "${SINCE}")
   require_item_exists "${PULL_BODY}" "Hisabi Transaction" "${TX_ID}" "transaction"
-  TX_PULL_NAME=$(pull_item_value "${PULL_BODY}" "Hisabi Transaction" "${TX_ID}" "payload.name")
-  if [[ -z "${TX_PULL_NAME}" || "${TX_PULL_NAME}" != "${TX_ID}" ]]; then
-    echo "Skipping transaction: name != client_id (got '${TX_PULL_NAME}')" >&2
-    TX_SUPPORTED="no"
-  fi
   PULL_TX_VERSION=$(pull_item_value "${PULL_BODY}" "Hisabi Transaction" "${TX_ID}" "doc_version")
   if [[ -n "${PULL_TX_VERSION}" ]]; then
     TX_VERSION="${PULL_TX_VERSION}"
-  fi
-
-  if [[ "${TX_SUPPORTED}" != "yes" ]]; then
-    echo "Skipping transaction E2E checks after create" >&2
   fi
 fi
 

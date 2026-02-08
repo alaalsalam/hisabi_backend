@@ -483,6 +483,18 @@ FIELD_MAP = {
     },
 }
 
+SYNC_PUSH_DATETIME_FIELDS = {
+    "Hisabi Wallet Member": {"joined_at", "removed_at"},
+    "Hisabi Transaction": {"date_time", "deleted_at"},
+    "Hisabi Debt": {"due_date", "deleted_at"},
+    "Hisabi Debt Installment": {"due_date", "paid_at", "deleted_at"},
+    "Hisabi Budget": {"start_date", "end_date", "deleted_at"},
+    "Hisabi Goal": {"target_date", "deleted_at"},
+    "Hisabi Jameya": {"start_date", "deleted_at"},
+    "Hisabi Jameya Payment": {"due_date", "paid_at", "deleted_at"},
+    "Hisabi Attachment": {"deleted_at"},
+}
+
 
 def _require_device_auth(device_id: str) -> Tuple[str, frappe.model.document.Document]:
     return require_device_auth(device_id)
@@ -533,6 +545,25 @@ def _apply_field_map(doctype: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         if old in payload and new not in payload:
             payload[new] = payload.pop(old)
     return payload
+
+
+def _normalize_sync_datetime_fields(doctype: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    if not payload:
+        return {}
+    datetime_fields = SYNC_PUSH_DATETIME_FIELDS.get(doctype, set())
+    if not datetime_fields:
+        return payload
+    normalized = dict(payload)
+    for field in datetime_fields:
+        value = normalized.get(field)
+        if value in (None, ""):
+            continue
+        parsed = get_datetime(value)
+        if not parsed:
+            continue
+        # Data correctness: normalize ISO-8601 values (including `Z`) before DB datetime writes.
+        normalized[field] = _cursor_dt(parsed) or parsed
+    return normalized
 
 
 def _resolve_base_currency(wallet_id: str, user: str) -> str | None:
@@ -679,6 +710,7 @@ ERROR_MESSAGE_MAP = {
     "payload_too_large": "payload too large",
     "wallet_id_must_equal_client_id": "wallet_id must equal client_id",
     "wallet_access_denied": "wallet access denied",
+    "rejected": "request rejected",
 }
 
 
@@ -701,6 +733,25 @@ def _build_item_error(
         payload["client_id"] = client_id
     if detail is not None:
         payload["detail"] = detail
+    return payload
+
+
+def _build_item_rejected(
+    *,
+    op_id: Optional[str],
+    entity_type: Optional[str],
+    client_id: Optional[str],
+    detail: Any = None,
+) -> Dict[str, Any]:
+    payload = _build_item_error(
+        error_code="rejected",
+        entity_type=entity_type,
+        client_id=client_id,
+        detail=detail,
+    )
+    payload["status"] = "rejected"
+    if op_id:
+        payload["op_id"] = op_id
     return payload
 
 
@@ -850,15 +901,14 @@ def _prepare_doc_for_write(
         doc.name = client_id
         if doctype == "Hisabi Account":
             doc.flags.name_set = True
-    elif doc.name != client_id:
-        if doctype == "Hisabi Account":
-            doc = _rename_doc_to_client_id(doc, client_id)
-        else:
-            frappe.throw(_("name must equal client_id"), frappe.ValidationError)
+    elif doc.name != client_id and doctype == "Hisabi Account":
+        # Compatibility: sync identity is `client_id`; non-account doctypes may keep generated `name`.
+        doc = _rename_doc_to_client_id(doc, client_id)
 
     payload = _apply_field_map(doctype, payload)
     payload = _strip_server_auth_fields(doctype, payload)
     payload = _filter_payload_fields(doc, payload)
+    payload = _normalize_sync_datetime_fields(doctype, payload)
     doc.update(payload)
 
     ensure_link_ownership(doctype, payload, user, wallet_id=getattr(doc, "wallet_id", None))
@@ -1314,124 +1364,159 @@ def sync_push(
                 )
                 continue
 
-        if entity_type in {"Hisabi Budget", "Hisabi Goal"}:
-            payload = dict(payload)
-            base_currency = _resolve_base_currency(wallet_id, user)
-            if entity_type == "Hisabi Budget":
-                if not payload.get("currency") and base_currency:
-                    payload["currency"] = base_currency
-                if payload.get("amount") is None and payload.get("amount_base") is not None:
-                    payload["amount"] = payload.get("amount_base")
-            if entity_type == "Hisabi Goal":
-                if not payload.get("currency") and base_currency:
-                    payload["currency"] = base_currency
-                if payload.get("target_amount") is None and payload.get("target_amount_base") is not None:
-                    payload["target_amount"] = payload.get("target_amount_base")
+        try:
+            if entity_type in {"Hisabi Budget", "Hisabi Goal"}:
+                payload = dict(payload)
+                base_currency = _resolve_base_currency(wallet_id, user)
+                if entity_type == "Hisabi Budget":
+                    if not payload.get("currency") and base_currency:
+                        payload["currency"] = base_currency
+                    if payload.get("amount") is None and payload.get("amount_base") is not None:
+                        payload["amount"] = payload.get("amount_base")
+                if entity_type == "Hisabi Goal":
+                    if not payload.get("currency") and base_currency:
+                        payload["currency"] = base_currency
+                    if payload.get("target_amount") is None and payload.get("target_amount_base") is not None:
+                        payload["target_amount"] = payload.get("target_amount_base")
 
-        doc = _prepare_doc_for_write(entity_type, payload, user, existing=existing)
-        mark_deleted = operation == "delete"
+            doc = _prepare_doc_for_write(entity_type, payload, user, existing=existing)
+            mark_deleted = operation == "delete"
 
-        if entity_type == "Hisabi Account" and not existing:
-            if not doc.current_balance and doc.opening_balance is not None:
-                doc.current_balance = doc.opening_balance
+            if entity_type == "Hisabi Account" and not existing:
+                if not doc.current_balance and doc.opening_balance is not None:
+                    doc.current_balance = doc.opening_balance
 
-        # Keep doc_version monotonic for every accepted mutation.
-        apply_common_sync_fields(doc, payload, bump_version=True, mark_deleted=mark_deleted)
-        # Data integrity: soft delete must sync like any other write.
-        if mark_deleted and doc.meta.has_field("deleted_at") and not doc.deleted_at:
-            doc.deleted_at = now_datetime()
-        if entity_type == "Hisabi Account" and operation == "delete":
-            doc.is_deleted = 1
-            if not doc.deleted_at:
+            # Keep doc_version monotonic for every accepted mutation.
+            apply_common_sync_fields(doc, payload, bump_version=True, mark_deleted=mark_deleted)
+            # Data integrity: soft delete must sync like any other write.
+            if mark_deleted and doc.meta.has_field("deleted_at") and not doc.deleted_at:
                 doc.deleted_at = now_datetime()
-        doc.save(ignore_permissions=True)
-        if entity_type == "Hisabi Account" and doc.name != doc.client_id:
-            doc = _rename_doc_to_client_id(doc, doc.client_id)
-        if entity_type == "Hisabi Account" and operation == "delete":
-            if not doc.deleted_at:
-                doc.deleted_at = now_datetime()
-            if doc.is_deleted != 1:
+            if entity_type == "Hisabi Account" and operation == "delete":
                 doc.is_deleted = 1
-            doc.db_set("is_deleted", 1, update_modified=False)
-            doc.db_set("deleted_at", doc.deleted_at, update_modified=False)
-            deleted_accounts.add(doc.name)
+                if not doc.deleted_at:
+                    doc.deleted_at = now_datetime()
+            doc.save(ignore_permissions=True)
+            if entity_type == "Hisabi Account" and doc.name != doc.client_id:
+                doc = _rename_doc_to_client_id(doc, doc.client_id)
+            if entity_type == "Hisabi Account" and operation == "delete":
+                if not doc.deleted_at:
+                    doc.deleted_at = now_datetime()
+                if doc.is_deleted != 1:
+                    doc.is_deleted = 1
+                doc.db_set("is_deleted", 1, update_modified=False)
+                doc.db_set("deleted_at", doc.deleted_at, update_modified=False)
+                deleted_accounts.add(doc.name)
 
-        if entity_type == "Hisabi Wallet" and operation == "create":
-            # Ensure membership row exists for owner.
-            if not frappe.db.exists("Hisabi Wallet Member", {"wallet": wallet_id, "user": user}):
-                m = frappe.new_doc("Hisabi Wallet Member")
-                m.wallet = wallet_id
-                m.user = user
-                m.role = "owner"
-                m.status = "active"
-                apply_common_sync_fields(m, bump_version=True, mark_deleted=False)
-                m.save(ignore_permissions=True)
+            if entity_type == "Hisabi Wallet" and operation == "create":
+                # Ensure membership row exists for owner.
+                if not frappe.db.exists("Hisabi Wallet Member", {"wallet": wallet_id, "user": user}):
+                    m = frappe.new_doc("Hisabi Wallet Member")
+                    m.wallet = wallet_id
+                    m.user = user
+                    m.role = "owner"
+                    m.status = "active"
+                    apply_common_sync_fields(m, bump_version=True, mark_deleted=False)
+                    m.save(ignore_permissions=True)
 
-        if entity_type == "Hisabi Transaction":
-            if doc.account:
-                affected_accounts.add(doc.account)
-            if doc.to_account:
-                affected_accounts.add(doc.to_account)
-            budgets_dirty = True
-            goals_dirty = True
-
-        if entity_type == "Hisabi Account":
-            if operation == "update":
-                affected_accounts.add(doc.name)
-            goals_dirty = True
-
-        if entity_type == "Hisabi Budget":
-            affected_budgets.add(doc.name)
-
-        if entity_type == "Hisabi Goal":
-            affected_goals.add(doc.name)
-
-        if entity_type == "Hisabi Debt":
-            affected_debts.add(doc.name)
-            goals_dirty = True
-
-        if entity_type == "Hisabi Debt Installment":
-            if doc.debt:
-                affected_debts.add(doc.debt)
+            if entity_type == "Hisabi Transaction":
+                if doc.account:
+                    affected_accounts.add(doc.account)
+                if doc.to_account:
+                    affected_accounts.add(doc.to_account)
+                budgets_dirty = True
                 goals_dirty = True
 
-        if entity_type == "Hisabi Jameya":
-            affected_jameyas.add(doc.name)
+            if entity_type == "Hisabi Account":
+                if operation == "update":
+                    affected_accounts.add(doc.name)
+                goals_dirty = True
 
-        if entity_type == "Hisabi Jameya Payment":
-            if doc.jameya:
-                affected_jameyas.add(doc.jameya)
+            if entity_type == "Hisabi Budget":
+                affected_budgets.add(doc.name)
 
-        result = {
-            "status": "accepted",
-            "op_id": op_id,
-            "entity_type": entity_type,
-            "client_id": doc.client_id,
-            "doc_version": doc.doc_version,
-            "server_modified": _to_iso(doc.server_modified),
-        }
-        results.append(result)
+            if entity_type == "Hisabi Goal":
+                affected_goals.add(doc.name)
 
-        _store_op_id(
-            user=user,
-            device_id=device_id,
-            wallet_id=wallet_id,
-            op_id=op_id or "",
-            entity_type=entity_type,
-            entity_client_id=doc.client_id,
-            status="accepted",
-            payload=item,
-            result=result,
-        )
-        _write_audit_log(
-            user=user,
-            device_id=device_id,
-            op_id=op_id or "",
-            entity_type=entity_type,
-            entity_client_id=doc.client_id,
-            status="accepted",
-            payload=item,
-        )
+            if entity_type == "Hisabi Debt":
+                affected_debts.add(doc.name)
+                goals_dirty = True
+
+            if entity_type == "Hisabi Debt Installment":
+                if doc.debt:
+                    affected_debts.add(doc.debt)
+                    goals_dirty = True
+
+            if entity_type == "Hisabi Jameya":
+                affected_jameyas.add(doc.name)
+
+            if entity_type == "Hisabi Jameya Payment":
+                if doc.jameya:
+                    affected_jameyas.add(doc.jameya)
+
+            result = {
+                "status": "accepted",
+                "op_id": op_id,
+                "entity_type": entity_type,
+                "client_id": doc.client_id,
+                "doc_version": doc.doc_version,
+                "server_modified": _to_iso(doc.server_modified),
+            }
+            results.append(result)
+
+            _store_op_id(
+                user=user,
+                device_id=device_id,
+                wallet_id=wallet_id,
+                op_id=op_id or "",
+                entity_type=entity_type,
+                entity_client_id=doc.client_id,
+                status="accepted",
+                payload=item,
+                result=result,
+            )
+            _write_audit_log(
+                user=user,
+                device_id=device_id,
+                op_id=op_id or "",
+                entity_type=entity_type,
+                entity_client_id=doc.client_id,
+                status="accepted",
+                payload=item,
+            )
+        except Exception as exc:
+            # Reliability: never crash the whole batch for one bad mutation; return structured rejection.
+            frappe.log_error(frappe.get_traceback(), "hisabi_backend.sync_push_item")
+            rejected = _build_item_rejected(
+                op_id=op_id if isinstance(op_id, str) else None,
+                entity_type=entity_type if isinstance(entity_type, str) else None,
+                client_id=client_id if isinstance(client_id, str) else None,
+                detail=str(exc) or exc.__class__.__name__,
+            )
+            results.append(rejected)
+            try:
+                _store_op_id(
+                    user=user,
+                    device_id=device_id,
+                    wallet_id=wallet_id,
+                    op_id=op_id or "",
+                    entity_type=entity_type,
+                    entity_client_id=client_id,
+                    status="error",
+                    payload=item,
+                    result=rejected,
+                )
+            except Exception:
+                frappe.log_error(frappe.get_traceback(), "hisabi_backend.sync_push_item_store_rejected")
+            _write_audit_log(
+                user=user,
+                device_id=device_id,
+                op_id=op_id or "",
+                entity_type=entity_type,
+                entity_client_id=client_id,
+                status="error",
+                payload=item,
+            )
+            continue
 
     for account_name in affected_accounts:
         _recalculate_account_balance(user, account_name, wallet_id=wallet_id)
