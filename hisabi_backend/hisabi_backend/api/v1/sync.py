@@ -413,6 +413,26 @@ SERVER_AUTH_FIELDS = {
     "Hisabi Jameya": {"status", "total_amount"},
 }
 
+SYNC_PULL_BASE_FIELDS = {"client_id", "doc_version", "server_modified", "is_deleted", "deleted_at"}
+# Contract: pull payload must be whitelisted to avoid leaking internal server fields.
+SYNC_PULL_ALLOWED_FIELDS = {
+    doctype: set(fields) | set(SERVER_AUTH_FIELDS.get(doctype, set())) | set(SYNC_PULL_BASE_FIELDS)
+    for doctype, fields in SYNC_PUSH_ALLOWED_FIELDS.items()
+}
+SYNC_PULL_SYSTEM_FIELDS = {
+    "owner",
+    "creation",
+    "modified",
+    "modified_by",
+    "docstatus",
+    "idx",
+    "doctype",
+    "_user_tags",
+    "_comments",
+    "_assign",
+    "_liked_by",
+}
+
 FIELD_MAP = {
     "Hisabi Account": {
         "name": "account_name",
@@ -895,10 +915,20 @@ def _minimal_server_record(doc: frappe.model.document.Document) -> Dict[str, Any
 
 
 def _sanitize_pull_record(doctype: str, record: Dict[str, Any]) -> Dict[str, Any]:
+    cleaned = dict(record or {})
     if doctype == "Hisabi Device":
-        record = dict(record)
-        record.pop("device_token_hash", None)
-    return record
+        cleaned.pop("device_token_hash", None)
+
+    allowed = SYNC_PULL_ALLOWED_FIELDS.get(doctype)
+    if not allowed:
+        # Keep unknown doctypes backward-compatible while dropping noisy framework fields.
+        return {key: value for key, value in cleaned.items() if key not in SYNC_PULL_SYSTEM_FIELDS}
+
+    sanitized = {key: cleaned[key] for key in allowed if key in cleaned}
+    # Include stable identifier for doctypes that don't expose client_id (e.g. wallet members).
+    if not sanitized.get("client_id") and cleaned.get("name"):
+        sanitized["name"] = cleaned.get("name")
+    return sanitized
 
 
 def _conflict_response(
