@@ -26,6 +26,7 @@ def bucket_summary(
     wallet_id = validate_client_id(wallet_id)
     require_wallet_member(wallet_id, user, min_role="viewer")
 
+    # Reporting must exclude soft-deleted rows unless explicitly requested.
     filters = ["tx.wallet_id = %(wallet_id)s", "tx.is_deleted = 0", "alloc.is_deleted = 0"]
     params: Dict[str, Any] = {"wallet_id": wallet_id}
 

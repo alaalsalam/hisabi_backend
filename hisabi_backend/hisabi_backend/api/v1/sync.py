@@ -1308,6 +1308,9 @@ def sync_push(
 
         # Keep doc_version monotonic for every accepted mutation.
         apply_common_sync_fields(doc, payload, bump_version=True, mark_deleted=mark_deleted)
+        # Data integrity: soft delete must sync like any other write.
+        if mark_deleted and doc.meta.has_field("deleted_at") and not doc.deleted_at:
+            doc.deleted_at = now_datetime()
         if entity_type == "Hisabi Account" and operation == "delete":
             doc.is_deleted = 1
             if not doc.deleted_at:

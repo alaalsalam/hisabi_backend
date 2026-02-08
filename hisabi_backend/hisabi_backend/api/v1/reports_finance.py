@@ -31,6 +31,7 @@ def report_summary(
     require_wallet_member(wallet_id, user, min_role="viewer")
 
     params: Dict[str, Any] = {"wallet_id": wallet_id}
+    # Reporting must exclude soft-deleted rows unless explicitly requested.
     date_filters = ["wallet_id=%(wallet_id)s", "is_deleted=0"]
     if from_date:
         params["from_date"] = get_datetime(from_date)
