@@ -72,6 +72,266 @@ SYNC_PUSH_ALLOWLIST = {
     "Hisabi Attachment",
 }
 
+# Security: prevent client from writing unexpected fields / doctypes through sync.
+SYNC_PUSH_ALLOWED_FIELDS = {
+    "Hisabi Wallet": {
+        "client_id",
+        "wallet_id",
+        "wallet_name",
+        "status",
+        "client_created_ms",
+        "client_modified_ms",
+    },
+    "Hisabi Wallet Member": {
+        "client_id",
+        "wallet_id",
+        "wallet",
+        "user",
+        "role",
+        "status",
+        "joined_at",
+        "removed_at",
+        "client_created_ms",
+        "client_modified_ms",
+    },
+    "Hisabi Account": {
+        "client_id",
+        "wallet_id",
+        "account_name",
+        "account_type",
+        "currency",
+        "opening_balance",
+        "color",
+        "icon",
+        "archived",
+        "sort_order",
+        "client_created_ms",
+        "client_modified_ms",
+        "is_deleted",
+        "deleted_at",
+    },
+    "Hisabi Category": {
+        "client_id",
+        "wallet_id",
+        "category_name",
+        "kind",
+        "parent_category",
+        "color",
+        "icon",
+        "archived",
+        "sort_order",
+        "default_bucket",
+        "client_created_ms",
+        "client_modified_ms",
+        "is_deleted",
+        "deleted_at",
+    },
+    "Hisabi Transaction": {
+        "client_id",
+        "wallet_id",
+        "transaction_type",
+        "date_time",
+        "amount",
+        "currency",
+        "account",
+        "to_account",
+        "category",
+        "bucket",
+        "note",
+        "amount_base",
+        "fx_rate_used",
+        "client_created_ms",
+        "client_modified_ms",
+        "is_deleted",
+        "deleted_at",
+    },
+    "Hisabi Debt": {
+        "client_id",
+        "wallet_id",
+        "debt_name",
+        "direction",
+        "currency",
+        "principal_amount",
+        "counterparty_name",
+        "counterparty_type",
+        "counterparty_phone",
+        "confirmed",
+        "note",
+        "due_date",
+        "client_created_ms",
+        "client_modified_ms",
+        "is_deleted",
+        "deleted_at",
+    },
+    "Hisabi Debt Installment": {
+        "client_id",
+        "wallet_id",
+        "debt",
+        "due_date",
+        "amount",
+        "status",
+        "paid_at",
+        "paid_amount",
+        "client_created_ms",
+        "client_modified_ms",
+        "is_deleted",
+        "deleted_at",
+    },
+    "Hisabi Debt Request": {
+        "client_id",
+        "wallet_id",
+        "from_phone",
+        "to_phone",
+        "debt_payload",
+        "debt_payload_json",
+        "status",
+        "client_created_ms",
+        "client_modified_ms",
+        "is_deleted",
+        "deleted_at",
+    },
+    "Hisabi Budget": {
+        "client_id",
+        "wallet_id",
+        "budget_name",
+        "period",
+        "scope_type",
+        "category",
+        "currency",
+        "amount",
+        "amount_base",
+        "start_date",
+        "end_date",
+        "alert_threshold",
+        "archived",
+        "client_created_ms",
+        "client_modified_ms",
+        "is_deleted",
+        "deleted_at",
+    },
+    "Hisabi Goal": {
+        "client_id",
+        "wallet_id",
+        "goal_name",
+        "goal_type",
+        "currency",
+        "target_amount",
+        "target_amount_base",
+        "target_date",
+        "linked_account",
+        "linked_debt",
+        "status",
+        "color",
+        "client_created_ms",
+        "client_modified_ms",
+        "is_deleted",
+        "deleted_at",
+    },
+    "Hisabi Bucket": {
+        "client_id",
+        "wallet_id",
+        "bucket_name",
+        "color",
+        "icon",
+        "sort_order",
+        "archived",
+        "client_created_ms",
+        "client_modified_ms",
+        "is_deleted",
+        "deleted_at",
+    },
+    "Hisabi Allocation Rule": {
+        "client_id",
+        "wallet_id",
+        "rule_name",
+        "is_default",
+        "scope_type",
+        "scope_ref",
+        "active",
+        "client_created_ms",
+        "client_modified_ms",
+        "is_deleted",
+        "deleted_at",
+    },
+    "Hisabi Allocation Rule Line": {
+        "client_id",
+        "wallet_id",
+        "rule",
+        "bucket",
+        "percent",
+        "sort_order",
+        "client_created_ms",
+        "client_modified_ms",
+        "is_deleted",
+        "deleted_at",
+    },
+    "Hisabi Transaction Allocation": {
+        "client_id",
+        "wallet_id",
+        "transaction",
+        "bucket",
+        "percent",
+        "amount",
+        "currency",
+        "amount_base",
+        "rule_used",
+        "is_manual_override",
+        "client_created_ms",
+        "client_modified_ms",
+        "is_deleted",
+        "deleted_at",
+    },
+    "Hisabi Jameya": {
+        "client_id",
+        "wallet_id",
+        "jameya_name",
+        "currency",
+        "monthly_amount",
+        "total_members",
+        "my_turn",
+        "total_amount",
+        "period",
+        "start_date",
+        "status",
+        "note",
+        "client_created_ms",
+        "client_modified_ms",
+        "is_deleted",
+        "deleted_at",
+    },
+    "Hisabi Jameya Payment": {
+        "client_id",
+        "wallet_id",
+        "jameya",
+        "period_number",
+        "due_date",
+        "amount",
+        "status",
+        "paid_at",
+        "is_my_turn",
+        "client_created_ms",
+        "client_modified_ms",
+        "is_deleted",
+        "deleted_at",
+    },
+    "Hisabi Attachment": {
+        "client_id",
+        "wallet_id",
+        "owner_entity_type",
+        "owner_client_id",
+        "file_id",
+        "file_url",
+        "file_name",
+        "mime_type",
+        "file_size",
+        "sha256",
+        "client_created_ms",
+        "client_modified_ms",
+        "is_deleted",
+        "deleted_at",
+    },
+}
+
 SYNC_PUSH_REQUIRED_FIELDS_CREATE = {
     "Hisabi Wallet": {"wallet_name", "status"},
     "Hisabi Wallet Member": {"wallet", "user", "role", "status"},
@@ -276,12 +536,18 @@ def _filter_payload_fields(doc: frappe.model.document.Document, payload: Dict[st
     if not payload:
         return {}
     allowed = {field.fieldname for field in doc.meta.fields}
-    unknown = [key for key in payload.keys() if key not in allowed and key not in SYNC_PAYLOAD_LOG_IGNORE_KEYS]
-    if unknown:
-        frappe.logger("hisabi_sync").warning(
-            "sync_push ignoring unknown fields for %s: %s", doc.doctype, ", ".join(sorted(unknown))
-        )
     return {key: value for key, value in payload.items() if key in allowed}
+
+
+def _unknown_payload_fields(doctype: str, payload: Dict[str, Any]) -> List[str]:
+    if not payload:
+        return []
+    allowed = SYNC_PUSH_ALLOWED_FIELDS.get(doctype, set())
+    if not allowed:
+        return []
+    return sorted(
+        [key for key in payload.keys() if key not in allowed and key not in SYNC_PAYLOAD_LOG_IGNORE_KEYS]
+    )
 
 
 def _store_op_id(
@@ -369,10 +635,12 @@ ERROR_MESSAGE_MAP = {
     "base_version_required": "base_version is required",
     "base_version_invalid": "base_version must be a number",
     "missing_required_fields": "missing required fields",
+    "invalid_field": "invalid field",
     "invalid_field_type": "invalid field type",
     "not_found": "record not found",
     "payload_too_large": "payload too large",
     "wallet_id_must_equal_client_id": "wallet_id must equal client_id",
+    "wallet_access_denied": "wallet access denied",
 }
 
 
@@ -396,6 +664,28 @@ def _build_item_error(
     if detail is not None:
         payload["detail"] = detail
     return payload
+
+
+def _build_sync_response(payload: Dict[str, Any], status_code: int = 200) -> Response:
+    response = Response()
+    response.mimetype = "application/json"
+    response.status_code = status_code
+    response.data = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    return response
+
+
+def _build_sync_error(error_code: str, message: str, *, status_code: int = 417) -> Response:
+    return _build_sync_response({"error": error_code, "message": message}, status_code=status_code)
+
+
+def _sync_status_for_exception(exc: Exception) -> int:
+    if isinstance(exc, frappe.AuthenticationError):
+        return 401
+    if isinstance(exc, frappe.PermissionError):
+        return 403
+    if isinstance(exc, frappe.ValidationError):
+        return 417
+    return 500
 
 
 def _validate_sync_push_item(item: Dict[str, Any], wallet_id: str) -> Optional[Dict[str, Any]]:
@@ -450,8 +740,17 @@ def _validate_sync_push_item(item: Dict[str, Any], wallet_id: str) -> Optional[D
                 client_id=client_id,
             )
 
+    normalized = _apply_field_map(entity_type, payload)
+    unknown_fields = _unknown_payload_fields(entity_type, normalized)
+    if unknown_fields:
+        return _build_item_error(
+            error_code="invalid_field",
+            entity_type=entity_type,
+            client_id=client_id,
+            detail=unknown_fields,
+        )
+
     if operation == "create":
-        normalized = _apply_field_map(entity_type, payload)
         required = SYNC_PUSH_REQUIRED_FIELDS_CREATE.get(entity_type, set())
         missing = [field for field in required if normalized.get(field) in (None, "")]
         if missing:
@@ -678,26 +977,27 @@ def sync_push(
         except json.JSONDecodeError:
             items = None
 
-    def _build_sync_response(payload: Dict[str, Any], status_code: int = 200) -> Response:
-        response = Response()
-        response.mimetype = "application/json"
-        response.status_code = status_code
-        response.data = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
-        return response
-
     if not device_id:
-        return _build_sync_response({"error": "device_id is required"}, status_code=417)
+        return _build_sync_error("device_id_required", "device_id is required", status_code=417)
     if not wallet_id:
-        return _build_sync_response({"error": "wallet_id is required"}, status_code=417)
+        return _build_sync_error("wallet_id_required", "wallet_id is required", status_code=417)
     if items is None:
-        return _build_sync_response({"error": "items is required"}, status_code=417)
+        return _build_sync_error("items_required", "items is required", status_code=417)
 
-    user, device = _require_device_auth(device_id)
-    _check_rate_limit(device_id)
-    wallet_id = validate_client_id(wallet_id)
+    try:
+        user, device = _require_device_auth(device_id)
+        _check_rate_limit(device_id)
+        wallet_id = validate_client_id(wallet_id)
+    except Exception as exc:
+        frappe.clear_last_message()
+        return _build_sync_error(
+            "auth_failed",
+            str(exc) or "sync auth failed",
+            status_code=_sync_status_for_exception(exc),
+        )
 
     if not isinstance(items, list):
-        return _build_sync_response({"error": "items must be a list"}, status_code=417)
+        return _build_sync_error("items_invalid", "items must be a list", status_code=417)
 
     if len(items) > MAX_PUSH_ITEMS:
         return _build_sync_response(
@@ -723,14 +1023,26 @@ def sync_push(
     # Wallet creation via sync: allow create for Hisabi Wallet even if user is not yet a member.
     # For all other mutations, require membership (viewer is read-only).
     member_info = None
-    if any((i.get("entity_type") or "") != "Hisabi Wallet" for i in items):
-        member_info = require_wallet_member(wallet_id, user, min_role="viewer")
+    try:
+        if any((i.get("entity_type") or "") != "Hisabi Wallet" for i in items):
+            member_info = require_wallet_member(wallet_id, user, min_role="viewer")
+    except Exception as exc:
+        frappe.clear_last_message()
+        return _build_sync_error(
+            "wallet_access_denied",
+            str(exc) or "wallet access denied",
+            status_code=_sync_status_for_exception(exc),
+        )
 
     if member_info and member_info.role == "viewer":
         # Viewer is read-only: block all mutations.
         for i in items:
             if (i.get("entity_type") or "") != "Hisabi Wallet Member":
-                frappe.throw(_("Viewer role cannot sync_push mutations"), frappe.PermissionError)
+                return _build_sync_error(
+                    "wallet_read_only",
+                    "Viewer role cannot sync_push mutations",
+                    status_code=403,
+                )
 
     for item in items:
         validation_error = _validate_sync_push_item(item, wallet_id)
@@ -882,7 +1194,19 @@ def sync_push(
 
         if entity_type != "Hisabi Wallet":
             # For all wallet-scoped entities, require at least member role.
-            require_wallet_member(wallet_id, user, min_role="member")
+            try:
+                require_wallet_member(wallet_id, user, min_role="member")
+            except Exception as exc:
+                frappe.clear_last_message()
+                results.append(
+                    _build_item_error(
+                        error_code="wallet_access_denied",
+                        entity_type=entity_type,
+                        client_id=client_id,
+                        detail=str(exc) or "wallet access denied",
+                    )
+                )
+                continue
 
         if entity_type in {"Hisabi Budget", "Hisabi Goal"}:
             payload = dict(payload)
@@ -1060,13 +1384,6 @@ def sync_pull(
             return [_coerce_json(v) for v in value]
         return value
 
-    def _build_sync_response(payload: Dict[str, Any], status_code: int = 200) -> Response:
-        response = Response()
-        response.mimetype = "application/json"
-        response.status_code = status_code
-        response.data = frappe.as_json(payload)
-        return response
-
     def _parse_since_value(value: Any) -> Optional[datetime.datetime]:
         if value is None:
             return None
@@ -1158,13 +1475,21 @@ def sync_pull(
             limit = json_body.get("limit")
 
     if not device_id:
-        return _build_sync_response({"error": "device_id is required"}, status_code=417)
+        return _build_sync_error("device_id_required", "device_id is required", status_code=417)
     if not wallet_id:
-        return _build_sync_response({"error": "wallet_id is required"}, status_code=417)
+        return _build_sync_error("wallet_id_required", "wallet_id is required", status_code=417)
 
-    user, device = _require_device_auth(device_id)
-    wallet_id = validate_client_id(wallet_id)
-    require_wallet_member(wallet_id, user, min_role="viewer")
+    try:
+        user, device = _require_device_auth(device_id)
+        wallet_id = validate_client_id(wallet_id)
+        require_wallet_member(wallet_id, user, min_role="viewer")
+    except Exception as exc:
+        frappe.clear_last_message()
+        return _build_sync_error(
+            "auth_failed",
+            str(exc) or "sync auth failed",
+            status_code=_sync_status_for_exception(exc),
+        )
     limit = min(int(limit or 500), 500)
 
     cursor_value = cursor or since
@@ -1172,7 +1497,7 @@ def sync_pull(
     if cursor_value:
         since_dt = _parse_since_value(cursor_value)
         if not since_dt:
-            return _build_sync_response({"error": "invalid_cursor"}, status_code=417)
+            return _build_sync_error("invalid_cursor", "invalid_cursor", status_code=417)
 
     next_cursor = now_datetime()
     items: List[Dict[str, Any]] = []
