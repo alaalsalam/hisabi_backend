@@ -1,4 +1,8 @@
-# Backend Release Checklist (v1)
+# Backend Release Checklist (RC1)
+
+Purpose: fast release validation checklist for `expense.yemenfrappe.com`.
+When to use: immediately before and after backend deploy.
+Safety: run only documented verification scripts and read-only checks; avoid ad-hoc debug writes.
 
 ## 1) Deploy Steps (bench/site)
 - Pull/deploy backend code.
@@ -11,28 +15,35 @@
 
 Reference: `../DEPLOYMENT_RUNBOOK.md` (repo root runbook).
 
-## 2) Auth/CORS Smoke Scripts
+## 2) Official Verification Scripts
 Run from backend app repo root (`/home/frappe/frappe-bench/apps/hisabi_backend/hisabi_backend`):
 
 - Auth smoke:
 ```bash
-BASE_URL=https://hisabi.yemenfrappe.com \
-ORIGIN=https://hisabi.yemenfrappe.com \
+BASE_URL=https://expense.yemenfrappe.com \
+ORIGIN=http://localhost:8082 \
 bash hisabi_backend/scripts/verify_auth_smoke.sh
 ```
 
-- CORS single-source verification:
+- Sync pull:
 ```bash
-BASE_URL=https://hisabi.yemenfrappe.com \
-ORIGIN=http://95.111.251.41:8081 \
-bash hisabi_backend/scripts/verify_cors.sh
+BASE_URL=https://expense.yemenfrappe.com \
+ORIGIN=http://localhost:8082 \
+bash hisabi_backend/scripts/verify_sync_pull.sh
 ```
 
-- Sync smoke:
+- Sync push e2e:
 ```bash
-BASE_URL=https://hisabi.yemenfrappe.com \
-ORIGIN=https://hisabi.yemenfrappe.com \
-bash hisabi_backend/scripts/verify_sync.sh
+BASE_URL=https://expense.yemenfrappe.com \
+ORIGIN=http://localhost:8082 \
+bash hisabi_backend/scripts/verify_sync_push_e2e.sh
+```
+
+- Sync pull pagination:
+```bash
+BASE_URL=https://expense.yemenfrappe.com \
+ORIGIN=http://localhost:8082 \
+bash hisabi_backend/scripts/verify_sync_pull_pagination.sh
 ```
 
 ## 3) Sync Smoke Checklist

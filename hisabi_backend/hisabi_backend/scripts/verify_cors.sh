@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
+# Purpose: ad-hoc CORS preflight diagnostic for RC/production incidents.
+# When to use: only when troubleshooting `allow_cors` behavior after deploy.
+# Safety: sends read-only OPTIONS requests; does not mutate server data.
 set -euo pipefail
 
-BASE_URL=${BASE_URL:-"https://hisabi.yemenfrappe.com"}
-ORIGIN=${ORIGIN:-"http://95.111.251.41:8081"}
+BASE_URL=${BASE_URL:-"https://expense.yemenfrappe.com"}
+ORIGIN=${ORIGIN:-"http://localhost:8082"}
 
 ENDPOINTS=(
   "/api/method/hisabi_backend.api.v1.me"

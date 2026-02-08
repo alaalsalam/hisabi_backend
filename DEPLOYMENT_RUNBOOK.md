@@ -1,23 +1,25 @@
-# Hisabi Backend Deployment Runbook (WP3.5)
+# Hisabi Backend Deployment Runbook (RC1)
 
-Goal: keep auth + sync stable after code changes, and harden production sudoers.
+Purpose: operator runbook for `expense.yemenfrappe.com` deploy and post-deploy verification.
+When to use: during release windows and incident-driven redeploys.
+Safety: commands below are operational only (migrate/restart/cache clear/HTTP checks), not data-debug mutations.
 
 ## Apply Code Changes Safely
 1. Update code on server (git pull or deploy pipeline).
 1. Clear caches (safe, non-destructive):
-   1. `bench --site hisabi.yemenfrappe.com clear-cache`
+   1. `bench --site expense.yemenfrappe.com clear-cache`
 1. Restart services to load new Python code:
    1. `sudo /usr/local/bin/bench restart`
 1. Confirm processes updated (pick one):
    1. `bench doctor` (if available)
-   1. `bench --site hisabi.yemenfrappe.com status` (if available)
+   1. `bench --site expense.yemenfrappe.com status` (if available)
 1. Validate auth endpoints:
-   1. `BASE_URL=https://hisabi.yemenfrappe.com bash /home/frappe/frappe-bench/apps/hisabi_backend/hisabi_backend/hisabi_backend/scripts/verify_auth_smoke.sh | tee /tmp/auth_smoke.out`
+   1. `BASE_URL=https://expense.yemenfrappe.com ORIGIN=http://localhost:8082 bash /home/frappe/frappe-bench/apps/hisabi_backend/hisabi_backend/hisabi_backend/scripts/verify_auth_smoke.sh | tee /tmp/auth_smoke.out`
 
 Notes:
 - Python code changes do not load until Frappe/worker processes restart.
 - If you changed DocType JSON or patches, run:
-  - `bench --site hisabi.yemenfrappe.com migrate`
+  - `bench --site expense.yemenfrappe.com migrate`
   - Then `sudo /usr/local/bin/bench restart`
 
 ## Sudoers Hardening (frappe user)
@@ -55,25 +57,34 @@ Run these before each deploy window:
 1. `sudo /bin/systemctl reload nginx`
 1. `sudo /usr/local/bin/bench restart`
 
-## Auth Smoke Test (Minimal)
-Script: `hisabi_backend/hisabi_backend/scripts/verify_auth_smoke.sh`
+## Release Verification Scripts (Official)
+Run from repo root (`/home/frappe/frappe-bench/apps/hisabi_backend`):
 
-Example:
 ```bash
-BASE_URL=https://hisabi.yemenfrappe.com \
-ORIGIN=https://hisabi.yemenfrappe.com \
+BASE_URL=https://expense.yemenfrappe.com \
+ORIGIN=http://localhost:8082 \
 bash hisabi_backend/hisabi_backend/scripts/verify_auth_smoke.sh
 ```
 
-## CORS Verification (Single Source)
-Requirement: CORS must be configured only via Frappe `allow_cors` in site_config.json. No custom app middleware and no Nginx CORS headers.
-
-Verify (checks three endpoints: `me`, `login`, `register_user`):
 ```bash
-BASE_URL=https://hisabi.yemenfrappe.com \
-ORIGIN=http://95.111.251.41:8081 \
-bash hisabi_backend/hisabi_backend/scripts/verify_cors.sh
+BASE_URL=https://expense.yemenfrappe.com \
+ORIGIN=http://localhost:8082 \
+bash hisabi_backend/hisabi_backend/scripts/verify_sync_pull.sh
 ```
+
+```bash
+BASE_URL=https://expense.yemenfrappe.com \
+ORIGIN=http://localhost:8082 \
+bash hisabi_backend/hisabi_backend/scripts/verify_sync_push_e2e.sh
+```
+
+```bash
+BASE_URL=https://expense.yemenfrappe.com \
+ORIGIN=http://localhost:8082 \
+bash hisabi_backend/hisabi_backend/scripts/verify_sync_pull_pagination.sh
+```
+
+Requirement note: CORS must be configured only via Frappe `allow_cors` in `site_config.json`.
 
 ## Troubleshooting Checklist
 1. Auth errors after deploy:
