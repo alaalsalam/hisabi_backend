@@ -873,14 +873,27 @@ def _sanitize_pull_record(doctype: str, record: Dict[str, Any]) -> Dict[str, Any
     return record
 
 
-def _conflict_response(doctype: str, doc: frappe.model.document.Document) -> Dict[str, Any]:
+def _conflict_response(
+    doctype: str,
+    doc: frappe.model.document.Document,
+    *,
+    op_id: str,
+    client_base_version: int | None,
+) -> Dict[str, Any]:
+    server_doc = _minimal_server_record(doc)
     return {
+        "op_id": op_id,
         "status": "conflict",
         "entity_type": doctype,
+        "entity_id": doc.client_id,
+        "client_base_version": client_base_version,
+        "server_doc": server_doc,
+        "server_doc_version": doc.doc_version,
+        # Backward-compatible aliases for existing clients.
         "client_id": doc.client_id,
         "doc_version": doc.doc_version,
         "server_modified": _to_iso(doc.server_modified),
-        "server_record": _minimal_server_record(doc),
+        "server_record": server_doc,
     }
 
 def _get_op_result(user: str, device_id: str, wallet_id: str, op_id: str) -> Optional[Dict[str, Any]]:
@@ -1198,7 +1211,12 @@ def sync_push(
         if existing and base_version is not None:
             # Concurrency: base_version prevents blind overwrites.
             if int(base_version) != int(existing.doc_version or 0):
-                conflict = _conflict_response(entity_type, existing)
+                conflict = _conflict_response(
+                    entity_type,
+                    existing,
+                    op_id=op_id or "",
+                    client_base_version=int(base_version),
+                )
                 results.append(conflict)
                 _store_op_id(
                     user=user,
