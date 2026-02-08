@@ -554,6 +554,7 @@ def _store_op_id(
     *,
     user: str,
     device_id: str,
+    wallet_id: str,
     op_id: str,
     entity_type: str,
     entity_client_id: str,
@@ -564,13 +565,14 @@ def _store_op_id(
     if not device_id or not op_id:
         return
 
-    if frappe.db.exists("Hisabi Sync Op", {"user": user, "device_id": device_id, "op_id": op_id}):
+    ledger_op_id = _ledger_op_id(wallet_id, op_id)
+    if frappe.db.exists("Hisabi Sync Op", {"user": user, "device_id": device_id, "op_id": ledger_op_id}):
         return
 
     sync_op = frappe.new_doc("Hisabi Sync Op")
     sync_op.user = user
     sync_op.device_id = device_id
-    sync_op.op_id = op_id
+    sync_op.op_id = ledger_op_id
     sync_op.entity_type = entity_type
     sync_op.client_id = entity_client_id
     sync_op.status = status
@@ -580,16 +582,30 @@ def _store_op_id(
     sync_op.save(ignore_permissions=True)
 
 
-def _check_duplicate_op(user: str, device_id: str, op_id: str) -> bool:
+def _ledger_op_id(wallet_id: str, op_id: str) -> str:
+    # Reliability: retries must be safe; op_id provides idempotency.
+    return f"{wallet_id}:{op_id}"
+
+
+def _check_duplicate_op(user: str, device_id: str, wallet_id: str, op_id: str) -> bool:
     if not device_id or not op_id:
         return False
-    return bool(frappe.db.exists("Hisabi Sync Op", {"user": user, "device_id": device_id, "op_id": op_id}))
+    return bool(
+        frappe.db.exists(
+            "Hisabi Sync Op",
+            {"user": user, "device_id": device_id, "op_id": _ledger_op_id(wallet_id, op_id)},
+        )
+    )
 
 
-def _get_op_status(user: str, device_id: str, op_id: str) -> Optional[str]:
+def _get_op_status(user: str, device_id: str, wallet_id: str, op_id: str) -> Optional[str]:
     if not device_id or not op_id:
         return None
-    return frappe.get_value("Hisabi Sync Op", {"user": user, "device_id": device_id, "op_id": op_id}, "status")
+    return frappe.get_value(
+        "Hisabi Sync Op",
+        {"user": user, "device_id": device_id, "op_id": _ledger_op_id(wallet_id, op_id)},
+        "status",
+    )
 
 
 def _recalculate_account_balance(user: str, account_name: str, *, wallet_id: str | None = None) -> None:
@@ -624,6 +640,7 @@ def _invalid_field_types(payload: Dict[str, Any], fields: set[str]) -> Dict[str,
 
 ERROR_MESSAGE_MAP = {
     "entity_type_required": "entity_type is required",
+    "op_id_required": "op_id is required",
     "unsupported_entity_type": "unsupported_entity_type",
     "doctype_not_installed": "doctype_not_installed",
     "invalid_operation": "invalid operation",
@@ -689,6 +706,10 @@ def _sync_status_for_exception(exc: Exception) -> int:
 
 
 def _validate_sync_push_item(item: Dict[str, Any], wallet_id: str) -> Optional[Dict[str, Any]]:
+    op_id = item.get("op_id")
+    if not isinstance(op_id, str) or not op_id.strip():
+        return _build_item_error(error_code="op_id_required")
+
     entity_type = item.get("entity_type")
     if not entity_type:
         return _build_item_error(error_code="entity_type_required")
@@ -868,10 +889,14 @@ def _conflict_response(doctype: str, doc: frappe.model.document.Document) -> Dic
         "server_record": _minimal_server_record(doc),
     }
 
-def _get_op_result(user: str, device_id: str, op_id: str) -> Optional[Dict[str, Any]]:
+def _get_op_result(user: str, device_id: str, wallet_id: str, op_id: str) -> Optional[Dict[str, Any]]:
     if not device_id or not op_id:
         return None
-    result_json = frappe.get_value("Hisabi Sync Op", {"user": user, "device_id": device_id, "op_id": op_id}, "result_json")
+    result_json = frappe.get_value(
+        "Hisabi Sync Op",
+        {"user": user, "device_id": device_id, "op_id": _ledger_op_id(wallet_id, op_id)},
+        "result_json",
+    )
     if not result_json:
         return None
     try:
@@ -1060,14 +1085,18 @@ def sync_push(
         entity_id = item.get("entity_id")
         client_id = payload.get("client_id") or entity_id
 
-        if op_id and _check_duplicate_op(user, device_id, op_id):
-            stored = _get_op_result(user, device_id, op_id)
+        if _check_duplicate_op(user, device_id, wallet_id, op_id):
+            stored = _get_op_result(user, device_id, wallet_id, op_id)
             if stored:
-                results.append(stored)
+                duplicate_result = dict(stored)
+                duplicate_result["already_applied"] = True
+                results.append(duplicate_result)
             else:
                 results.append(
                     {
-                        "status": _get_op_status(user, device_id, op_id) or "accepted",
+                        "status": _get_op_status(user, device_id, wallet_id, op_id) or "accepted",
+                        "already_applied": True,
+                        "op_id": op_id,
                         "entity_type": entity_type,
                         "client_id": client_id,
                     }
@@ -1083,6 +1112,7 @@ def sync_push(
                 doc.save(ignore_permissions=True)
             result = {
                 "status": "accepted",
+                "op_id": op_id,
                 "entity_type": entity_type,
                 "client_id": doc.client_id,
                 "doc_version": doc.doc_version,
@@ -1092,6 +1122,7 @@ def sync_push(
             _store_op_id(
                 user=user,
                 device_id=device_id,
+                wallet_id=wallet_id,
                 op_id=op_id or "",
                 entity_type=entity_type,
                 entity_client_id=client_id,
@@ -1120,6 +1151,7 @@ def sync_push(
             _store_op_id(
                 user=user,
                 device_id=device_id,
+                wallet_id=wallet_id,
                 op_id=op_id or "",
                 entity_type=entity_type,
                 entity_client_id=client_id,
@@ -1145,6 +1177,7 @@ def sync_push(
                 _store_op_id(
                     user=user,
                     device_id=device_id,
+                    wallet_id=wallet_id,
                     op_id=op_id or "",
                     entity_type=entity_type,
                     entity_client_id=client_id,
@@ -1294,6 +1327,7 @@ def sync_push(
 
         result = {
             "status": "accepted",
+            "op_id": op_id,
             "entity_type": entity_type,
             "client_id": doc.client_id,
             "doc_version": doc.doc_version,
@@ -1304,6 +1338,7 @@ def sync_push(
         _store_op_id(
             user=user,
             device_id=device_id,
+            wallet_id=wallet_id,
             op_id=op_id or "",
             entity_type=entity_type,
             entity_client_id=doc.client_id,
