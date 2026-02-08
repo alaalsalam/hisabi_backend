@@ -14,6 +14,9 @@ _SKIP_CMDS = {
     "hisabi_backend.api.v1.auth.login",
     "hisabi_backend.api.v1.auth.register_device",
     "hisabi_backend.api.v1.auth.link_device_to_user",
+    # Health and diag must remain curlable for operations checks without device auth.
+    "hisabi_backend.api.v1.health.ping",
+    "hisabi_backend.api.v1.health.diag",
 }
 
 
