@@ -6,6 +6,9 @@ import frappe
 from frappe import _
 
 CLIENT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{2,127}$")
+PHONE_ALLOWED_RE = re.compile(r"^\+?[0-9]+$")
+PHONE_MIN_DIGITS = 8
+PHONE_MAX_DIGITS = 15
 
 
 def validate_client_id(client_id: str) -> str:
@@ -37,15 +40,35 @@ def validate_platform(platform: str) -> str:
 
 
 def normalize_phone(phone: str) -> str:
-    """Normalize phone by removing spaces and punctuation."""
+    """Normalize phone for compatibility with existing API callers."""
+    return normalize_and_validate_phone(phone)
+
+
+def normalize_and_validate_phone(phone: str) -> str:
+    """Normalize and validate phone with optional leading '+'.
+
+    Rules:
+    - trim outer whitespace
+    - remove spaces/dashes
+    - allow only digits after optional leading '+'
+    - enforce E.164-style digit count (8..15)
+    """
     if not phone:
         frappe.throw(_("phone is required"), frappe.ValidationError)
-    phone = phone.strip()
-    if phone.startswith("+"):
-        prefix = "+"
-        digits = re.sub(r"\D", "", phone[1:])
-        return prefix + digits
-    return re.sub(r"\D", "", phone)
+
+    raw = phone.strip().replace(" ", "").replace("-", "")
+    if not raw:
+        frappe.throw(_("phone is required"), frappe.ValidationError)
+
+    has_plus = raw.startswith("+")
+    digits = raw[1:] if has_plus else raw
+    # Auth: keep phone validation consistent across register/login and test scripts.
+    if not digits or not PHONE_ALLOWED_RE.match(raw):
+        frappe.throw(_("Invalid phone"), frappe.ValidationError)
+    if len(digits) < PHONE_MIN_DIGITS or len(digits) > PHONE_MAX_DIGITS:
+        frappe.throw(_("Invalid phone length"), frappe.ValidationError)
+
+    return f"+{digits}" if has_plus else digits
 
 
 def validate_currency(currency: str, user: str | None = None) -> str:

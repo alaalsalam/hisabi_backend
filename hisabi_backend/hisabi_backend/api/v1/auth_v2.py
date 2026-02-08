@@ -9,8 +9,7 @@ Design goals:
 
 from __future__ import annotations
 
-import re
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional
 
 import frappe
 from frappe import _
@@ -26,7 +25,7 @@ from hisabi_backend.utils.security import (
 )
 from hisabi_backend.utils.api_errors import error_response
 from hisabi_backend.utils.security_rate_limit import rate_limit
-from hisabi_backend.utils.validators import validate_password_strength, validate_platform
+from hisabi_backend.utils.validators import normalize_and_validate_phone, validate_password_strength, validate_platform
 from hisabi_backend.utils.wallet_acl import (
     ensure_default_wallet_for_user,
     get_or_create_hisabi_user,
@@ -34,11 +33,7 @@ from hisabi_backend.utils.wallet_acl import (
 )
 from hisabi_backend.utils.auth_lockout import on_login_failed, on_login_success, raise_if_locked
 from hisabi_backend.utils.request_context import get_request_ip
-from hisabi_backend.utils.user_events import normalize_phone_digits
 from hisabi_backend.utils.audit_security import audit_security_event
-
-
-PHONE_DIGITS_RE = re.compile(r"\d+")
 
 
 def _resolve_user(identifier: str) -> str:
@@ -52,12 +47,14 @@ def _resolve_user(identifier: str) -> str:
             return user
         frappe.throw(_("Invalid credentials"), frappe.AuthenticationError)
 
-    phone = normalize_phone_digits(identifier, strict=True)
-    user = (
-        frappe.get_value("User", {"phone": phone})
-        or frappe.get_value("User", {"mobile_no": phone})
-        or frappe.get_value("User", {"phone": phone})
-    )
+    phone_norm = normalize_and_validate_phone(identifier)
+    phone_digits = phone_norm[1:] if phone_norm.startswith("+") else phone_norm
+    phone_variants = tuple(dict.fromkeys((phone_digits, f"+{phone_digits}")))
+    user = None
+    for variant in phone_variants:
+        user = frappe.get_value("User", {"phone": variant}) or frappe.get_value("User", {"mobile_no": variant})
+        if user:
+            break
     if user:
         return user
     frappe.throw(_("Invalid credentials"), frappe.AuthenticationError)
@@ -106,19 +103,22 @@ def register_user(
             frappe.throw(_("password is required"), frappe.ValidationError)
         validate_password_strength(password)
 
-        phone_norm = normalize_phone_digits(phone, strict=True) if phone else None
-        email_norm = _ensure_user_email(email, phone_digits=phone_norm)
-        if not (email_norm or phone_norm):
+        phone_norm = normalize_and_validate_phone(phone) if phone else None
+        phone_digits = phone_norm[1:] if (phone_norm and phone_norm.startswith("+")) else phone_norm
+        email_norm = _ensure_user_email(email, phone_digits=phone_digits)
+        if not (email_norm or phone_digits):
             frappe.throw(_("email or phone is required"), frappe.ValidationError)
 
         full_name = (full_name or "").strip() or "Hisabi User"
 
         if frappe.db.exists("User", {"email": email_norm}):
             frappe.throw(_("Account already exists"), frappe.ValidationError)
-        if phone_norm and (
-            frappe.db.exists("User", {"phone": phone_norm}) or frappe.db.exists("User", {"mobile_no": phone_norm})
-        ):
-            frappe.throw(_("Account already exists"), frappe.ValidationError)
+        if phone_digits:
+            phone_variants = tuple(dict.fromkeys((phone_digits, f"+{phone_digits}")))
+            if frappe.db.exists("User", {"phone": ["in", list(phone_variants)]}) or frappe.db.exists(
+                "User", {"mobile_no": ["in", list(phone_variants)]}
+            ):
+                frappe.throw(_("Account already exists"), frappe.ValidationError)
 
         device = device or {}
         device_id = (device.get("device_id") or "").strip()
@@ -142,8 +142,9 @@ def register_user(
                 "send_welcome_email": 0,
                 "user_type": "Website User",
                 "roles": [{"role": "Hisabi User"}],
-                "phone": phone_norm,
-                "mobile_no": phone_norm,
+                # Store canonical digits-only form to keep lookups stable across +prefix input styles.
+                "phone": phone_digits,
+                "mobile_no": phone_digits,
             }
         ).insert(ignore_permissions=True)
         update_password(user_doc.name, password)

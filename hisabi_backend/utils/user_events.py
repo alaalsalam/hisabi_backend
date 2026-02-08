@@ -6,6 +6,7 @@ import re
 
 import frappe
 from frappe import _
+from hisabi_backend.utils.validators import normalize_and_validate_phone
 
 
 _PHONE_DIGITS_RE = re.compile(r"\d+")
@@ -15,14 +16,12 @@ def normalize_phone_digits(phone: str, *, strict: bool = False) -> str:
 	phone = (phone or "").strip()
 	if not phone:
 		return ""
-	digits = "".join(_PHONE_DIGITS_RE.findall(phone))
-	if not digits:
+	if not _PHONE_DIGITS_RE.search(phone):
 		if strict:
 			frappe.throw(_("Invalid phone"), frappe.ValidationError)
 		return ""
-	if len(digits) < 8 or len(digits) > 15:
-		frappe.throw(_("Invalid phone length"), frappe.ValidationError)
-	return digits
+	normalized = normalize_and_validate_phone(phone)
+	return normalized[1:] if normalized.startswith("+") else normalized
 
 
 def validate_user_phone(doc, _method=None) -> None:
