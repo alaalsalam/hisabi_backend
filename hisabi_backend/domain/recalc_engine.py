@@ -2,12 +2,81 @@
 
 from __future__ import annotations
 
-from typing import Iterable, Optional
+from typing import Any, Iterable, Mapping, Optional
 
 import frappe
 from frappe.utils import flt, get_datetime, now_datetime
 
 from hisabi_backend.utils.sync_common import apply_common_sync_fields
+
+
+def _list_account_ledger_entries(
+    *,
+    account_id: str,
+    wallet_id: str | None = None,
+    user: str | None = None,
+) -> list[dict[str, Any]]:
+    """Return wallet/user-scoped transaction ledger rows touching this account.
+
+    Invariant: ordering must be deterministic so the same ledger always yields
+    the same computed balance regardless of query pagination or retries.
+    """
+    if not account_id:
+        return []
+    if not wallet_id and not user:
+        return []
+
+    scope_field = "wallet_id" if wallet_id else "user"
+    scope_value = wallet_id or user
+    return frappe.db.sql(
+        f"""
+        SELECT name, transaction_type, amount, account, to_account, date_time
+        FROM `tabHisabi Transaction`
+        WHERE {scope_field}=%s
+          AND is_deleted=0
+          AND (account=%s OR to_account=%s)
+        ORDER BY COALESCE(date_time, creation) ASC, name ASC
+        """,
+        (scope_value, account_id, account_id),
+        as_dict=True,
+    )
+
+
+def _ledger_delta_for_account(entry: Mapping[str, Any], account_id: str) -> float:
+    """Pure delta calculator for a single ledger entry."""
+    if not account_id:
+        return 0.0
+
+    tx_type = (entry.get("transaction_type") or "").strip().lower()
+    source_account = entry.get("account")
+    target_account = entry.get("to_account")
+    amount = flt(entry.get("amount") or 0)
+    if not amount:
+        return 0.0
+
+    delta = 0.0
+    if source_account == account_id:
+        if tx_type == "income":
+            delta += amount
+        elif tx_type in {"expense", "transfer"}:
+            delta -= amount
+    if target_account == account_id:
+        # Transfer incoming leg increases the destination account balance.
+        delta += amount
+    return flt(delta)
+
+
+def compute_account_balance_from_ledger(
+    *,
+    account_id: str,
+    opening_balance: float,
+    ledger_entries: Iterable[Mapping[str, Any]],
+) -> float:
+    """Pure function: compute account balance from opening balance + ledger rows."""
+    balance = flt(opening_balance or 0)
+    for entry in ledger_entries:
+        balance += _ledger_delta_for_account(entry, account_id)
+    return flt(balance)
 
 
 def recalc_account_balance(user: str, account_id: str, wallet_id: str | None = None) -> None:
@@ -20,31 +89,17 @@ def recalc_account_balance(user: str, account_id: str, wallet_id: str | None = N
     if not wallet_id and getattr(account, "user", None) and account.user != user:
         return
 
-    where = "wallet_id=%s" if wallet_id else "user=%s"
-
-    outgoing = frappe.db.sql(
-        f"""
-        SELECT COALESCE(SUM(CASE
-            WHEN transaction_type = 'income' THEN amount
-            WHEN transaction_type = 'expense' THEN -amount
-            WHEN transaction_type = 'transfer' THEN -amount
-            ELSE 0 END), 0)
-        FROM `tabHisabi Transaction`
-        WHERE {where} AND is_deleted=0 AND account=%s
-        """,
-        (wallet_id or user, account_id),
-    )[0][0]
-
-    incoming = frappe.db.sql(
-        f"""
-        SELECT COALESCE(SUM(amount), 0)
-        FROM `tabHisabi Transaction`
-        WHERE {where} AND is_deleted=0 AND to_account=%s
-        """,
-        (wallet_id or user, account_id),
-    )[0][0]
-
-    account.current_balance = flt(account.opening_balance or 0) + flt(outgoing) + flt(incoming)
+    effective_wallet_id = wallet_id or (getattr(account, "wallet_id", None) or None)
+    ledger_rows = _list_account_ledger_entries(
+        account_id=account_id,
+        wallet_id=effective_wallet_id,
+        user=None if effective_wallet_id else user,
+    )
+    account.current_balance = compute_account_balance_from_ledger(
+        account_id=account_id,
+        opening_balance=flt(account.opening_balance or 0),
+        ledger_entries=ledger_rows,
+    )
     apply_common_sync_fields(account, bump_version=True, mark_deleted=False)
     account.save(ignore_permissions=True)
 
