@@ -1,6 +1,6 @@
 import os
 
-__version__ = "v1.0.0-rc.1"
+__version__ = "v1.0.0-rc.2"
 
 # expose nested package content so frappe imports (doctype, api, utils) resolve
 _package_dir = os.path.join(os.path.dirname(__file__), "hisabi_backend")
