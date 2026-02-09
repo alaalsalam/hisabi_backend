@@ -96,7 +96,8 @@ def register_user(
     """Register a user and issue a device token."""
     try:
         # Rate limit by IP (and globally per site db_name prefix).
-        rate_limit(f"register:ip:{get_request_ip() or 'unknown'}", limit=3, window_seconds=600)
+        # Keep abuse guard while avoiding false lockouts during normal QA / onboarding retries.
+        rate_limit(f"register:ip:{get_request_ip() or 'unknown'}", limit=20, window_seconds=600)
         ensure_roles()
 
         if not password:
@@ -170,11 +171,29 @@ def register_user(
             "default_wallet_id": wallet_id,
         }
     except frappe.ValidationError as exc:
+        message = str(exc)
+        lowered = message.lower()
+        if "rate_limited" in lowered:
+            return error_response(
+                status_code=429,
+                code="RATE_LIMITED",
+                message="rate_limited",
+                user_message="محاولات كثيرة خلال فترة قصيرة. انتظر قليلًا ثم حاول مرة أخرى.",
+                action="retry",
+            )
+        if "account already exists" in lowered:
+            return error_response(
+                status_code=409,
+                code="ACCOUNT_EXISTS",
+                message=message,
+                user_message="هذا الحساب موجود بالفعل. استخدم تسجيل الدخول بدل إنشاء حساب جديد.",
+                action="retry",
+            )
         return error_response(
             status_code=400,
             code="VALIDATION_ERROR",
-            message=str(exc),
-            user_message="بيانات غير صحيحة. يرجى التحقق والمحاولة مرة أخرى.",
+            message=message,
+            user_message="بيانات غير صحيحة. يرجى التحقق من الهاتف وكلمة المرور ثم المحاولة مرة أخرى.",
             action="retry",
         )
     except frappe.AuthenticationError as exc:
@@ -261,10 +280,19 @@ def login(
             "default_wallet_id": wallet_id,
         }
     except frappe.ValidationError as exc:
+        message = str(exc)
+        if "rate_limited" in message.lower():
+            return error_response(
+                status_code=429,
+                code="RATE_LIMITED",
+                message="rate_limited",
+                user_message="عدد محاولات تسجيل الدخول كبير جدًا. انتظر قليلًا ثم حاول مرة أخرى.",
+                action="retry",
+            )
         return error_response(
             status_code=400,
             code="VALIDATION_ERROR",
-            message=str(exc),
+            message=message,
             user_message="بيانات غير صحيحة. يرجى التحقق والمحاولة مرة أخرى.",
             action="retry",
         )

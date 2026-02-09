@@ -33,16 +33,20 @@ def rate_limit(key: str, *, limit: int, window_seconds: int) -> None:
 	redis_key = cache.make_key(f"hisabi_rl:{key}")
 
 	# Redis path (atomic enough for our use). Falls back on connection errors.
+	# Important: do not swallow rate-limit exceptions raised by frappe.throw.
+	count = None
 	try:
 		count = cache.incr(redis_key)  # type: ignore[arg-type]
 		if count == 1:
 			cache.expire(redis_key, window_seconds)  # type: ignore[arg-type]
+	except Exception:
+		# local fallback
+		count = None
+
+	if count is not None:
 		if count > int(limit):
 			frappe.throw(_("rate_limited"), frappe.TooManyRequestsError)
 		return
-	except Exception:
-		# local fallback
-		pass
 
 	now = time.time()
 	count, start = _LOCAL_BUCKETS.get(key, (0, now))
@@ -52,4 +56,3 @@ def rate_limit(key: str, *, limit: int, window_seconds: int) -> None:
 	_LOCAL_BUCKETS[key] = (count, start)
 	if count > int(limit):
 		frappe.throw(_("rate_limited"), frappe.TooManyRequestsError)
-
