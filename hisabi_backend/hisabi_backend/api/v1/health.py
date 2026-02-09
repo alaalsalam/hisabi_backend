@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import importlib
 from pathlib import Path
 import os
+import re
 import subprocess
 
 import frappe
@@ -43,11 +45,24 @@ def _resolve_git_commit() -> str | None:
 
 def _resolve_app_version() -> str | None:
     # Runtime source of truth for this app package version.
+    # Bench path can expose multiple `hisabi_backend` modules; prefer app root file.
     try:
-        import hisabi_backend as app_module
+        root_init = Path(__file__).resolve().parents[3] / "__init__.py"
+        if root_init.exists():
+            match = re.search(r"""__version__\s*=\s*['"]([^'"]+)['"]""", root_init.read_text())
+            if match:
+                return match.group(1)
     except Exception:
-        return None
-    return getattr(app_module, "__version__", None)
+        pass
+
+    try:
+        app_module = importlib.import_module("hisabi_backend")
+        version = getattr(app_module, "__version__", None)
+        if version:
+            return str(version)
+    except Exception:
+        pass
+    return None
 
 
 @frappe.whitelist(allow_guest=True)
