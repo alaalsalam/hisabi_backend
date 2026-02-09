@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# ------------------------------------------------------------------------------
+# WHY: Release/operator verification for sync conflict contract behavior.
+# WHEN: Run pre-release and post-deploy against a target Hisabi backend.
+# SAFETY: Uses throwaway generated user/device IDs only; no destructive server ops.
+# ------------------------------------------------------------------------------
 set -euo pipefail
 
 BASE_URL=${BASE_URL:-"https://expense.yemenfrappe.com"}
