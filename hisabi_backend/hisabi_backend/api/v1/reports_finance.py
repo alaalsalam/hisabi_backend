@@ -299,6 +299,204 @@ def _with_warnings(payload: Dict[str, Any], warnings: list[Dict[str, Any]]) -> D
     return output
 
 
+UNALLOCATED_BUCKET_ID = "unallocated"
+
+
+def _resolve_report_currency(*, wallet_id: str, user: str, currency: Optional[str]) -> str:
+    normalized = _normalize_currency(currency)
+    if normalized:
+        return normalized
+    return _resolve_wallet_base_currency(wallet_id, user)
+
+
+def _resolve_currency_param(currency: Optional[str]) -> Optional[str]:
+    request_currency = currency or frappe.form_dict.get("currency") or get_request_param("currency")
+    request = getattr(frappe.local, "request", None)
+    if not request_currency and request and getattr(request, "args", None):
+        request_currency = request.args.get("currency")
+    return _normalize_currency(request_currency)
+
+
+def _append_generic_fx_warning(
+    warnings: list[Dict[str, Any]],
+    warning_state: Dict[str, bool],
+) -> None:
+    if warning_state.get("fx_missing"):
+        return
+    warning_state["fx_missing"] = True
+    warnings.append(
+        {
+            "code": "fx_missing",
+            "message": "Some amounts are excluded due to missing FX rates.",
+        }
+    )
+
+
+def _convert_amount_to_currency(
+    *,
+    amount: Any,
+    source_currency: Optional[str],
+    target_currency: str,
+    tx_date_time: Any,
+    wallet_id: str,
+    fx_cache: Dict[tuple[str, str, str, str], Optional[float]],
+    warnings: list[Dict[str, Any]],
+    warning_state: Dict[str, bool],
+) -> Optional[float]:
+    amount_value = flt(amount or 0)
+    if not amount_value:
+        return 0.0
+
+    source = _normalize_currency(source_currency)
+    target = _normalize_currency(target_currency)
+    if not source or not target:
+        _append_generic_fx_warning(warnings, warning_state)
+        return None
+    if source == target:
+        return amount_value
+
+    tx_date = _parse_date(tx_date_time)
+    rate = _resolve_fx_rate(
+        wallet_id=wallet_id,
+        source_currency=source,
+        target_currency=target,
+        tx_date=tx_date,
+        cache=fx_cache,
+    )
+    if rate and rate > 0:
+        return flt(amount_value * rate)
+
+    _append_generic_fx_warning(warnings, warning_state)
+    return None
+
+
+def _get_wallet_bucket_meta(wallet_id: str) -> Dict[str, Dict[str, str]]:
+    rows = frappe.get_all(
+        "Hisabi Bucket",
+        filters={"wallet_id": wallet_id, "is_deleted": 0},
+        fields=["name", "title", "bucket_name"],
+    )
+    meta: Dict[str, Dict[str, str]] = {}
+    for row in rows:
+        bucket_id = row.get("name")
+        if not bucket_id:
+            continue
+        title = (row.get("title") or row.get("bucket_name") or bucket_id).strip() or bucket_id
+        meta[bucket_id] = {
+            "bucket_id": bucket_id,
+            "bucket_title": title,
+        }
+    return meta
+
+
+def _group_allocation_rows(
+    rows: list[Dict[str, Any]],
+    *,
+    tx_key: str,
+    bucket_key: str,
+    amount_key: str = "amount",
+    currency_key: Optional[str] = None,
+    bucket_meta: Dict[str, Dict[str, str]],
+) -> Dict[str, list[Dict[str, Any]]]:
+    grouped: Dict[str, list[Dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        tx_id = row.get(tx_key)
+        bucket_id = row.get(bucket_key)
+        if not tx_id or not bucket_id:
+            continue
+        if bucket_id not in bucket_meta:
+            continue
+        amount = flt(row.get(amount_key) or 0)
+        if not amount:
+            continue
+
+        item: Dict[str, Any] = {
+            "bucket_id": bucket_id,
+            "amount": amount,
+        }
+        if currency_key:
+            item["currency"] = _normalize_currency(row.get(currency_key))
+        grouped[str(tx_id)].append(item)
+    return grouped
+
+
+def _load_income_allocation_maps(
+    *,
+    wallet_id: str,
+    income_tx_ids: list[str],
+    bucket_meta: Dict[str, Dict[str, str]],
+) -> tuple[Dict[str, list[Dict[str, Any]]], Dict[str, list[Dict[str, Any]]]]:
+    if not income_tx_ids:
+        return {}, {}
+
+    tx_ids = tuple(sorted(set(income_tx_ids)))
+    tx_bucket_rows: list[Dict[str, Any]] = []
+    if frappe.db.exists("DocType", "Hisabi Transaction Bucket"):
+        tx_bucket_rows = frappe.db.sql(
+            """
+            SELECT
+                transaction_id,
+                bucket_id,
+                amount
+            FROM `tabHisabi Transaction Bucket`
+            WHERE wallet_id=%(wallet_id)s
+              AND is_deleted=0
+              AND transaction_id IN %(tx_ids)s
+            ORDER BY transaction_id ASC, name ASC
+            """,
+            {"wallet_id": wallet_id, "tx_ids": tx_ids},
+            as_dict=True,
+        )
+
+    legacy_rows: list[Dict[str, Any]] = []
+    if frappe.db.exists("DocType", "Hisabi Transaction Allocation"):
+        legacy_rows = frappe.db.sql(
+            """
+            SELECT
+                transaction,
+                bucket,
+                amount,
+                currency
+            FROM `tabHisabi Transaction Allocation`
+            WHERE wallet_id=%(wallet_id)s
+              AND is_deleted=0
+              AND transaction IN %(tx_ids)s
+            ORDER BY transaction ASC, name ASC
+            """,
+            {"wallet_id": wallet_id, "tx_ids": tx_ids},
+            as_dict=True,
+        )
+
+    by_new = _group_allocation_rows(
+        tx_bucket_rows,
+        tx_key="transaction_id",
+        bucket_key="bucket_id",
+        amount_key="amount",
+        bucket_meta=bucket_meta,
+    )
+    by_legacy = _group_allocation_rows(
+        legacy_rows,
+        tx_key="transaction",
+        bucket_key="bucket",
+        amount_key="amount",
+        currency_key="currency",
+        bucket_meta=bucket_meta,
+    )
+    return by_new, by_legacy
+
+
+def _income_allocations_for_tx(
+    *,
+    tx_id: str,
+    by_new: Dict[str, list[Dict[str, Any]]],
+    by_legacy: Dict[str, list[Dict[str, Any]]],
+) -> list[Dict[str, Any]]:
+    new_rows = by_new.get(tx_id) or []
+    if new_rows:
+        return new_rows
+    return by_legacy.get(tx_id) or []
+
+
 @frappe.whitelist(allow_guest=False)
 def report_summary(
     from_date: Optional[str] = None,
@@ -714,6 +912,317 @@ def report_cashflow(**kwargs):
     }
     safe_kwargs = {k: v for k, v in kwargs.items() if k in allowed}
     return cashflow(**safe_kwargs)
+
+
+def _bucket_period_key(tx_date: datetime.date, granularity: str) -> str:
+    normalized = (granularity or "daily").strip().lower()
+    if normalized == "weekly":
+        return (tx_date - datetime.timedelta(days=tx_date.weekday())).isoformat()
+    if normalized == "monthly":
+        return tx_date.replace(day=1).isoformat()
+    return tx_date.isoformat()
+
+
+def _aggregate_bucket_cashflow(
+    *,
+    wallet_id: str,
+    from_date: Optional[str],
+    to_date: Optional[str],
+    target_currency: str,
+    granularity: str = "daily",
+) -> tuple[Dict[tuple[str, str], float], list[Dict[str, Any]]]:
+    tx_filters, params = _build_tx_filters(
+        wallet_id=wallet_id,
+        from_date=from_date,
+        to_date=to_date,
+        type_filter="income,expense",
+    )
+    tx_rows = _query_transactions(filters=tx_filters, params=params)
+
+    bucket_meta = _get_wallet_bucket_meta(wallet_id)
+    income_tx_ids = [
+        str(tx.get("name"))
+        for tx in tx_rows
+        if (tx.get("transaction_type") or "").strip().lower() == "income" and tx.get("name")
+    ]
+    by_new, by_legacy = _load_income_allocation_maps(
+        wallet_id=wallet_id,
+        income_tx_ids=income_tx_ids,
+        bucket_meta=bucket_meta,
+    )
+
+    fx_cache: Dict[tuple[str, str, str, str], Optional[float]] = {}
+    warnings: list[Dict[str, Any]] = []
+    warning_state = {"fx_missing": False}
+    points: Dict[tuple[str, str], float] = defaultdict(float)
+
+    for tx in tx_rows:
+        tx_type = (tx.get("transaction_type") or "").strip().lower()
+        if tx_type not in {"income", "expense"}:
+            continue
+
+        tx_name = str(tx.get("name") or "")
+        tx_currency = _normalize_currency(tx.get("currency"))
+        period_key = _bucket_period_key(_parse_date(tx.get("date_time")), granularity)
+
+        if tx_type == "income":
+            alloc_rows = _income_allocations_for_tx(
+                tx_id=tx_name,
+                by_new=by_new,
+                by_legacy=by_legacy,
+            )
+            for row in alloc_rows:
+                converted = _convert_amount_to_currency(
+                    amount=row.get("amount"),
+                    source_currency=row.get("currency") or tx_currency,
+                    target_currency=target_currency,
+                    tx_date_time=tx.get("date_time"),
+                    wallet_id=wallet_id,
+                    fx_cache=fx_cache,
+                    warnings=warnings,
+                    warning_state=warning_state,
+                )
+                if converted is None:
+                    continue
+                points[(period_key, str(row.get("bucket_id")))] += converted
+            continue
+
+        # Expense transactions are intentionally grouped under a virtual bucket.
+        expense_amount = _convert_amount_to_currency(
+            amount=tx.get("amount"),
+            source_currency=tx_currency,
+            target_currency=target_currency,
+            tx_date_time=tx.get("date_time"),
+            wallet_id=wallet_id,
+            fx_cache=fx_cache,
+            warnings=warnings,
+            warning_state=warning_state,
+        )
+        if expense_amount is None:
+            continue
+        points[(period_key, UNALLOCATED_BUCKET_ID)] -= expense_amount
+
+    return points, warnings
+
+
+@frappe.whitelist(allow_guest=False)
+def report_bucket_breakdown(
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    currency: Optional[str] = None,
+    wallet_id: Optional[str] = None,
+    device_id: Optional[str] = None,
+) -> Dict[str, Any] | Response:
+    user, _device = require_device_token_auth()
+    wallet_id_resolved = _resolve_wallet_id_param(wallet_id)
+    if isinstance(wallet_id_resolved, Response):
+        return wallet_id_resolved
+    wallet_id = wallet_id_resolved
+    require_wallet_member(wallet_id, user, min_role="viewer")
+
+    from_date, to_date = _resolve_date_range(
+        from_date=from_date,
+        to_date=to_date,
+        date_from=date_from,
+        date_to=date_to,
+    )
+
+    target_currency = _resolve_report_currency(
+        wallet_id=wallet_id,
+        user=user,
+        currency=_resolve_currency_param(currency),
+    )
+    tx_filters, params = _build_tx_filters(
+        wallet_id=wallet_id,
+        from_date=from_date,
+        to_date=to_date,
+        type_filter="income",
+    )
+    income_rows = _query_transactions(filters=tx_filters, params=params)
+
+    bucket_meta = _get_wallet_bucket_meta(wallet_id)
+    income_tx_ids = [str(tx.get("name")) for tx in income_rows if tx.get("name")]
+    by_new, by_legacy = _load_income_allocation_maps(
+        wallet_id=wallet_id,
+        income_tx_ids=income_tx_ids,
+        bucket_meta=bucket_meta,
+    )
+
+    fx_cache: Dict[tuple[str, str, str, str], Optional[float]] = {}
+    warnings: list[Dict[str, Any]] = []
+    warning_state = {"fx_missing": False}
+    totals_by_bucket: Dict[str, float] = defaultdict(float)
+    total_income = 0.0
+
+    for tx in income_rows:
+        tx_name = str(tx.get("name") or "")
+        tx_currency = _normalize_currency(tx.get("currency"))
+        alloc_rows = _income_allocations_for_tx(
+            tx_id=tx_name,
+            by_new=by_new,
+            by_legacy=by_legacy,
+        )
+        for row in alloc_rows:
+            converted = _convert_amount_to_currency(
+                amount=row.get("amount"),
+                source_currency=row.get("currency") or tx_currency,
+                target_currency=target_currency,
+                tx_date_time=tx.get("date_time"),
+                wallet_id=wallet_id,
+                fx_cache=fx_cache,
+                warnings=warnings,
+                warning_state=warning_state,
+            )
+            if converted is None:
+                continue
+            bucket_id = str(row.get("bucket_id"))
+            totals_by_bucket[bucket_id] += converted
+            total_income += converted
+
+    data = []
+    for bucket_id, amount in totals_by_bucket.items():
+        bucket_title = (bucket_meta.get(bucket_id) or {}).get("bucket_title") or bucket_id
+        percentage = flt((amount / total_income) * 100, 2) if total_income else 0.0
+        data.append(
+            {
+                "bucket_id": bucket_id,
+                "bucket_title": bucket_title,
+                "total_amount": flt(amount),
+                "percentage_of_income": percentage,
+            }
+        )
+
+    data.sort(key=lambda row: (-flt(row.get("total_amount") or 0), str(row.get("bucket_id") or "")))
+    return {
+        "data": data,
+        "currency": target_currency,
+        "from_date": from_date,
+        "to_date": to_date,
+        "warnings": warnings,
+        "server_time": now_datetime().isoformat(),
+    }
+
+
+@frappe.whitelist(allow_guest=False)
+def report_cashflow_by_bucket(
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    currency: Optional[str] = None,
+    wallet_id: Optional[str] = None,
+    device_id: Optional[str] = None,
+) -> Dict[str, Any] | Response:
+    user, _device = require_device_token_auth()
+    wallet_id_resolved = _resolve_wallet_id_param(wallet_id)
+    if isinstance(wallet_id_resolved, Response):
+        return wallet_id_resolved
+    wallet_id = wallet_id_resolved
+    require_wallet_member(wallet_id, user, min_role="viewer")
+
+    from_date, to_date = _resolve_date_range(
+        from_date=from_date,
+        to_date=to_date,
+        date_from=date_from,
+        date_to=date_to,
+    )
+
+    target_currency = _resolve_report_currency(
+        wallet_id=wallet_id,
+        user=user,
+        currency=_resolve_currency_param(currency),
+    )
+    points_map, warnings = _aggregate_bucket_cashflow(
+        wallet_id=wallet_id,
+        from_date=from_date,
+        to_date=to_date,
+        target_currency=target_currency,
+        granularity="daily",
+    )
+
+    data = []
+    for (day, bucket_id), amount in sorted(points_map.items(), key=lambda item: (item[0][0], item[0][1])):
+        data.append(
+            {
+                "date": day,
+                "bucket_id": bucket_id,
+                "amount": flt(amount),
+            }
+        )
+
+    return {
+        "data": data,
+        "currency": target_currency,
+        "from_date": from_date,
+        "to_date": to_date,
+        "warnings": warnings,
+        "server_time": now_datetime().isoformat(),
+    }
+
+
+@frappe.whitelist(allow_guest=False)
+def report_bucket_trends(
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    currency: Optional[str] = None,
+    wallet_id: Optional[str] = None,
+    device_id: Optional[str] = None,
+    granularity: Optional[str] = None,
+) -> Dict[str, Any] | Response:
+    user, _device = require_device_token_auth()
+    wallet_id_resolved = _resolve_wallet_id_param(wallet_id)
+    if isinstance(wallet_id_resolved, Response):
+        return wallet_id_resolved
+    wallet_id = wallet_id_resolved
+    require_wallet_member(wallet_id, user, min_role="viewer")
+
+    from_date, to_date = _resolve_date_range(
+        from_date=from_date,
+        to_date=to_date,
+        date_from=date_from,
+        date_to=date_to,
+    )
+
+    normalized_granularity = (granularity or "monthly").strip().lower()
+    if normalized_granularity not in {"weekly", "monthly"}:
+        return _build_invalid_request("granularity must be weekly or monthly", param="granularity")
+
+    target_currency = _resolve_report_currency(
+        wallet_id=wallet_id,
+        user=user,
+        currency=_resolve_currency_param(currency),
+    )
+    points_map, warnings = _aggregate_bucket_cashflow(
+        wallet_id=wallet_id,
+        from_date=from_date,
+        to_date=to_date,
+        target_currency=target_currency,
+        granularity=normalized_granularity,
+    )
+
+    data = []
+    for (period_start, bucket_id), amount in sorted(points_map.items(), key=lambda item: (item[0][0], item[0][1])):
+        data.append(
+            {
+                "period_start": period_start,
+                "bucket_id": bucket_id,
+                "amount": flt(amount),
+            }
+        )
+
+    return {
+        "granularity": normalized_granularity,
+        "data": data,
+        "currency": target_currency,
+        "from_date": from_date,
+        "to_date": to_date,
+        "warnings": warnings,
+        "server_time": now_datetime().isoformat(),
+    }
 
 
 @frappe.whitelist(allow_guest=False)
