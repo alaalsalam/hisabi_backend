@@ -7,13 +7,10 @@
   "user",
   "wallet_id",
   "client_id",
-  "title",
-  "bucket_name",
-  "color",
-  "icon",
-  "sort_order",
-  "is_active",
-  "archived",
+  "transaction_id",
+  "bucket_id",
+  "amount",
+  "percentage",
   "client_created_ms",
   "client_modified_ms",
   "doc_version",
@@ -43,42 +40,28 @@
    "reqd": 1
   },
   {
-   "fieldname": "title",
-   "fieldtype": "Data",
-   "label": "Title"
+   "fieldname": "transaction_id",
+   "fieldtype": "Link",
+   "label": "Transaction",
+   "options": "Hisabi Transaction",
+   "reqd": 1
   },
   {
-   "fieldname": "bucket_name",
-   "fieldtype": "Data",
-   "label": "Bucket Name"
+   "fieldname": "bucket_id",
+   "fieldtype": "Link",
+   "label": "Bucket",
+   "options": "Hisabi Bucket",
+   "reqd": 1
   },
   {
-   "fieldname": "color",
-   "fieldtype": "Data",
-   "label": "Color"
+   "fieldname": "amount",
+   "fieldtype": "Float",
+   "label": "Amount"
   },
   {
-   "fieldname": "icon",
-   "fieldtype": "Data",
-   "label": "Icon"
-  },
-  {
-   "default": "0",
-   "fieldname": "sort_order",
-   "fieldtype": "Int",
-   "label": "Sort Order"
-  },
-  {
-   "default": "1",
-   "fieldname": "is_active",
-   "fieldtype": "Check",
-   "label": "Is Active"
-  },
-  {
-   "default": "0",
-   "fieldname": "archived",
-   "fieldtype": "Check",
-   "label": "Archived"
+   "fieldname": "percentage",
+   "fieldtype": "Float",
+   "label": "Percentage"
   },
   {
    "fieldname": "client_created_ms",
@@ -125,10 +108,22 @@
    "fields": [
     "wallet_id"
    ]
+  },
+  {
+   "fields": [
+    "transaction_id",
+    "bucket_id"
+   ]
+  },
+  {
+   "fields": [
+    "user",
+    "transaction_id"
+   ]
   }
  ],
  "module": "Hisabi Backend",
- "name": "Hisabi Bucket",
+ "name": "Hisabi Transaction Bucket",
  "permissions": [
   {
    "create": 1,

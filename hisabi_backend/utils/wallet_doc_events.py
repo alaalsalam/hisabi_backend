@@ -17,6 +17,7 @@ WALLET_SCOPED_DOCTYPES = [
     "Hisabi Allocation Rule",
     "Hisabi Allocation Rule Line",
     "Hisabi Transaction Allocation",
+    "Hisabi Transaction Bucket",
     "Hisabi Budget",
     "Hisabi Goal",
     "Hisabi Debt",

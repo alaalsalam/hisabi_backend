@@ -26,6 +26,16 @@ def bucket_summary(
     wallet_id = validate_client_id(wallet_id)
     require_wallet_member(wallet_id, user, min_role="viewer")
 
+    allocation_doctype = (
+        "Hisabi Transaction Bucket"
+        if frappe.db.exists("DocType", "Hisabi Transaction Bucket")
+        else "Hisabi Transaction Allocation"
+    )
+    allocation_table = f"`tab{allocation_doctype}`"
+    allocation_tx_field = "transaction_id" if allocation_doctype == "Hisabi Transaction Bucket" else "transaction"
+    allocation_bucket_field = "bucket_id" if allocation_doctype == "Hisabi Transaction Bucket" else "bucket"
+    allocation_currency_expr = "tx.currency" if allocation_doctype == "Hisabi Transaction Bucket" else "alloc.currency"
+
     # Reporting must exclude soft-deleted rows unless explicitly requested.
     filters = ["tx.wallet_id = %(wallet_id)s", "tx.is_deleted = 0", "alloc.is_deleted = 0"]
     params: Dict[str, Any] = {"wallet_id": wallet_id}
@@ -37,15 +47,15 @@ def bucket_summary(
         filters.append("tx.date_time <= %(to_date)s")
         params["to_date"] = get_datetime(to_date)
     if currency:
-        filters.append("alloc.currency = %(currency)s")
+        filters.append(f"{allocation_currency_expr} = %(currency)s")
         params["currency"] = currency
 
     income_sql = f"""
-        SELECT alloc.bucket as bucket, alloc.currency as currency, SUM(alloc.amount) as income_allocated
-        FROM `tabHisabi Transaction Allocation` alloc
-        INNER JOIN `tabHisabi Transaction` tx ON tx.name = alloc.transaction
+        SELECT alloc.{allocation_bucket_field} as bucket, {allocation_currency_expr} as currency, SUM(alloc.amount) as income_allocated
+        FROM {allocation_table} alloc
+        INNER JOIN `tabHisabi Transaction` tx ON tx.name = alloc.{allocation_tx_field}
         WHERE {' AND '.join(filters)} AND tx.transaction_type = 'income'
-        GROUP BY alloc.bucket, alloc.currency
+        GROUP BY alloc.{allocation_bucket_field}, {allocation_currency_expr}
     """
 
     income_rows = frappe.db.sql(income_sql, params, as_dict=True)
@@ -56,14 +66,14 @@ def bucket_summary(
     if to_date:
         expense_filters.append("tx.date_time <= %(to_date)s")
     if currency:
-        expense_filters.append("alloc.currency = %(currency)s")
+        expense_filters.append(f"{allocation_currency_expr} = %(currency)s")
 
     expense_alloc_sql = f"""
-        SELECT alloc.bucket as bucket, alloc.currency as currency, SUM(alloc.amount) as expense_spent
-        FROM `tabHisabi Transaction Allocation` alloc
-        INNER JOIN `tabHisabi Transaction` tx ON tx.name = alloc.transaction
+        SELECT alloc.{allocation_bucket_field} as bucket, {allocation_currency_expr} as currency, SUM(alloc.amount) as expense_spent
+        FROM {allocation_table} alloc
+        INNER JOIN `tabHisabi Transaction` tx ON tx.name = alloc.{allocation_tx_field}
         WHERE {' AND '.join(expense_filters)} AND tx.transaction_type = 'expense'
-        GROUP BY alloc.bucket, alloc.currency
+        GROUP BY alloc.{allocation_bucket_field}, {allocation_currency_expr}
     """
 
     expense_alloc_rows = frappe.db.sql(expense_alloc_sql, params, as_dict=True)
@@ -82,8 +92,8 @@ def bucket_summary(
         WHERE {' AND '.join(bucket_link_filters)}
           AND tx.transaction_type = 'expense'
           AND NOT EXISTS (
-            SELECT 1 FROM `tabHisabi Transaction Allocation` alloc
-            WHERE alloc.transaction = tx.name AND alloc.is_deleted = 0
+            SELECT 1 FROM {allocation_table} alloc
+            WHERE alloc.{allocation_tx_field} = tx.name AND alloc.is_deleted = 0
           )
         GROUP BY tx.bucket, tx.currency
     """
@@ -93,9 +103,9 @@ def bucket_summary(
     buckets = frappe.get_all(
         "Hisabi Bucket",
         filters={"wallet_id": wallet_id, "is_deleted": 0},
-        fields=["name", "bucket_name"],
+        fields=["name", "title", "bucket_name"],
     )
-    bucket_map = {row.name: row.bucket_name for row in buckets}
+    bucket_map = {row.name: (row.title or row.bucket_name or row.name) for row in buckets}
 
     summary: Dict[tuple, Dict[str, Any]] = {}
 

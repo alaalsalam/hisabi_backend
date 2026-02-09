@@ -6,14 +6,19 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional
 
 import frappe
-from frappe import _
 from frappe.utils import flt
+
+from hisabi_backend.utils.bucket_allocations import (
+    ensure_income_transaction,
+    ensure_wallet_scoped_buckets,
+    normalize_manual_allocations,
+)
 
 
 @dataclass
 class AllocationRow:
     bucket: str
-    percent: int
+    percent: float
     amount: float
     currency: str
     amount_base: float
@@ -21,13 +26,76 @@ class AllocationRow:
     is_manual_override: int
 
 
+def _allocation_doctypes() -> List[str]:
+    doctypes: List[str] = []
+    for doctype in ("Hisabi Transaction Allocation", "Hisabi Transaction Bucket"):
+        if frappe.db.exists("DocType", doctype):
+            doctypes.append(doctype)
+    return doctypes
+
+
 def _hard_delete_allocations(transaction_id: str, *, manual_only: Optional[bool] = None) -> None:
-    filters: Dict[str, object] = {"transaction": transaction_id}
-    if manual_only is True:
-        filters["is_manual_override"] = 1
-    if manual_only is False:
-        filters["is_manual_override"] = 0
-    frappe.db.delete("Hisabi Transaction Allocation", filters)
+    if frappe.db.exists("DocType", "Hisabi Transaction Allocation"):
+        legacy_filters: Dict[str, object] = {"transaction": transaction_id}
+        if manual_only is True:
+            legacy_filters["is_manual_override"] = 1
+        if manual_only is False:
+            legacy_filters["is_manual_override"] = 0
+        frappe.db.delete("Hisabi Transaction Allocation", legacy_filters)
+
+    if frappe.db.exists("DocType", "Hisabi Transaction Bucket"):
+        bucket_filters: Dict[str, object] = {"transaction_id": transaction_id}
+        if manual_only is True:
+            bucket_filters["client_id"] = ["like", "%:manual"]
+        elif manual_only is False:
+            bucket_filters["client_id"] = ["not like", "%:manual"]
+        frappe.db.delete("Hisabi Transaction Bucket", bucket_filters)
+
+
+def _has_manual_allocations(transaction_id: str) -> bool:
+    if frappe.db.exists(
+        "Hisabi Transaction Allocation",
+        {"transaction": transaction_id, "is_manual_override": 1},
+    ):
+        return True
+    if frappe.db.exists(
+        "Hisabi Transaction Bucket",
+        {"transaction_id": transaction_id, "client_id": ["like", "%:manual"], "is_deleted": 0},
+    ):
+        return True
+    return False
+
+
+def _insert_allocation_row(
+    *,
+    doctype: str,
+    user: str,
+    tx_doc,
+    row: AllocationRow,
+    client_id: str,
+) -> None:
+    alloc = frappe.new_doc(doctype)
+    alloc.user = user
+    alloc.wallet_id = tx_doc.wallet_id
+    alloc.client_id = client_id
+    alloc.name = client_id
+
+    if doctype == "Hisabi Transaction Allocation":
+        alloc.transaction = tx_doc.name
+        alloc.bucket = row.bucket
+        alloc.percent = int(round(flt(row.percent, 6)))
+        alloc.amount = flt(row.amount, 2)
+        alloc.currency = row.currency
+        alloc.amount_base = flt(row.amount_base, 2)
+        alloc.rule_used = row.rule_used
+        alloc.is_manual_override = row.is_manual_override
+    else:
+        alloc.transaction_id = tx_doc.name
+        alloc.bucket_id = row.bucket
+        alloc.amount = flt(row.amount, 2)
+        alloc.percentage = flt(row.percent, 6)
+
+    alloc.insert(ignore_permissions=True)
 
 
 def resolve_rule(user: str, tx_doc) -> Optional[frappe.model.document.Document]:
@@ -109,7 +177,7 @@ def _reconcile_amounts(rows: List[AllocationRow], total_amount: float) -> None:
     if remainder == 0:
         return
 
-    rows_sorted = sorted(rows, key=lambda r: (r.percent, r.amount), reverse=True)
+    rows_sorted = sorted(rows, key=lambda r: (flt(r.percent, 6), flt(r.amount, 2)), reverse=True)
     target = rows_sorted[0]
     target.amount = flt(target.amount + remainder, 2)
     target.amount_base = target.amount
@@ -163,11 +231,7 @@ def apply_auto_allocations(tx_doc) -> None:
         _hard_delete_allocations(tx_doc.name, manual_only=False)
         return
 
-    has_manual = frappe.db.exists(
-        "Hisabi Transaction Allocation",
-        {"transaction": tx_doc.name, "is_manual_override": 1},
-    )
-    if has_manual:
+    if _has_manual_allocations(tx_doc.name):
         return
 
     allocations = generate_allocations(tx_doc.user, tx_doc)
@@ -178,19 +242,14 @@ def apply_auto_allocations(tx_doc) -> None:
 
     for row in allocations:
         client_id = f"{tx_doc.client_id}:{row.bucket}"
-        alloc = frappe.new_doc("Hisabi Transaction Allocation")
-        alloc.user = tx_doc.user
-        alloc.transaction = tx_doc.name
-        alloc.bucket = row.bucket
-        alloc.percent = row.percent
-        alloc.amount = row.amount
-        alloc.currency = row.currency
-        alloc.amount_base = row.amount_base
-        alloc.rule_used = row.rule_used
-        alloc.is_manual_override = row.is_manual_override
-        alloc.client_id = client_id
-        alloc.name = client_id
-        alloc.insert(ignore_permissions=True)
+        for doctype in _allocation_doctypes():
+            _insert_allocation_row(
+                doctype=doctype,
+                user=tx_doc.user,
+                tx_doc=tx_doc,
+                row=row,
+                client_id=client_id,
+            )
 
 
 def set_manual_allocations(
@@ -201,81 +260,40 @@ def set_manual_allocations(
     allocations: List[Dict[str, object]],
 ) -> List[AllocationRow]:
     """Replace allocations with manual overrides and return rows."""
-    if not allocations:
-        frappe.throw(_("allocations required"), frappe.ValidationError)
+    tx_doc = ensure_income_transaction(tx_doc.name, tx_doc.wallet_id)
 
-    if tx_doc.is_deleted:
-        frappe.throw(_("Transaction is deleted"), frappe.ValidationError)
+    normalized_rows = normalize_manual_allocations(
+        tx_amount=flt(tx_doc.amount, 2),
+        mode=mode,
+        allocations=allocations,
+    )
+    ensure_wallet_scoped_buckets([str(row.get("bucket")) for row in normalized_rows], tx_doc.wallet_id)
 
-    total_amount = flt(tx_doc.amount, 2)
-    if total_amount <= 0:
-        frappe.throw(_("Transaction amount must be positive"), frappe.ValidationError)
-
-    rows: List[AllocationRow] = []
-    if mode == "percent":
-        total_percent = 0
-        for alloc in allocations:
-            percent = int(alloc.get("value") or 0)
-            if percent <= 0 or percent > 100:
-                frappe.throw(_("Percent must be between 1 and 100"), frappe.ValidationError)
-            total_percent += percent
-            amount = flt(total_amount * (percent / 100), 2)
-            rows.append(
-                AllocationRow(
-                    bucket=str(alloc.get("bucket")),
-                    percent=percent,
-                    amount=amount,
-                    currency=tx_doc.currency,
-                    amount_base=amount,
-                    rule_used=None,
-                    is_manual_override=1,
-                )
-            )
-        if total_percent > 100:
-            frappe.throw(_("Total percent cannot exceed 100"), frappe.ValidationError)
-        _reconcile_amounts(rows, total_amount)
-    elif mode == "amount":
-        total_value = 0
-        for alloc in allocations:
-            value = flt(alloc.get("value"), 2)
-            if value <= 0:
-                frappe.throw(_("Allocation amount must be positive"), frappe.ValidationError)
-            total_value += value
-            percent = int(round((value / total_amount) * 100))
-            rows.append(
-                AllocationRow(
-                    bucket=str(alloc.get("bucket")),
-                    percent=percent,
-                    amount=value,
-                    currency=tx_doc.currency,
-                    amount_base=value,
-                    rule_used=None,
-                    is_manual_override=1,
-                )
-            )
-        if total_value > total_amount:
-            frappe.throw(_("Total allocation cannot exceed transaction amount"), frappe.ValidationError)
-        _reconcile_amounts(rows, total_amount)
-    else:
-        frappe.throw(_("Invalid mode"), frappe.ValidationError)
+    rows: List[AllocationRow] = [
+        AllocationRow(
+            bucket=str(row.get("bucket")),
+            percent=flt(row.get("percentage"), 6),
+            amount=flt(row.get("amount"), 2),
+            currency=tx_doc.currency,
+            amount_base=flt(row.get("amount"), 2),
+            rule_used=None,
+            is_manual_override=1,
+        )
+        for row in normalized_rows
+    ]
 
     # Delete all existing allocations (manual or auto)
     _hard_delete_allocations(tx_doc.name)
 
     for row in rows:
         client_id = f"{tx_doc.client_id}:{row.bucket}:manual"
-        alloc = frappe.new_doc("Hisabi Transaction Allocation")
-        alloc.user = user
-        alloc.transaction = tx_doc.name
-        alloc.bucket = row.bucket
-        alloc.percent = row.percent
-        alloc.amount = row.amount
-        alloc.currency = row.currency
-        alloc.amount_base = row.amount_base
-        alloc.rule_used = row.rule_used
-        alloc.is_manual_override = 1
-        alloc.client_id = client_id
-        alloc.name = client_id
-        alloc.insert(ignore_permissions=True)
+        for doctype in _allocation_doctypes():
+            _insert_allocation_row(
+                doctype=doctype,
+                user=user,
+                tx_doc=tx_doc,
+                row=row,
+                client_id=client_id,
+            )
 
     return rows

@@ -7,8 +7,16 @@ from typing import Any, Dict, List, Optional
 import frappe
 from frappe import _
 from frappe.utils import get_datetime
+from werkzeug.wrappers import Response
 
-from hisabi_backend.domain.allocation_engine import apply_auto_allocations, set_manual_allocations
+from hisabi_backend.domain.allocation_engine import (
+    apply_auto_allocations,
+    set_manual_allocations as set_manual_allocations_engine,
+)
+from hisabi_backend.utils.bucket_allocations import (
+    InvalidBucketAllocationError,
+    build_invalid_bucket_allocation_response,
+)
 from hisabi_backend.utils.security import require_device_token_auth
 from hisabi_backend.utils.validators import validate_client_id
 from hisabi_backend.utils.wallet_acl import require_wallet_member
@@ -21,7 +29,7 @@ def set_manual_allocations(
     allocations: List[Dict[str, Any]],
     wallet_id: Optional[str] = None,
     device_id: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> Dict[str, Any] | Response:
     """Set manual allocations for a transaction."""
     user, _device = require_device_token_auth()
     if not wallet_id:
@@ -38,19 +46,11 @@ def set_manual_allocations(
     if tx.is_deleted:
         frappe.throw(_("Transaction is deleted"), frappe.ValidationError)
 
-    bucket_ids = {row.get("bucket") for row in allocations}
-    if None in bucket_ids:
-        frappe.throw(_("Bucket is required"), frappe.ValidationError)
-
-    buckets = frappe.get_all(
-        "Hisabi Bucket",
-        filters={"name": ["in", list(bucket_ids)], "wallet_id": wallet_id, "is_deleted": 0},
-        pluck="name",
-    )
-    if len(buckets) != len(bucket_ids):
-        frappe.throw(_("Invalid bucket in allocations"), frappe.ValidationError)
-
-    rows = set_manual_allocations(user=user, tx_doc=tx, mode=mode, allocations=allocations)
+    try:
+        rows = set_manual_allocations_engine(user=user, tx_doc=tx, mode=mode, allocations=allocations)
+    except InvalidBucketAllocationError as exc:
+        frappe.clear_last_message()
+        return build_invalid_bucket_allocation_response(str(exc))
 
     return {
         "status": "ok",

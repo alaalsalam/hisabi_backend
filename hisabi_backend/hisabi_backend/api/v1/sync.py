@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import frappe
 from frappe import _
-from frappe.utils import cint, get_datetime, now_datetime
+from frappe.utils import cint, flt, get_datetime, now_datetime
 from werkzeug.wrappers import Response
 from hisabi_backend.domain.recalc_engine import (
     recalc_account_balance,
@@ -40,6 +40,7 @@ DOCTYPE_LIST = [
     "Hisabi Allocation Rule",
     "Hisabi Allocation Rule Line",
     "Hisabi Transaction Allocation",
+    "Hisabi Transaction Bucket",
     "Hisabi Budget",
     "Hisabi Goal",
     "Hisabi Debt",
@@ -67,6 +68,7 @@ SYNC_PUSH_ALLOWLIST = {
     "Hisabi Allocation Rule",
     "Hisabi Allocation Rule Line",
     "Hisabi Transaction Allocation",
+    "Hisabi Transaction Bucket",
     "Hisabi Jameya",
     "Hisabi Jameya Payment",
     "Hisabi Attachment",
@@ -230,10 +232,12 @@ SYNC_PUSH_ALLOWED_FIELDS = {
     "Hisabi Bucket": {
         "client_id",
         "wallet_id",
+        "title",
         "bucket_name",
         "color",
         "icon",
         "sort_order",
+        "is_active",
         "archived",
         "client_created_ms",
         "client_modified_ms",
@@ -268,6 +272,9 @@ SYNC_PUSH_ALLOWED_FIELDS = {
     "Hisabi Transaction Allocation": {
         "client_id",
         "wallet_id",
+        "transaction_id",
+        "bucket_id",
+        "percentage",
         "transaction",
         "bucket",
         "percent",
@@ -276,6 +283,21 @@ SYNC_PUSH_ALLOWED_FIELDS = {
         "amount_base",
         "rule_used",
         "is_manual_override",
+        "client_created_ms",
+        "client_modified_ms",
+        "is_deleted",
+        "deleted_at",
+    },
+    "Hisabi Transaction Bucket": {
+        "client_id",
+        "wallet_id",
+        "transaction_id",
+        "bucket_id",
+        "amount",
+        "percentage",
+        "transaction",
+        "bucket",
+        "percent",
         "client_created_ms",
         "client_modified_ms",
         "is_deleted",
@@ -343,18 +365,21 @@ SYNC_PUSH_REQUIRED_FIELDS_CREATE = {
     "Hisabi Debt Request": set(),
     "Hisabi Budget": {"budget_name", "period", "scope_type"},
     "Hisabi Goal": {"goal_name", "goal_type"},
-    "Hisabi Bucket": {"bucket_name"},
+    "Hisabi Bucket": set(),
     "Hisabi Allocation Rule": {"rule_name", "scope_type"},
     "Hisabi Allocation Rule Line": {"rule", "bucket"},
     "Hisabi Transaction Allocation": {"transaction", "bucket"},
+    "Hisabi Transaction Bucket": set(),
     "Hisabi Jameya": {"jameya_name", "monthly_amount", "total_members", "my_turn", "start_date"},
     "Hisabi Jameya Payment": {"jameya"},
     "Hisabi Attachment": {"owner_entity_type", "owner_client_id", "file_mime", "file_size"},
 }
 
 SYNC_PUSH_REQUIRED_FIELD_GROUPS = {
+    "Hisabi Bucket": [{"title", "bucket_name"}],
     "Hisabi Budget": [{"amount", "amount_base"}],
     "Hisabi Goal": [{"target_amount", "target_amount_base"}],
+    "Hisabi Transaction Bucket": [{"transaction_id", "transaction"}, {"bucket_id", "bucket"}, {"amount", "percentage", "percent"}],
 }
 
 SYNC_PUSH_FIELD_TYPES = {
@@ -378,8 +403,11 @@ SYNC_PUSH_FIELD_TYPES = {
     "scope_type": "string",
     "goal_name": "string",
     "goal_type": "string",
+    "title": "string",
     "bucket_name": "string",
     "rule_name": "string",
+    "transaction_id": "string",
+    "bucket_id": "string",
     "transaction": "string",
     "jameya_name": "string",
     "start_date": "string",
@@ -396,6 +424,8 @@ SYNC_PUSH_FIELD_TYPES = {
     "my_turn": "number",
     "file_size": "number",
     "fx_rate_used": "number",
+    "percentage": "number",
+    "is_active": "number",
 }
 
 SYNC_PAYLOAD_LOG_IGNORE_KEYS = {"id"}
@@ -445,7 +475,10 @@ FIELD_MAP = {
         "parent_id": "parent_category",
         "default_bucket_id": "default_bucket",
     },
-    "Hisabi Bucket": {"name": "bucket_name", "title": "bucket_name"},
+    "Hisabi Bucket": {
+        "name": "title",
+        "bucket_name": "title",
+    },
     "Hisabi Allocation Rule": {
         "name": "rule_name",
         "title": "rule_name",
@@ -458,7 +491,13 @@ FIELD_MAP = {
     "Hisabi Transaction Allocation": {
         "transaction_id": "transaction",
         "bucket_id": "bucket",
+        "percentage": "percent",
         "rule_id_used": "rule_used",
+    },
+    "Hisabi Transaction Bucket": {
+        "transaction": "transaction_id",
+        "bucket": "bucket_id",
+        "percent": "percentage",
     },
     "Hisabi Budget": {
         "name": "budget_name",
@@ -488,6 +527,8 @@ FIELD_MAP = {
 SYNC_CLIENT_ID_PRIMARY_KEY_DOCTYPES = {
     "Hisabi Account",
     "Hisabi Category",
+    "Hisabi Bucket",
+    "Hisabi Transaction Bucket",
 }
 
 SYNC_PUSH_DATETIME_FIELDS = {
@@ -499,6 +540,7 @@ SYNC_PUSH_DATETIME_FIELDS = {
     "Hisabi Goal": {"target_date", "deleted_at"},
     "Hisabi Jameya": {"start_date", "deleted_at"},
     "Hisabi Jameya Payment": {"due_date", "paid_at", "deleted_at"},
+    "Hisabi Transaction Bucket": {"deleted_at"},
     "Hisabi Attachment": {"deleted_at"},
 }
 
@@ -571,6 +613,102 @@ def _normalize_sync_datetime_fields(doctype: str, payload: Dict[str, Any]) -> Di
         # Data correctness: normalize ISO-8601 values (including `Z`) before DB datetime writes.
         normalized[field] = _cursor_dt(parsed) or parsed
     return normalized
+
+
+def _sync_transaction_bucket_mirror(
+    source_doc: frappe.model.document.Document,
+    source_doctype: str,
+    *,
+    operation: str,
+) -> None:
+    if source_doctype not in {"Hisabi Transaction Allocation", "Hisabi Transaction Bucket"}:
+        return
+
+    target_doctype = (
+        "Hisabi Transaction Bucket"
+        if source_doctype == "Hisabi Transaction Allocation"
+        else "Hisabi Transaction Allocation"
+    )
+    if not frappe.db.exists("DocType", target_doctype):
+        return
+
+    source_user = getattr(source_doc, "user", None) or frappe.session.user
+    source_wallet_id = getattr(source_doc, "wallet_id", None)
+    source_client_id = getattr(source_doc, "client_id", None) or source_doc.name
+    if not source_wallet_id or not source_client_id:
+        return
+
+    transaction_id = getattr(source_doc, "transaction_id", None) or getattr(source_doc, "transaction", None)
+    bucket_id = getattr(source_doc, "bucket_id", None) or getattr(source_doc, "bucket", None)
+    amount = getattr(source_doc, "amount", None)
+    percentage = getattr(source_doc, "percentage", None)
+    if percentage in (None, ""):
+        percentage = getattr(source_doc, "percent", None)
+    currency = getattr(source_doc, "currency", None)
+    amount_base = getattr(source_doc, "amount_base", None)
+    rule_used = getattr(source_doc, "rule_used", None)
+    is_manual_override = getattr(source_doc, "is_manual_override", None)
+    if is_manual_override in (None, ""):
+        is_manual_override = 1 if str(source_client_id).endswith(":manual") else 0
+
+    if not currency and transaction_id:
+        currency = frappe.get_value("Hisabi Transaction", transaction_id, "currency")
+    if amount_base in (None, "") and amount not in (None, ""):
+        amount_base = flt(amount, 2)
+
+    mark_deleted = cint(getattr(source_doc, "is_deleted", 0) or 0) == 1 or operation == "delete"
+
+    target_doc = _get_doc_by_client_id(
+        target_doctype,
+        source_user,
+        source_client_id,
+        wallet_id=source_wallet_id,
+    )
+    if not target_doc:
+        if not transaction_id or not bucket_id:
+            return
+        target_doc = frappe.new_doc(target_doctype)
+        _set_owner(target_doc, source_user)
+        target_doc.client_id = source_client_id
+        target_doc.name = source_client_id
+        if target_doctype in SYNC_CLIENT_ID_PRIMARY_KEY_DOCTYPES:
+            target_doc.flags.name_set = True
+
+    target_doc.wallet_id = source_wallet_id
+    if target_doc.meta.has_field("user"):
+        target_doc.user = source_user
+
+    if target_doctype == "Hisabi Transaction Allocation":
+        if transaction_id:
+            target_doc.transaction = transaction_id
+        if bucket_id:
+            target_doc.bucket = bucket_id
+        if amount not in (None, ""):
+            target_doc.amount = flt(amount, 2)
+        if percentage not in (None, ""):
+            target_doc.percent = flt(percentage, 6)
+        if currency:
+            target_doc.currency = currency
+        if amount_base not in (None, ""):
+            target_doc.amount_base = flt(amount_base, 2)
+        if target_doc.meta.has_field("rule_used"):
+            target_doc.rule_used = rule_used
+        if target_doc.meta.has_field("is_manual_override"):
+            target_doc.is_manual_override = cint(is_manual_override)
+    else:
+        if transaction_id:
+            target_doc.transaction_id = transaction_id
+        if bucket_id:
+            target_doc.bucket_id = bucket_id
+        if amount not in (None, ""):
+            target_doc.amount = flt(amount, 2)
+        if percentage not in (None, ""):
+            target_doc.percentage = flt(percentage, 6)
+
+    apply_common_sync_fields(target_doc, bump_version=True, mark_deleted=mark_deleted)
+    if mark_deleted and target_doc.meta.has_field("deleted_at") and not target_doc.deleted_at:
+        target_doc.deleted_at = now_datetime()
+    target_doc.save(ignore_permissions=True)
 
 
 def _resolve_base_currency(wallet_id: str, user: str) -> str | None:
@@ -1245,6 +1383,7 @@ def sync_push(
                 "status": "accepted",
                 "op_id": op_id,
                 "entity_type": entity_type,
+                "entity_id": doc.name,
                 "client_id": doc.client_id,
                 "doc_version": doc.doc_version,
                 "server_modified": _to_iso(doc.server_modified),
@@ -1430,6 +1569,8 @@ def sync_push(
             if entity_type == "Hisabi Category" and doc.name != doc.client_id:
                 # Category IDs are used as sync keys across clients; enforce canonical rename.
                 doc = _rename_doc_to_client_id(doc, doc.client_id)
+            if entity_type in {"Hisabi Transaction Allocation", "Hisabi Transaction Bucket"}:
+                _sync_transaction_bucket_mirror(doc, entity_type, operation=operation)
 
             if entity_type == "Hisabi Wallet" and operation == "create":
                 # Ensure membership row exists for owner.
@@ -1485,6 +1626,7 @@ def sync_push(
                 "status": "accepted",
                 "op_id": op_id,
                 "entity_type": entity_type,
+                "entity_id": doc.name,
                 "client_id": doc.client_id,
                 "doc_version": doc.doc_version,
                 "server_modified": _to_iso(doc.server_modified),
