@@ -1,0 +1,246 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "user",
+  "wallet_id",
+  "client_id",
+  "is_active",
+  "title",
+  "transaction_type",
+  "amount",
+  "currency",
+  "category_id",
+  "account_id",
+  "note",
+  "start_date",
+  "timezone",
+  "rrule_type",
+  "interval",
+  "byweekday",
+  "bymonthday",
+  "end_mode",
+  "until_date",
+  "count",
+  "last_generated_at",
+  "created_from",
+  "client_created_ms",
+  "client_modified_ms",
+  "doc_version",
+  "server_modified",
+  "is_deleted",
+  "deleted_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "label": "User",
+   "options": "User",
+   "reqd": 1
+  },
+  {
+   "fieldname": "wallet_id",
+   "fieldtype": "Link",
+   "label": "Wallet",
+   "options": "Hisabi Wallet",
+   "reqd": 1
+  },
+  {
+   "fieldname": "client_id",
+   "fieldtype": "Data",
+   "label": "Client ID",
+   "reqd": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "label": "Is Active"
+  },
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "label": "Title",
+   "reqd": 1
+  },
+  {
+   "fieldname": "transaction_type",
+   "fieldtype": "Select",
+   "label": "Transaction Type",
+   "options": "income\nexpense\ntransfer",
+   "reqd": 1
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "label": "Amount",
+   "reqd": 1
+  },
+  {
+   "fieldname": "currency",
+   "fieldtype": "Data",
+   "label": "Currency",
+   "reqd": 1
+  },
+  {
+   "fieldname": "category_id",
+   "fieldtype": "Link",
+   "label": "Category",
+   "options": "Hisabi Category"
+  },
+  {
+   "fieldname": "account_id",
+   "fieldtype": "Link",
+   "label": "Account",
+   "options": "Hisabi Account"
+  },
+  {
+   "fieldname": "note",
+   "fieldtype": "Small Text",
+   "label": "Note"
+  },
+  {
+   "fieldname": "start_date",
+   "fieldtype": "Date",
+   "label": "Start Date",
+   "reqd": 1
+  },
+  {
+   "default": "Asia/Aden",
+   "fieldname": "timezone",
+   "fieldtype": "Data",
+   "label": "Timezone"
+  },
+  {
+   "fieldname": "rrule_type",
+   "fieldtype": "Select",
+   "label": "Rule Type",
+   "options": "daily\nweekly\nmonthly",
+   "reqd": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "interval",
+   "fieldtype": "Int",
+   "label": "Interval",
+   "reqd": 1
+  },
+  {
+   "fieldname": "byweekday",
+   "fieldtype": "Data",
+   "label": "By Weekday"
+  },
+  {
+   "fieldname": "bymonthday",
+   "fieldtype": "Int",
+   "label": "By Month Day"
+  },
+  {
+   "default": "none",
+   "fieldname": "end_mode",
+   "fieldtype": "Select",
+   "label": "End Mode",
+   "options": "none\nuntil\ncount"
+  },
+  {
+   "fieldname": "until_date",
+   "fieldtype": "Date",
+   "label": "Until Date"
+  },
+  {
+   "fieldname": "count",
+   "fieldtype": "Int",
+   "label": "Count"
+  },
+  {
+   "fieldname": "last_generated_at",
+   "fieldtype": "Datetime",
+   "label": "Last Generated At"
+  },
+  {
+   "fieldname": "created_from",
+   "fieldtype": "Select",
+   "label": "Created From",
+   "options": "local\ncloud"
+  },
+  {
+   "fieldname": "client_created_ms",
+   "fieldtype": "Int",
+   "label": "Client Created (ms)"
+  },
+  {
+   "fieldname": "client_modified_ms",
+   "fieldtype": "Int",
+   "label": "Client Modified (ms)"
+  },
+  {
+   "default": "0",
+   "fieldname": "doc_version",
+   "fieldtype": "Int",
+   "label": "Doc Version"
+  },
+  {
+   "fieldname": "server_modified",
+   "fieldtype": "Datetime",
+   "label": "Server Modified"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_deleted",
+   "fieldtype": "Check",
+   "label": "Is Deleted"
+  },
+  {
+   "fieldname": "deleted_at",
+   "fieldtype": "Datetime",
+   "label": "Deleted At"
+  }
+ ],
+ "indexes": [
+  {
+   "fields": [
+    "wallet_id",
+    "client_id"
+   ],
+   "unique": 1
+  },
+  {
+   "fields": [
+    "wallet_id",
+    "is_active"
+   ]
+  }
+ ],
+ "module": "Hisabi Backend",
+ "name": "Hisabi Recurring Rule",
+ "permissions": [
+  {
+   "create": 1,
+   "read": 1,
+   "role": "Hisabi User",
+   "if_owner": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Hisabi Admin"
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC"
+}

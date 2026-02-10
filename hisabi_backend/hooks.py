@@ -177,6 +177,8 @@ doc_events = {
     "Hisabi Transaction Bucket Expense": {
         "validate": "hisabi_backend.utils.wallet_doc_events.validate_wallet_scope"
     },
+    "Hisabi Recurring Rule": {"validate": "hisabi_backend.utils.wallet_doc_events.validate_wallet_scope"},
+    "Hisabi Recurring Instance": {"validate": "hisabi_backend.utils.wallet_doc_events.validate_wallet_scope"},
     "Hisabi Budget": {"validate": "hisabi_backend.utils.wallet_doc_events.validate_wallet_scope"},
     "Hisabi Goal": {"validate": "hisabi_backend.utils.wallet_doc_events.validate_wallet_scope"},
     "Hisabi Debt": {"validate": "hisabi_backend.utils.wallet_doc_events.validate_wallet_scope"},

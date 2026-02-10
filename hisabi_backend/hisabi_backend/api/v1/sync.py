@@ -43,6 +43,8 @@ DOCTYPE_LIST = [
     "Hisabi Transaction Allocation",
     "Hisabi Transaction Bucket",
     "Hisabi Transaction Bucket Expense",
+    "Hisabi Recurring Rule",
+    "Hisabi Recurring Instance",
     "Hisabi Budget",
     "Hisabi Goal",
     "Hisabi Debt",
@@ -73,6 +75,8 @@ SYNC_PUSH_ALLOWLIST = {
     "Hisabi Transaction Allocation",
     "Hisabi Transaction Bucket",
     "Hisabi Transaction Bucket Expense",
+    "Hisabi Recurring Rule",
+    "Hisabi Recurring Instance",
     "Hisabi Jameya",
     "Hisabi Jameya Payment",
     "Hisabi Attachment",
@@ -331,6 +335,47 @@ SYNC_PUSH_ALLOWED_FIELDS = {
         "is_deleted",
         "deleted_at",
     },
+    "Hisabi Recurring Rule": {
+        "client_id",
+        "wallet_id",
+        "is_active",
+        "title",
+        "transaction_type",
+        "amount",
+        "currency",
+        "category_id",
+        "account_id",
+        "note",
+        "start_date",
+        "timezone",
+        "rrule_type",
+        "interval",
+        "byweekday",
+        "bymonthday",
+        "end_mode",
+        "until_date",
+        "count",
+        "last_generated_at",
+        "created_from",
+        "client_created_ms",
+        "client_modified_ms",
+        "is_deleted",
+        "deleted_at",
+    },
+    "Hisabi Recurring Instance": {
+        "client_id",
+        "wallet_id",
+        "rule_id",
+        "occurrence_date",
+        "transaction_id",
+        "status",
+        "generated_at",
+        "skip_reason",
+        "client_created_ms",
+        "client_modified_ms",
+        "is_deleted",
+        "deleted_at",
+    },
     "Hisabi Jameya": {
         "client_id",
         "wallet_id",
@@ -400,6 +445,8 @@ SYNC_PUSH_REQUIRED_FIELDS_CREATE = {
     "Hisabi Transaction Allocation": {"transaction", "bucket"},
     "Hisabi Transaction Bucket": set(),
     "Hisabi Transaction Bucket Expense": {"transaction_id", "bucket_id"},
+    "Hisabi Recurring Rule": {"title", "transaction_type", "amount", "currency", "start_date", "rrule_type"},
+    "Hisabi Recurring Instance": {"rule_id", "occurrence_date", "status"},
     "Hisabi Jameya": {"jameya_name", "monthly_amount", "total_members", "my_turn", "start_date"},
     "Hisabi Jameya Payment": {"jameya"},
     "Hisabi Attachment": {"owner_entity_type", "owner_client_id", "file_mime", "file_size"},
@@ -412,6 +459,8 @@ SYNC_PUSH_REQUIRED_FIELD_GROUPS = {
     "Hisabi Goal": [{"target_amount", "target_amount_base"}],
     "Hisabi Transaction Bucket": [{"transaction_id", "transaction"}, {"bucket_id", "bucket"}, {"amount", "percentage", "percent"}],
     "Hisabi Transaction Bucket Expense": [{"transaction_id", "transaction"}, {"bucket_id", "bucket"}],
+    "Hisabi Recurring Rule": [{"title"}],
+    "Hisabi Recurring Instance": [{"rule_id"}, {"occurrence_date"}],
 }
 
 SYNC_PUSH_FIELD_TYPES = {
@@ -447,6 +496,12 @@ SYNC_PUSH_FIELD_TYPES = {
     "owner_entity_type": "string",
     "owner_client_id": "string",
     "file_mime": "string",
+    "rrule_type": "string",
+    "byweekday": "string",
+    "end_mode": "string",
+    "occurrence_date": "string",
+    "generated_at": "string",
+    "skip_reason": "string",
     "amount": "number",
     "amount_base": "number",
     "principal_amount": "number",
@@ -460,6 +515,9 @@ SYNC_PUSH_FIELD_TYPES = {
     "percentage": "number",
     "is_active": "number",
     "is_default": "number",
+    "interval": "number",
+    "bymonthday": "number",
+    "count": "number",
 }
 
 SYNC_PAYLOAD_LOG_IGNORE_KEYS = {"id"}
@@ -540,6 +598,14 @@ FIELD_MAP = {
         "transaction": "transaction_id",
         "bucket": "bucket_id",
     },
+    "Hisabi Recurring Rule": {
+        "category": "category_id",
+        "account": "account_id",
+    },
+    "Hisabi Recurring Instance": {
+        "rule": "rule_id",
+        "transaction": "transaction_id",
+    },
     "Hisabi Budget": {
         "name": "budget_name",
         "title": "budget_name",
@@ -572,6 +638,8 @@ SYNC_CLIENT_ID_PRIMARY_KEY_DOCTYPES = {
     "Hisabi Bucket Template",
     "Hisabi Transaction Bucket",
     "Hisabi Transaction Bucket Expense",
+    "Hisabi Recurring Rule",
+    "Hisabi Recurring Instance",
 }
 
 SYNC_PUSH_DATETIME_FIELDS = {
@@ -587,6 +655,8 @@ SYNC_PUSH_DATETIME_FIELDS = {
     "Hisabi Transaction Bucket Expense": {"deleted_at"},
     "Hisabi Bucket Template": {"deleted_at"},
     "Hisabi Attachment": {"deleted_at"},
+    "Hisabi Recurring Rule": {"start_date", "until_date", "last_generated_at", "deleted_at"},
+    "Hisabi Recurring Instance": {"occurrence_date", "generated_at", "deleted_at"},
 }
 
 

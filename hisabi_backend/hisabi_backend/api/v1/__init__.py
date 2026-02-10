@@ -183,3 +183,48 @@ def bucket_expenses_clear(
         base_version=base_version,
         device_id=device_id,
     )
+
+
+@frappe.whitelist(allow_guest=False)
+def recurring_rules_list(wallet_id: Optional[str] = None, device_id: Optional[str] = None) -> Dict[str, Any]:
+    from .recurring import rules_list as _impl
+
+    return _impl(wallet_id=wallet_id, device_id=device_id)
+
+
+@frappe.whitelist(allow_guest=False)
+def recurring_rules_upsert(**kwargs):
+    from .recurring import upsert_rule as _impl
+
+    return _impl(**kwargs)
+
+
+@frappe.whitelist(allow_guest=False)
+def recurring_rule_toggle(
+    rule_id: str,
+    wallet_id: Optional[str] = None,
+    is_active: Optional[int] = None,
+    device_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    from .recurring import toggle_rule as _impl
+
+    return _impl(rule_id=rule_id, wallet_id=wallet_id, is_active=is_active, device_id=device_id)
+
+
+@frappe.whitelist(allow_guest=False)
+def recurring_generate(
+    wallet_id: Optional[str] = None,
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    dry_run: Optional[int] = 0,
+    device_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    from .recurring import generate as _impl
+
+    return _impl(
+        wallet_id=wallet_id,
+        from_date=from_date,
+        to_date=to_date,
+        dry_run=dry_run,
+        device_id=device_id,
+    )
