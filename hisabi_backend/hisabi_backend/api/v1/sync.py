@@ -37,6 +37,7 @@ DOCTYPE_LIST = [
     "Hisabi Transaction",
     "Hisabi Attachment",
     "Hisabi Bucket",
+    "Hisabi Bucket Template",
     "Hisabi Allocation Rule",
     "Hisabi Allocation Rule Line",
     "Hisabi Transaction Allocation",
@@ -65,6 +66,7 @@ SYNC_PUSH_ALLOWLIST = {
     "Hisabi Budget",
     "Hisabi Goal",
     "Hisabi Bucket",
+    "Hisabi Bucket Template",
     "Hisabi Allocation Rule",
     "Hisabi Allocation Rule Line",
     "Hisabi Transaction Allocation",
@@ -244,6 +246,18 @@ SYNC_PUSH_ALLOWED_FIELDS = {
         "is_deleted",
         "deleted_at",
     },
+    "Hisabi Bucket Template": {
+        "client_id",
+        "wallet_id",
+        "title",
+        "is_default",
+        "is_active",
+        "template_items",
+        "client_created_ms",
+        "client_modified_ms",
+        "is_deleted",
+        "deleted_at",
+    },
     "Hisabi Allocation Rule": {
         "client_id",
         "wallet_id",
@@ -366,6 +380,7 @@ SYNC_PUSH_REQUIRED_FIELDS_CREATE = {
     "Hisabi Budget": {"budget_name", "period", "scope_type"},
     "Hisabi Goal": {"goal_name", "goal_type"},
     "Hisabi Bucket": set(),
+    "Hisabi Bucket Template": {"title", "template_items"},
     "Hisabi Allocation Rule": {"rule_name", "scope_type"},
     "Hisabi Allocation Rule Line": {"rule", "bucket"},
     "Hisabi Transaction Allocation": {"transaction", "bucket"},
@@ -377,6 +392,7 @@ SYNC_PUSH_REQUIRED_FIELDS_CREATE = {
 
 SYNC_PUSH_REQUIRED_FIELD_GROUPS = {
     "Hisabi Bucket": [{"title", "bucket_name"}],
+    "Hisabi Bucket Template": [{"template_items"}],
     "Hisabi Budget": [{"amount", "amount_base"}],
     "Hisabi Goal": [{"target_amount", "target_amount_base"}],
     "Hisabi Transaction Bucket": [{"transaction_id", "transaction"}, {"bucket_id", "bucket"}, {"amount", "percentage", "percent"}],
@@ -405,6 +421,7 @@ SYNC_PUSH_FIELD_TYPES = {
     "goal_type": "string",
     "title": "string",
     "bucket_name": "string",
+    "template_items": "list",
     "rule_name": "string",
     "transaction_id": "string",
     "bucket_id": "string",
@@ -426,6 +443,7 @@ SYNC_PUSH_FIELD_TYPES = {
     "fx_rate_used": "number",
     "percentage": "number",
     "is_active": "number",
+    "is_default": "number",
 }
 
 SYNC_PAYLOAD_LOG_IGNORE_KEYS = {"id"}
@@ -479,6 +497,9 @@ FIELD_MAP = {
         "name": "title",
         "bucket_name": "title",
     },
+    "Hisabi Bucket Template": {
+        "name": "title",
+    },
     "Hisabi Allocation Rule": {
         "name": "rule_name",
         "title": "rule_name",
@@ -528,6 +549,7 @@ SYNC_CLIENT_ID_PRIMARY_KEY_DOCTYPES = {
     "Hisabi Account",
     "Hisabi Category",
     "Hisabi Bucket",
+    "Hisabi Bucket Template",
     "Hisabi Transaction Bucket",
 }
 
@@ -541,6 +563,7 @@ SYNC_PUSH_DATETIME_FIELDS = {
     "Hisabi Jameya": {"start_date", "deleted_at"},
     "Hisabi Jameya Payment": {"due_date", "paid_at", "deleted_at"},
     "Hisabi Transaction Bucket": {"deleted_at"},
+    "Hisabi Bucket Template": {"deleted_at"},
     "Hisabi Attachment": {"deleted_at"},
 }
 
@@ -612,6 +635,32 @@ def _normalize_sync_datetime_fields(doctype: str, payload: Dict[str, Any]) -> Di
             continue
         # Data correctness: normalize ISO-8601 values (including `Z`) before DB datetime writes.
         normalized[field] = _cursor_dt(parsed) or parsed
+    return normalized
+
+
+def _normalize_bucket_template_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    if not payload:
+        return {}
+    normalized = dict(payload)
+    rows = normalized.get("template_items")
+    if not isinstance(rows, list):
+        return normalized
+
+    normalized_rows: List[Dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        bucket_id = (row.get("bucket_id") or row.get("bucket") or row.get("bucketId") or "").strip()
+        percentage = row.get("percentage")
+        if percentage in (None, ""):
+            percentage = row.get("percent")
+        normalized_rows.append(
+            {
+                "bucket_id": bucket_id,
+                "percentage": percentage,
+            }
+        )
+    normalized["template_items"] = normalized_rows
     return normalized
 
 
@@ -831,6 +880,8 @@ def _invalid_field_types(payload: Dict[str, Any], fields: set[str]) -> Dict[str,
             invalid[field] = "string"
         elif expected == "number" and not _is_number(value):
             invalid[field] = "number"
+        elif expected == "list" and not isinstance(value, list):
+            invalid[field] = "list"
     return invalid
 
 
@@ -1052,11 +1103,17 @@ def _prepare_doc_for_write(
 
     payload = _apply_field_map(doctype, payload)
     payload = _strip_server_auth_fields(doctype, payload)
+    if doctype == "Hisabi Bucket Template":
+        payload = _normalize_bucket_template_payload(payload)
     payload = _filter_payload_fields(doc, payload)
     payload = _normalize_sync_datetime_fields(doctype, payload)
+    ensure_link_ownership(
+        doctype,
+        payload,
+        user,
+        wallet_id=payload.get("wallet_id") or getattr(doc, "wallet_id", None),
+    )
     doc.update(payload)
-
-    ensure_link_ownership(doctype, payload, user, wallet_id=getattr(doc, "wallet_id", None))
 
     return doc
 

@@ -169,6 +169,7 @@ doc_events = {
     "Hisabi Category": {"validate": "hisabi_backend.utils.wallet_doc_events.validate_wallet_scope"},
     "Hisabi Transaction": {"validate": "hisabi_backend.utils.wallet_doc_events.validate_wallet_scope"},
     "Hisabi Bucket": {"validate": "hisabi_backend.utils.wallet_doc_events.validate_wallet_scope"},
+    "Hisabi Bucket Template": {"validate": "hisabi_backend.utils.wallet_doc_events.validate_wallet_scope"},
     "Hisabi Allocation Rule": {"validate": "hisabi_backend.utils.wallet_doc_events.validate_wallet_scope"},
     "Hisabi Allocation Rule Line": {"validate": "hisabi_backend.utils.wallet_doc_events.validate_wallet_scope"},
     "Hisabi Transaction Allocation": {"validate": "hisabi_backend.utils.wallet_doc_events.validate_wallet_scope"},

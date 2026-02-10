@@ -138,6 +138,38 @@ LINK_OWNERSHIP_FIELDS = {
 }
 
 
+def _resolve_link_name(
+    link_doctype: str,
+    value: str,
+    user: str,
+    wallet_id: str | None = None,
+) -> str | None:
+    """Resolve a link value that may be either doc.name or client_id."""
+    if not value:
+        return None
+
+    value = str(value).strip()
+    if not value:
+        return None
+
+    if frappe.db.exists(link_doctype, value):
+        return value
+
+    meta = frappe.get_meta(link_doctype)
+    if not meta.has_field("client_id"):
+        return None
+
+    filters: dict[str, str] = {"client_id": value}
+    if meta.has_field("wallet_id") and wallet_id:
+        filters["wallet_id"] = wallet_id
+    elif meta.has_field("user"):
+        filters["user"] = user
+    else:
+        filters["owner"] = user
+
+    return frappe.get_value(link_doctype, filters, "name")
+
+
 def ensure_link_ownership(doctype: str, payload: dict, user: str, wallet_id: str | None = None) -> None:
     """Ensure linked documents are within the same wallet (and belong to user when wallet is absent).
 
@@ -153,16 +185,22 @@ def ensure_link_ownership(doctype: str, payload: dict, user: str, wallet_id: str
         if not value:
             continue
 
+        link_name = _resolve_link_name(link_doctype, value, user=user, wallet_id=wallet_id)
+        if not link_name:
+            frappe.throw(_("{0} not found").format(link_doctype), frappe.ValidationError)
+
+        # Normalize payload to stable db name so link validation succeeds on save.
+        payload[fieldname] = link_name
         meta = frappe.get_meta(link_doctype)
         if meta.has_field("wallet_id") and wallet_id:
-            link_wallet = frappe.get_value(link_doctype, value, "wallet_id")
+            link_wallet = frappe.get_value(link_doctype, link_name, "wallet_id")
             if not link_wallet:
                 frappe.throw(_("{0} not found").format(link_doctype), frappe.ValidationError)
             if link_wallet != wallet_id:
                 frappe.throw(_("{0} is not in this wallet").format(link_doctype), frappe.PermissionError)
         else:
             owner_field = "user" if meta.has_field("user") else "owner"
-            owner = frappe.get_value(link_doctype, value, owner_field)
+            owner = frappe.get_value(link_doctype, link_name, owner_field)
             if not owner:
                 frappe.throw(_("{0} not found").format(link_doctype), frappe.ValidationError)
             if owner != user:

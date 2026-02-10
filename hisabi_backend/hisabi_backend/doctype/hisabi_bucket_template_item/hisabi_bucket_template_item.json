@@ -1,0 +1,30 @@
+{
+ "actions": [],
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "bucket_id",
+  "percentage"
+ ],
+ "fields": [
+  {
+   "fieldname": "bucket_id",
+   "fieldtype": "Link",
+   "label": "Bucket",
+   "options": "Hisabi Bucket",
+   "reqd": 1
+  },
+  {
+   "fieldname": "percentage",
+   "fieldtype": "Float",
+   "label": "Percentage",
+   "reqd": 1
+  }
+ ],
+ "istable": 1,
+ "module": "Hisabi Backend",
+ "name": "Hisabi Bucket Template Item",
+ "sort_field": "modified",
+ "sort_order": "DESC"
+}
