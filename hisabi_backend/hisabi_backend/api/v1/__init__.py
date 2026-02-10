@@ -332,3 +332,33 @@ def backup_apply_restore(wallet_id: Optional[str] = None, payload: dict | None =
     from .backup import apply_restore as _impl
 
     return _impl(wallet_id=wallet_id, payload=payload, mode=mode)
+
+
+@frappe.whitelist(allow_guest=False)
+def review_issues(
+    wallet_id: Optional[str] = None,
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    include_resolved: Optional[int] = 0,
+    device_id: Optional[str] = None,
+):
+    from .review import issues as _impl
+
+    return _impl(
+        wallet_id=wallet_id,
+        from_date=from_date,
+        to_date=to_date,
+        include_resolved=include_resolved,
+        device_id=device_id,
+    )
+
+
+@frappe.whitelist(allow_guest=False)
+def review_apply_fix(
+    wallet_id: Optional[str] = None,
+    fixes: Optional[list[dict]] = None,
+    device_id: Optional[str] = None,
+):
+    from .review import apply_fix as _impl
+
+    return _impl(wallet_id=wallet_id, fixes=fixes, device_id=device_id)
