@@ -1889,3 +1889,121 @@ def report_debts(wallet_id: Optional[str] = None, device_id: Optional[str] = Non
         "server_time": now_datetime().isoformat(),
         "warnings": [],
     }
+
+
+@frappe.whitelist(allow_guest=False)
+def report_recurring_coverage(
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    wallet_id: Optional[str] = None,
+    device_id: Optional[str] = None,
+) -> Dict[str, Any] | Response:
+    user, _device = require_device_token_auth()
+    wallet_id_resolved = _resolve_wallet_id_param(wallet_id)
+    if isinstance(wallet_id_resolved, Response):
+        return wallet_id_resolved
+    wallet_id = wallet_id_resolved
+    require_wallet_member(wallet_id, user, min_role="viewer")
+
+    from_date, to_date = _resolve_date_range(
+        from_date=from_date,
+        to_date=to_date,
+        date_from=date_from,
+        date_to=date_to,
+    )
+    where = ["tx.wallet_id=%(wallet_id)s", "tx.is_deleted=0", "tx.transaction_type IN ('income','expense')"]
+    params: Dict[str, Any] = {"wallet_id": wallet_id}
+    if from_date:
+        where.append("tx.date_time >= %(from_date)s")
+        params["from_date"] = get_datetime(from_date)
+    if to_date:
+        where.append("tx.date_time <= %(to_date)s")
+        params["to_date"] = get_datetime(to_date)
+
+    has_recurring_rule_id = frappe.get_meta("Hisabi Transaction").has_field("recurring_rule_id")
+    recurring_field_sql = "tx.recurring_rule_id as tx_rule_id," if has_recurring_rule_id else "NULL as tx_rule_id,"
+    rows = frappe.db.sql(
+        f"""
+        SELECT
+            tx.name,
+            tx.transaction_type,
+            tx.amount,
+            tx.amount_base,
+            tx.currency,
+            tx.date_time,
+            {recurring_field_sql}
+            inst.rule_id as instance_rule_id
+        FROM `tabHisabi Transaction` tx
+        LEFT JOIN `tabHisabi Recurring Instance` inst
+          ON inst.transaction_id = tx.name
+         AND inst.wallet_id = tx.wallet_id
+         AND inst.is_deleted = 0
+        WHERE {' AND '.join(where)}
+        ORDER BY tx.date_time ASC, tx.name ASC
+        """,
+        params,
+        as_dict=True,
+    )
+
+    base_currency = _resolve_wallet_base_currency(wallet_id, user)
+    fx_cache: Dict[tuple[str, str, str, str], Optional[float]] = {}
+    warnings: list[Dict[str, Any]] = []
+    warning_seen: set[str] = set()
+    totals = {
+        "income_total": 0.0,
+        "expense_total": 0.0,
+        "income_recurring": 0.0,
+        "expense_recurring": 0.0,
+        "income_ad_hoc": 0.0,
+        "expense_ad_hoc": 0.0,
+    }
+
+    for tx in rows:
+        amount_base = _tx_amount_in_base(
+            tx=tx,
+            wallet_id=wallet_id,
+            base_currency=base_currency,
+            fx_cache=fx_cache,
+            warnings=warnings,
+            warning_seen=warning_seen,
+        )
+        if amount_base is None:
+            continue
+        tx_type = (tx.get("transaction_type") or "").strip().lower()
+        recurring = bool(tx.get("instance_rule_id")) or bool(tx.get("tx_rule_id"))
+        if tx_type == "income":
+            totals["income_total"] += amount_base
+            if recurring:
+                totals["income_recurring"] += amount_base
+            else:
+                totals["income_ad_hoc"] += amount_base
+        elif tx_type == "expense":
+            totals["expense_total"] += amount_base
+            if recurring:
+                totals["expense_recurring"] += amount_base
+            else:
+                totals["expense_ad_hoc"] += amount_base
+
+    rounded = {key: flt(value, 2) for key, value in totals.items()}
+    return {
+        "wallet_id": wallet_id,
+        "from_date": from_date,
+        "to_date": to_date,
+        "currency": base_currency,
+        "totals": {
+            "income_total": rounded["income_total"],
+            "expense_total": rounded["expense_total"],
+        },
+        "recurring": {
+            "income_recurring": rounded["income_recurring"],
+            "expense_recurring": rounded["expense_recurring"],
+        },
+        "ad_hoc": {
+            "income_ad_hoc": rounded["income_ad_hoc"],
+            "expense_ad_hoc": rounded["expense_ad_hoc"],
+        },
+        "warnings": warnings,
+        "server_time": now_datetime().isoformat(),
+    }

@@ -51,6 +51,17 @@ def _build_invalid_request(message: str, *, param: Optional[str] = None, detail:
     return _json_response(payload, status_code=422)
 
 
+def _build_recurring_error(
+    code: str,
+    message: str,
+    *,
+    fields: Optional[Dict[str, Any]] = None,
+    status_code: int = 422,
+) -> Response:
+    payload: Dict[str, Any] = {"error": {"code": code, "message": message, "fields": fields or {}}}
+    return _json_response(payload, status_code=status_code)
+
+
 def _to_iso(value: Any) -> Optional[str]:
     if not value:
         return None
@@ -132,6 +143,7 @@ def _normalize_rule_doc(doc: frappe.model.document.Document) -> Dict[str, Any]:
         "bymonthday": cint(doc.bymonthday or 0) or None,
         "end_mode": doc.end_mode,
         "until_date": str(doc.until_date) if doc.until_date else None,
+        "resume_date": str(doc.resume_date) if getattr(doc, "resume_date", None) else None,
         "count": cint(doc.count or 0) or None,
         "last_generated_at": _to_iso(doc.last_generated_at),
         "created_from": doc.created_from,
@@ -367,9 +379,11 @@ def _rule_occurrences(
     return candidates, warnings
 
 
-def _existing_instance_map(wallet_id: str, rule_ids: List[str], from_date: datetime.date, to_date: datetime.date) -> set[tuple[str, str]]:
+def _existing_instance_rows(
+    wallet_id: str, rule_ids: List[str], from_date: datetime.date, to_date: datetime.date
+) -> Dict[tuple[str, str], Dict[str, Any]]:
     if not rule_ids:
-        return set()
+        return {}
 
     rows = frappe.get_all(
         INSTANCE_DTYPE,
@@ -379,13 +393,39 @@ def _existing_instance_map(wallet_id: str, rule_ids: List[str], from_date: datet
             "occurrence_date": ["between", [from_date, to_date]],
             "is_deleted": 0,
         },
-        fields=["rule_id", "occurrence_date"],
+        fields=["name", "client_id", "rule_id", "occurrence_date", "transaction_id", "status", "skip_reason"],
     )
-    existing: set[tuple[str, str]] = set()
+    existing: Dict[tuple[str, str], Dict[str, Any]] = {}
     for row in rows:
         date_value = get_datetime(row.occurrence_date).date().isoformat()
-        existing.add((row.rule_id, date_value))
+        existing[(row.rule_id, date_value)] = {
+            "name": row.name,
+            "client_id": row.client_id,
+            "rule_id": row.rule_id,
+            "occurrence_date": date_value,
+            "transaction_id": row.transaction_id,
+            "status": (row.status or "").strip().lower() or "scheduled",
+            "skip_reason": row.skip_reason,
+        }
     return existing
+
+
+def _resolve_rule_name(wallet_id: str, rule_id: str) -> Optional[str]:
+    normalized = validate_client_id(rule_id)
+    return frappe.get_value(RULE_DTYPE, {"wallet_id": wallet_id, "client_id": normalized}, "name") or frappe.get_value(
+        RULE_DTYPE,
+        {"wallet_id": wallet_id, "name": normalized},
+        "name",
+    )
+
+
+def _resolve_instance_name(instance_id: str) -> Optional[str]:
+    normalized = validate_client_id(instance_id)
+    return frappe.get_value(INSTANCE_DTYPE, {"client_id": normalized, "is_deleted": 0}, "name") or frappe.get_value(
+        INSTANCE_DTYPE,
+        {"name": normalized, "is_deleted": 0},
+        "name",
+    )
 
 
 def _tx_client_id(rule_id: str, occurrence_date: datetime.date) -> str:
@@ -741,46 +781,126 @@ def generate(
 
         is_dry = _parse_bool(dry_run)
 
-        rule_names = frappe.get_all(
-            RULE_DTYPE,
-            filters={"wallet_id": wallet_id, "is_deleted": 0, "is_active": 1},
-            pluck="name",
-            order_by="name asc",
-        )
+        rule_names = frappe.get_all(RULE_DTYPE, filters={"wallet_id": wallet_id, "is_deleted": 0}, pluck="name", order_by="name asc")
         rules = [frappe.get_doc(RULE_DTYPE, name) for name in rule_names]
-
-        existing = _existing_instance_map(wallet_id, rule_names, from_day, to_day)
+        existing = _existing_instance_rows(wallet_id, rule_names, from_day, to_day)
 
         generated_count = 0
         skipped_count = 0
         created_instance_ids: List[str] = []
+        updated_instance_ids: List[str] = []
         preview: List[Dict[str, Any]] = []
         warnings: List[Dict[str, Any]] = []
 
         for rule in rules:
-            candidates, rule_warnings = _rule_occurrences(rule, from_day, to_day)
+            resume_date = get_datetime(rule.resume_date).date() if getattr(rule, "resume_date", None) else None
+            if cint(rule.is_active or 0) != 1 and not resume_date:
+                continue
+
+            effective_from = from_day
+            if resume_date and resume_date > effective_from:
+                effective_from = resume_date
+            if effective_from > to_day:
+                continue
+
+            candidates, rule_warnings = _rule_occurrences(rule, effective_from, to_day)
             for warning in rule_warnings:
                 warnings.append({"rule_id": rule.client_id or rule.name, **warning})
 
+            changed_rule = False
             for candidate in candidates:
                 key = (rule.name, candidate.occurrence_date.isoformat())
-                if key in existing:
+                existing_row = existing.get(key)
+                tx_id: Optional[str] = None
+                skip_reason: Optional[str] = None
+                status: str = "exists"
+
+                if existing_row:
+                    if existing_row["status"] == "scheduled" and not existing_row.get("transaction_id"):
+                        if is_dry:
+                            tx_id, skip_reason = _simulate_transaction_for_occurrence(
+                                wallet_id=wallet_id,
+                                rule=rule,
+                                occurrence_date=candidate.occurrence_date,
+                            )
+                            status = "generated" if tx_id else "skipped"
+                            if status == "generated":
+                                generated_count += 1
+                            else:
+                                skipped_count += 1
+                                warnings.append(
+                                    {
+                                        "rule_id": rule.client_id or rule.name,
+                                        "occurrence_date": candidate.occurrence_date.isoformat(),
+                                        "reason": skip_reason or "skipped",
+                                    }
+                                )
+                            preview.append(
+                                {
+                                    "rule_id": rule.client_id or rule.name,
+                                    "occurrence_date": candidate.occurrence_date.isoformat(),
+                                    "status": status,
+                                    "transaction_id": tx_id,
+                                    "skip_reason": skip_reason,
+                                    "existing_status": "scheduled",
+                                }
+                            )
+                            continue
+
+                        tx_id, skip_reason = _create_or_get_transaction_for_occurrence(
+                            user=user,
+                            device_id=device.device_id,
+                            wallet_id=wallet_id,
+                            rule=rule,
+                            occurrence_date=candidate.occurrence_date,
+                        )
+                        status = "generated" if tx_id else "skipped"
+                        instance_doc = frappe.get_doc(INSTANCE_DTYPE, existing_row["name"])
+                        instance_doc.transaction_id = tx_id
+                        instance_doc.status = status
+                        instance_doc.generated_at = now_datetime()
+                        instance_doc.skip_reason = skip_reason
+                        apply_common_sync_fields(instance_doc, bump_version=True, mark_deleted=False)
+                        instance_doc.save(ignore_permissions=True)
+                        updated_instance_ids.append(instance_doc.client_id or instance_doc.name)
+                        changed_rule = True
+                        preview.append(_normalize_instance_doc(instance_doc))
+                        if status == "generated":
+                            generated_count += 1
+                        else:
+                            skipped_count += 1
+                            warnings.append(
+                                {
+                                    "rule_id": rule.client_id or rule.name,
+                                    "occurrence_date": candidate.occurrence_date.isoformat(),
+                                    "reason": skip_reason or "skipped",
+                                }
+                            )
+                        existing[key] = {
+                            "name": instance_doc.name,
+                            "client_id": instance_doc.client_id,
+                            "rule_id": instance_doc.rule_id,
+                            "occurrence_date": candidate.occurrence_date.isoformat(),
+                            "transaction_id": instance_doc.transaction_id,
+                            "status": instance_doc.status,
+                            "skip_reason": instance_doc.skip_reason,
+                        }
+                        continue
+
                     skipped_count += 1
                     preview.append(
                         {
                             "rule_id": rule.client_id or rule.name,
                             "occurrence_date": candidate.occurrence_date.isoformat(),
                             "status": "exists",
+                            "existing_status": existing_row.get("status"),
                         }
                     )
                     continue
 
                 if is_dry:
-                    tx_id, skip_reason = _simulate_transaction_for_occurrence(
-                        wallet_id=wallet_id,
-                        rule=rule,
-                        occurrence_date=candidate.occurrence_date,
-                    )
+                    tx_id, skip_reason = _simulate_transaction_for_occurrence(wallet_id=wallet_id, rule=rule, occurrence_date=candidate.occurrence_date)
+                    status = "generated" if tx_id else "skipped"
                 else:
                     tx_id, skip_reason = _create_or_get_transaction_for_occurrence(
                         user=user,
@@ -789,7 +909,7 @@ def generate(
                         rule=rule,
                         occurrence_date=candidate.occurrence_date,
                     )
-                status = "generated" if tx_id else "skipped"
+                    status = "generated" if tx_id else "skipped"
 
                 if is_dry:
                     if status == "generated":
@@ -828,9 +948,18 @@ def generate(
                 instance.skip_reason = skip_reason
                 apply_common_sync_fields(instance, bump_version=True, mark_deleted=False)
                 instance.save(ignore_permissions=True)
+                changed_rule = True
 
                 created_instance_ids.append(instance.client_id)
-                existing.add(key)
+                existing[key] = {
+                    "name": instance.name,
+                    "client_id": instance.client_id,
+                    "rule_id": instance.rule_id,
+                    "occurrence_date": candidate.occurrence_date.isoformat(),
+                    "transaction_id": instance.transaction_id,
+                    "status": instance.status,
+                    "skip_reason": instance.skip_reason,
+                }
                 if status == "generated":
                     generated_count += 1
                 else:
@@ -845,7 +974,7 @@ def generate(
 
                 preview.append(_normalize_instance_doc(instance))
 
-            if not is_dry:
+            if not is_dry and changed_rule:
                 rule.last_generated_at = now_datetime()
                 apply_common_sync_fields(rule, bump_version=True, mark_deleted=False)
                 rule.save(ignore_permissions=True)
@@ -856,6 +985,7 @@ def generate(
             "generated": generated_count,
             "skipped": skipped_count,
             "created_instance_ids": created_instance_ids,
+            "updated_instance_ids": updated_instance_ids,
             "warnings": warnings,
             "preview": preview,
             "server_time": now_datetime().isoformat(),
@@ -864,4 +994,329 @@ def generate(
         if isinstance(exc, frappe.ValidationError):
             frappe.clear_last_message()
             return _build_invalid_request(str(exc))
+        raise
+
+
+@frappe.whitelist(allow_guest=False)
+def apply_changes(
+    rule_id: Optional[str] = None,
+    wallet_id: Optional[str] = None,
+    mode: Optional[str] = None,
+    from_date: Optional[str] = None,
+    horizon_days: Optional[int] = None,
+    device_id: Optional[str] = None,
+) -> Dict[str, Any] | Response:
+    try:
+        payload = _request_payload()
+        wallet_id = _resolve_param(wallet_id, "wallet_id") or payload.get("wallet_id")
+        rule_id = _resolve_param(rule_id, "rule_id") or payload.get("rule_id")
+        mode = (_resolve_param(mode, "mode") or payload.get("mode") or "future_only").strip().lower()
+        from_date = _resolve_param(from_date, "from_date") or payload.get("from_date")
+        horizon_days = horizon_days if horizon_days is not None else payload.get("horizon_days")
+        user, _device = require_device_token_auth()
+        if not wallet_id:
+            return _build_recurring_error("RECURRING_VALIDATION_ERROR", "wallet_id is required", fields={"wallet_id": "required"})
+        if not rule_id:
+            return _build_recurring_error("RECURRING_VALIDATION_ERROR", "rule_id is required", fields={"rule_id": "required"})
+        wallet_id = validate_client_id(wallet_id)
+        require_wallet_member(wallet_id, user, min_role="member")
+        if mode not in {"future_only", "rebuild_scheduled"}:
+            return _build_recurring_error("RECURRING_VALIDATION_ERROR", "mode is invalid", fields={"mode": "invalid"})
+
+        resolved_name = _resolve_rule_name(wallet_id, rule_id)
+        if not resolved_name:
+            return _build_recurring_error("RECURRING_VALIDATION_ERROR", "rule_id not found", fields={"rule_id": "not_found"})
+        rule = frappe.get_doc(RULE_DTYPE, resolved_name)
+        if rule.wallet_id != wallet_id:
+            return _build_recurring_error(
+                "RECURRING_CONFLICT",
+                "rule belongs to a different wallet",
+                fields={"wallet_id": "mismatch", "rule_id": rule.client_id or rule.name},
+            )
+
+        start_day = _parse_date(from_date, param="from_date") if from_date else now_datetime().date()
+        horizon = cint(horizon_days or 60)
+        if horizon < 1 or horizon > 365:
+            return _build_recurring_error(
+                "RECURRING_VALIDATION_ERROR",
+                "horizon_days must be between 1 and 365",
+                fields={"horizon_days": "out_of_range"},
+            )
+        to_day = start_day + datetime.timedelta(days=horizon)
+
+        deleted_count = 0
+        created_count = 0
+        kept_count = 0
+        warnings: List[Dict[str, Any]] = []
+
+        if mode == "rebuild_scheduled":
+            existing_rows = frappe.get_all(
+                INSTANCE_DTYPE,
+                filters={
+                    "wallet_id": wallet_id,
+                    "rule_id": rule.name,
+                    "is_deleted": 0,
+                    "occurrence_date": [">=", start_day],
+                    "status": "scheduled",
+                },
+                fields=["name", "transaction_id"],
+            )
+            for row in existing_rows:
+                if row.transaction_id:
+                    kept_count += 1
+                    warnings.append(
+                        {
+                            "code": "RECURRING_TX_EXISTS",
+                            "message": "scheduled instance has transaction and was kept",
+                            "instance_id": row.name,
+                        }
+                    )
+                    continue
+                instance_doc = frappe.get_doc(INSTANCE_DTYPE, row.name)
+                apply_common_sync_fields(instance_doc, bump_version=True, mark_deleted=True)
+                instance_doc.save(ignore_permissions=True)
+                deleted_count += 1
+
+            existing_after_delete = _existing_instance_rows(wallet_id, [rule.name], start_day, to_day)
+            candidates, rule_warnings = _rule_occurrences(rule, start_day, to_day)
+            for warning in rule_warnings:
+                warnings.append({"code": "RECURRING_VALIDATION_ERROR", "rule_id": rule.client_id or rule.name, **warning})
+
+            for candidate in candidates:
+                key = (rule.name, candidate.occurrence_date.isoformat())
+                if key in existing_after_delete:
+                    kept_count += 1
+                    warnings.append(
+                        {
+                            "code": "RECURRING_INSTANCE_EXISTS",
+                            "rule_id": rule.client_id or rule.name,
+                            "occurrence_date": candidate.occurrence_date.isoformat(),
+                        }
+                    )
+                    continue
+
+                instance = frappe.new_doc(INSTANCE_DTYPE)
+                instance.user = user
+                instance.wallet_id = wallet_id
+                instance.client_id = _instance_client_id(rule.name, candidate.occurrence_date)
+                instance.name = instance.client_id
+                instance.flags.name_set = True
+                instance.rule_id = rule.name
+                instance.occurrence_date = candidate.occurrence_date
+                instance.transaction_id = None
+                instance.status = "scheduled"
+                instance.generated_at = None
+                instance.skip_reason = None
+                apply_common_sync_fields(instance, bump_version=True, mark_deleted=False)
+                instance.save(ignore_permissions=True)
+                created_count += 1
+                existing_after_delete[key] = {
+                    "name": instance.name,
+                    "client_id": instance.client_id,
+                    "rule_id": instance.rule_id,
+                    "occurrence_date": candidate.occurrence_date.isoformat(),
+                    "transaction_id": None,
+                    "status": "scheduled",
+                    "skip_reason": None,
+                }
+        else:
+            kept_count = frappe.db.count(
+                INSTANCE_DTYPE,
+                {"wallet_id": wallet_id, "rule_id": rule.name, "occurrence_date": [">=", start_day], "is_deleted": 0},
+            )
+
+        return {
+            "status": "ok",
+            "mode": mode,
+            "from_date": start_day.isoformat(),
+            "to_date": to_day.isoformat(),
+            "counts": {"deleted": deleted_count, "created": created_count, "kept": kept_count},
+            "warnings": warnings,
+            "rule": _normalize_rule_doc(rule),
+            "server_time": now_datetime().isoformat(),
+        }
+    except Exception as exc:
+        if isinstance(exc, frappe.ValidationError):
+            frappe.clear_last_message()
+            return _build_recurring_error("RECURRING_VALIDATION_ERROR", str(exc), fields={})
+        raise
+
+
+@frappe.whitelist(allow_guest=False)
+def skip_instance(
+    instance_id: Optional[str] = None,
+    wallet_id: Optional[str] = None,
+    reason: Optional[str] = None,
+    device_id: Optional[str] = None,
+) -> Dict[str, Any] | Response:
+    try:
+        payload = _request_payload()
+        wallet_id = _resolve_param(wallet_id, "wallet_id") or payload.get("wallet_id")
+        instance_id = _resolve_param(instance_id, "instance_id") or payload.get("instance_id")
+        reason = _resolve_param(reason, "reason") or payload.get("reason")
+        user, _device = require_device_token_auth()
+        if not instance_id:
+            return _build_recurring_error("RECURRING_VALIDATION_ERROR", "instance_id is required", fields={"instance_id": "required"})
+
+        instance_name = _resolve_instance_name(instance_id)
+        if not instance_name:
+            return _build_recurring_error("RECURRING_VALIDATION_ERROR", "instance_id not found", fields={"instance_id": "not_found"})
+        instance = frappe.get_doc(INSTANCE_DTYPE, instance_name)
+
+        target_wallet_id = wallet_id or instance.wallet_id
+        if not target_wallet_id:
+            return _build_recurring_error("RECURRING_VALIDATION_ERROR", "wallet_id is required", fields={"wallet_id": "required"})
+        target_wallet_id = validate_client_id(target_wallet_id)
+        require_wallet_member(target_wallet_id, user, min_role="member")
+        if instance.wallet_id != target_wallet_id:
+            return _build_recurring_error(
+                "RECURRING_CONFLICT",
+                "instance belongs to a different wallet",
+                fields={"wallet_id": "mismatch", "instance_id": instance.client_id or instance.name},
+            )
+
+        warnings: List[Dict[str, Any]] = []
+        if instance.transaction_id:
+            warnings.append(
+                {
+                    "code": "RECURRING_TX_EXISTS",
+                    "message": "transaction already exists and was not deleted",
+                    "warning": "tx_exists",
+                    "transaction_id": instance.transaction_id,
+                }
+            )
+
+        instance.status = "skipped"
+        instance.skip_reason = (reason or instance.skip_reason or "manual_skip").strip()[:140]
+        apply_common_sync_fields(instance, bump_version=True, mark_deleted=False)
+        instance.save(ignore_permissions=True)
+
+        return {
+            "status": "ok",
+            "instance": _normalize_instance_doc(instance),
+            "warnings": warnings,
+            "server_time": now_datetime().isoformat(),
+        }
+    except Exception as exc:
+        if isinstance(exc, frappe.ValidationError):
+            frappe.clear_last_message()
+            return _build_recurring_error("RECURRING_VALIDATION_ERROR", str(exc), fields={})
+        raise
+
+
+@frappe.whitelist(allow_guest=False)
+def pause_until(
+    rule_id: Optional[str] = None,
+    until_date: Optional[str] = None,
+    wallet_id: Optional[str] = None,
+    device_id: Optional[str] = None,
+) -> Dict[str, Any] | Response:
+    try:
+        payload = _request_payload()
+        wallet_id = _resolve_param(wallet_id, "wallet_id") or payload.get("wallet_id")
+        rule_id = _resolve_param(rule_id, "rule_id") or payload.get("rule_id")
+        until_date = _resolve_param(until_date, "until_date") or payload.get("until_date")
+        user, _device = require_device_token_auth()
+        if not wallet_id:
+            return _build_recurring_error("RECURRING_VALIDATION_ERROR", "wallet_id is required", fields={"wallet_id": "required"})
+        if not rule_id:
+            return _build_recurring_error("RECURRING_VALIDATION_ERROR", "rule_id is required", fields={"rule_id": "required"})
+        wallet_id = validate_client_id(wallet_id)
+        require_wallet_member(wallet_id, user, min_role="member")
+
+        try:
+            pause_day = _parse_date(until_date, param="until_date")
+        except ValueError:
+            return _build_recurring_error("RECURRING_VALIDATION_ERROR", "until_date is invalid", fields={"until_date": "invalid"})
+
+        resolved_name = _resolve_rule_name(wallet_id, rule_id)
+        if not resolved_name:
+            return _build_recurring_error("RECURRING_VALIDATION_ERROR", "rule_id not found", fields={"rule_id": "not_found"})
+
+        rule = frappe.get_doc(RULE_DTYPE, resolved_name)
+        if rule.wallet_id != wallet_id:
+            return _build_recurring_error(
+                "RECURRING_CONFLICT",
+                "rule belongs to a different wallet",
+                fields={"wallet_id": "mismatch", "rule_id": rule.client_id or rule.name},
+            )
+
+        rule.is_active = 0
+        rule.resume_date = pause_day
+        apply_common_sync_fields(rule, bump_version=True, mark_deleted=False)
+        rule.save(ignore_permissions=True)
+        return {"status": "ok", "rule": _normalize_rule_doc(rule), "server_time": now_datetime().isoformat()}
+    except Exception as exc:
+        if isinstance(exc, frappe.ValidationError):
+            frappe.clear_last_message()
+            return _build_recurring_error("RECURRING_VALIDATION_ERROR", str(exc), fields={})
+        raise
+
+
+@frappe.whitelist(allow_guest=False)
+def preview(
+    wallet_id: Optional[str] = None,
+    rule_id: Optional[str] = None,
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    device_id: Optional[str] = None,
+) -> Dict[str, Any] | Response:
+    try:
+        payload = _request_payload()
+        wallet_id = _resolve_param(wallet_id, "wallet_id") or payload.get("wallet_id")
+        rule_id = _resolve_param(rule_id, "rule_id") or payload.get("rule_id")
+        from_date = _resolve_param(from_date, "from") or _resolve_param(from_date, "from_date") or payload.get("from") or payload.get("from_date")
+        to_date = _resolve_param(to_date, "to") or _resolve_param(to_date, "to_date") or payload.get("to") or payload.get("to_date")
+        user, _device = require_device_token_auth()
+        if not wallet_id:
+            return _build_recurring_error("RECURRING_VALIDATION_ERROR", "wallet_id is required", fields={"wallet_id": "required"})
+        if not rule_id:
+            return _build_recurring_error("RECURRING_VALIDATION_ERROR", "rule_id is required", fields={"rule_id": "required"})
+        wallet_id = validate_client_id(wallet_id)
+        require_wallet_member(wallet_id, user, min_role="viewer")
+
+        try:
+            from_day = _parse_date(from_date, param="from")
+            to_day = _parse_date(to_date, param="to")
+        except ValueError as exc:
+            return _build_recurring_error("RECURRING_VALIDATION_ERROR", str(exc), fields={})
+        if to_day < from_day:
+            return _build_recurring_error("RECURRING_VALIDATION_ERROR", "to must be greater than or equal to from", fields={"to": "invalid_range"})
+
+        resolved_name = _resolve_rule_name(wallet_id, rule_id)
+        if not resolved_name:
+            return _build_recurring_error("RECURRING_VALIDATION_ERROR", "rule_id not found", fields={"rule_id": "not_found"})
+        rule = frappe.get_doc(RULE_DTYPE, resolved_name)
+
+        candidates, rule_warnings = _rule_occurrences(rule, from_day, to_day)
+        existing = _existing_instance_rows(wallet_id, [rule.name], from_day, to_day)
+        occurrences: List[Dict[str, Any]] = []
+        for candidate in candidates:
+            key = (rule.name, candidate.occurrence_date.isoformat())
+            existing_row = existing.get(key)
+            occurrences.append(
+                {
+                    "rule_id": rule.client_id or rule.name,
+                    "occurrence_date": candidate.occurrence_date.isoformat(),
+                    "would_create": existing_row is None,
+                    "existing_status": existing_row.get("status") if existing_row else None,
+                }
+            )
+
+        warnings: List[Dict[str, Any]] = []
+        for warning in rule_warnings:
+            warnings.append({"code": "RECURRING_VALIDATION_ERROR", "rule_id": rule.client_id or rule.name, **warning})
+        return {
+            "status": "ok",
+            "rule_id": rule.client_id or rule.name,
+            "from": from_day.isoformat(),
+            "to": to_day.isoformat(),
+            "occurrences": occurrences,
+            "warnings": warnings,
+            "server_time": now_datetime().isoformat(),
+        }
+    except Exception as exc:
+        if isinstance(exc, frappe.ValidationError):
+            frappe.clear_last_message()
+            return _build_recurring_error("RECURRING_VALIDATION_ERROR", str(exc), fields={})
         raise

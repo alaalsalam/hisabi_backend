@@ -228,3 +228,61 @@ def recurring_generate(
         dry_run=dry_run,
         device_id=device_id,
     )
+
+
+@frappe.whitelist(allow_guest=False)
+def recurring_apply_changes(
+    rule_id: str,
+    wallet_id: Optional[str] = None,
+    mode: Optional[str] = None,
+    from_date: Optional[str] = None,
+    horizon_days: Optional[int] = None,
+    device_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    from .recurring import apply_changes as _impl
+
+    return _impl(
+        rule_id=rule_id,
+        wallet_id=wallet_id,
+        mode=mode,
+        from_date=from_date,
+        horizon_days=horizon_days,
+        device_id=device_id,
+    )
+
+
+@frappe.whitelist(allow_guest=False)
+def recurring_instance_skip(
+    instance_id: str,
+    wallet_id: Optional[str] = None,
+    reason: Optional[str] = None,
+    device_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    from .recurring import skip_instance as _impl
+
+    return _impl(instance_id=instance_id, wallet_id=wallet_id, reason=reason, device_id=device_id)
+
+
+@frappe.whitelist(allow_guest=False)
+def recurring_rule_pause_until(
+    rule_id: str,
+    until_date: str,
+    wallet_id: Optional[str] = None,
+    device_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    from .recurring import pause_until as _impl
+
+    return _impl(rule_id=rule_id, until_date=until_date, wallet_id=wallet_id, device_id=device_id)
+
+
+@frappe.whitelist(allow_guest=False)
+def recurring_preview(
+    wallet_id: Optional[str] = None,
+    rule_id: Optional[str] = None,
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    device_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    from .recurring import preview as _impl
+
+    return _impl(wallet_id=wallet_id, rule_id=rule_id, from_date=from_date, to_date=to_date, device_id=device_id)

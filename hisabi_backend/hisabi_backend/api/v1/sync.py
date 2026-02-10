@@ -354,6 +354,7 @@ SYNC_PUSH_ALLOWED_FIELDS = {
         "bymonthday",
         "end_mode",
         "until_date",
+        "resume_date",
         "count",
         "last_generated_at",
         "created_from",
@@ -655,7 +656,7 @@ SYNC_PUSH_DATETIME_FIELDS = {
     "Hisabi Transaction Bucket Expense": {"deleted_at"},
     "Hisabi Bucket Template": {"deleted_at"},
     "Hisabi Attachment": {"deleted_at"},
-    "Hisabi Recurring Rule": {"start_date", "until_date", "last_generated_at", "deleted_at"},
+    "Hisabi Recurring Rule": {"start_date", "until_date", "resume_date", "last_generated_at", "deleted_at"},
     "Hisabi Recurring Instance": {"occurrence_date", "generated_at", "deleted_at"},
 }
 

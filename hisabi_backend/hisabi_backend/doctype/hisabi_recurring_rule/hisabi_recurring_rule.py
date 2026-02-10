@@ -61,6 +61,10 @@ class HisabiRecurringRule(Document):
         if self.interval < 1:
             frappe.throw(_("interval must be at least 1"), frappe.ValidationError)
 
+        self.is_active = cint(self.is_active or 0)
+        if self.is_active:
+            self.resume_date = None
+
         if not self.timezone:
             self.timezone = _default_timezone()
 
@@ -80,6 +84,9 @@ class HisabiRecurringRule(Document):
             if self.count <= 0:
                 frappe.throw(_("count must be greater than 0 when end_mode is count"), frappe.ValidationError)
             self.until_date = None
+
+        if self.resume_date and get_datetime(self.resume_date).date() < get_datetime(self.start_date).date():
+            frappe.throw(_("resume_date cannot be before start_date"), frappe.ValidationError)
 
         self._normalize_weekly_fields()
         self._normalize_monthly_fields()

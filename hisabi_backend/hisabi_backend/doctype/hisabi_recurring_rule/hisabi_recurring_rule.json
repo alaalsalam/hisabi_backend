@@ -23,6 +23,7 @@
   "bymonthday",
   "end_mode",
   "until_date",
+  "resume_date",
   "count",
   "last_generated_at",
   "created_from",
@@ -149,6 +150,11 @@
    "fieldname": "until_date",
    "fieldtype": "Date",
    "label": "Until Date"
+  },
+  {
+   "fieldname": "resume_date",
+   "fieldtype": "Date",
+   "label": "Resume Date"
   },
   {
    "fieldname": "count",
