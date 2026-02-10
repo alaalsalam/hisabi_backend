@@ -88,3 +88,23 @@ Commands and outputs (production target):
 
 Blocking condition:
 - DNS/network egress to `expense.yemenfrappe.com` is unavailable in this execution environment, so production-targeted backend gates could not complete here.
+
+## Local Gate Closure (DNS-restricted runner) (2026-02-10T10:48:56+03:00)
+
+- Chosen `BASE_URL`: `http://127.0.0.1:18000`
+- Local site probe sequence:
+  - `curl -sS -o /dev/null -w "%{http_code}\n" "http://127.0.0.1:18000/api/method/hisabi_backend.api.v1.health.diag"` => `200`
+  - `curl -sS -o /dev/null -w "%{http_code}\n" "http://127.0.0.1:8000/api/method/hisabi_backend.api.v1.health.diag"` => `404`
+  - `curl -sS -o /dev/null -w "%{http_code}\n" "http://127.0.0.1:8050/api/method/hisabi_backend.api.v1.health.diag"` => `000`
+- Local wrapper usage:
+  - `BASE_URL=http://127.0.0.1:18000 ORIGIN=http://localhost:8082 bash hisabi_backend/hisabi_backend/scripts/verify_local_gate_suite.sh`
+- Token mint usage:
+  - `eval "$(BASE_URL=http://127.0.0.1:18000 bash hisabi_backend/hisabi_backend/scripts/mint_device_token.sh)"`
+- PASS evidence:
+  - `==> PASS verify_auth_smoke.sh`
+  - `==> PASS verify_sync_pull.sh`
+  - `==> PASS verify_sync_push_e2e.sh`
+  - `==> PASS verify_sync_conflict_resolution.sh`
+  - `==> PASS verify_bucket_reports.sh`
+  - `LOCAL GATE SUITE PASS`
+  - Diag fragment: `"app":{"name":"hisabi_backend","version":"v1.0.0-rc.2","commit":"85cea82"}`
