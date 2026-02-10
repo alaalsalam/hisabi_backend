@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Sequence
+from typing import Any, Callable, Dict, List, Sequence
 
 import frappe
 from frappe.utils import cint, flt
@@ -10,6 +10,8 @@ from werkzeug.wrappers import Response
 
 INVALID_BUCKET_ALLOCATION_CODE = "invalid_bucket_allocation"
 INVALID_BUCKET_ALLOCATION_MESSAGE = "Allocations must sum to transaction value."
+INVALID_BUCKET_EXPENSE_ASSIGNMENT_CODE = "invalid_bucket_expense_assignment"
+INVALID_BUCKET_EXPENSE_ASSIGNMENT_MESSAGE = "Expense bucket assignment is invalid."
 AMOUNT_EPSILON = 0.01
 PERCENT_EPSILON = 0.0001
 
@@ -25,6 +27,17 @@ def raise_invalid_bucket_allocation(message: str | None = None) -> None:
     raise InvalidBucketAllocationError(message)
 
 
+class InvalidBucketExpenseAssignmentError(frappe.ValidationError):
+    """Raised when an expense bucket assignment is invalid."""
+
+    def __init__(self, message: str | None = None):
+        super().__init__(message or INVALID_BUCKET_EXPENSE_ASSIGNMENT_MESSAGE)
+
+
+def raise_invalid_bucket_expense_assignment(message: str | None = None) -> None:
+    raise InvalidBucketExpenseAssignmentError(message)
+
+
 def build_invalid_bucket_allocation_response(message: str | None = None) -> Response:
     import json
 
@@ -32,6 +45,22 @@ def build_invalid_bucket_allocation_response(message: str | None = None) -> Resp
         "error": {
             "code": INVALID_BUCKET_ALLOCATION_CODE,
             "message": message or INVALID_BUCKET_ALLOCATION_MESSAGE,
+        }
+    }
+    response = Response()
+    response.mimetype = "application/json"
+    response.status_code = 422
+    response.data = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    return response
+
+
+def build_invalid_bucket_expense_assignment_response(message: str | None = None) -> Response:
+    import json
+
+    payload = {
+        "error": {
+            "code": INVALID_BUCKET_EXPENSE_ASSIGNMENT_CODE,
+            "message": message or INVALID_BUCKET_EXPENSE_ASSIGNMENT_MESSAGE,
         }
     }
     response = Response()
@@ -59,7 +88,16 @@ def sync_bucket_display_fields(doc) -> None:
         doc.archived = 0 if cint(is_active or 0) else 1
 
 
-def ensure_income_transaction(transaction_id: str, wallet_id: str) -> frappe.model.document.Document:
+def _ensure_transaction_type(
+    transaction_id: str,
+    wallet_id: str,
+    *,
+    expected_type: str,
+    not_found_message: str,
+    deleted_message: str,
+    wallet_message: str,
+    type_message: str,
+) -> frappe.model.document.Document:
     tx_name = frappe.get_value("Hisabi Transaction", transaction_id, "name")
     if not tx_name:
         tx_name = frappe.get_value(
@@ -68,18 +106,57 @@ def ensure_income_transaction(transaction_id: str, wallet_id: str) -> frappe.mod
             "name",
         )
     if not tx_name:
-        raise_invalid_bucket_allocation("Transaction not found.")
+        frappe.throw(not_found_message, frappe.ValidationError)
     tx = frappe.get_doc("Hisabi Transaction", tx_name)
     if tx.is_deleted:
-        raise_invalid_bucket_allocation("Transaction is deleted.")
+        frappe.throw(deleted_message, frappe.ValidationError)
     if tx.wallet_id != wallet_id:
-        raise_invalid_bucket_allocation("Transaction is not in this wallet.")
-    if tx.transaction_type != "income":
-        raise_invalid_bucket_allocation("Bucket allocation is only allowed for income transactions.")
+        frappe.throw(wallet_message, frappe.PermissionError)
+    if tx.transaction_type != expected_type:
+        frappe.throw(type_message, frappe.ValidationError)
     return tx
 
 
-def ensure_bucket_wallet_scope(bucket_id: str, wallet_id: str) -> frappe.model.document.Document:
+def ensure_income_transaction(transaction_id: str, wallet_id: str) -> frappe.model.document.Document:
+    try:
+        return _ensure_transaction_type(
+            transaction_id,
+            wallet_id,
+            expected_type="income",
+            not_found_message="Transaction not found.",
+            deleted_message="Transaction is deleted.",
+            wallet_message="Transaction is not in this wallet.",
+            type_message="Bucket allocation is only allowed for income transactions.",
+        )
+    except frappe.PermissionError as exc:
+        raise_invalid_bucket_allocation(str(exc))
+    except frappe.ValidationError as exc:
+        raise_invalid_bucket_allocation(str(exc))
+
+
+def ensure_expense_transaction(transaction_id: str, wallet_id: str) -> frappe.model.document.Document:
+    try:
+        return _ensure_transaction_type(
+            transaction_id,
+            wallet_id,
+            expected_type="expense",
+            not_found_message="Transaction not found.",
+            deleted_message="Transaction is deleted.",
+            wallet_message="Transaction is not in this wallet.",
+            type_message="Bucket expense assignment is only allowed for expense transactions.",
+        )
+    except frappe.PermissionError as exc:
+        raise_invalid_bucket_expense_assignment(str(exc))
+    except frappe.ValidationError as exc:
+        raise_invalid_bucket_expense_assignment(str(exc))
+
+
+def ensure_bucket_wallet_scope(
+    bucket_id: str,
+    wallet_id: str,
+    *,
+    raise_error: Callable[[str | None], None] = raise_invalid_bucket_allocation,
+) -> frappe.model.document.Document:
     bucket_name = frappe.get_value("Hisabi Bucket", bucket_id, "name")
     if not bucket_name:
         bucket_name = frappe.get_value(
@@ -88,17 +165,17 @@ def ensure_bucket_wallet_scope(bucket_id: str, wallet_id: str) -> frappe.model.d
             "name",
         )
     if not bucket_name:
-        raise_invalid_bucket_allocation("Bucket not found.")
+        raise_error("Bucket not found.")
     bucket = frappe.get_doc("Hisabi Bucket", bucket_name)
     if bucket.is_deleted:
-        raise_invalid_bucket_allocation("Bucket is deleted.")
+        raise_error("Bucket is deleted.")
     if bucket.wallet_id != wallet_id:
-        raise_invalid_bucket_allocation("Bucket does not belong to this wallet.")
+        raise_error("Bucket does not belong to this wallet.")
     is_active = bucket.get("is_active")
     if is_active in (None, ""):
         is_active = 0 if cint(bucket.get("archived") or 0) else 1
     if cint(is_active) == 0:
-        raise_invalid_bucket_allocation("Inactive bucket cannot receive allocations.")
+        raise_error("Inactive bucket cannot receive allocations.")
     return bucket
 
 
@@ -248,3 +325,35 @@ def normalize_transaction_bucket_row(doc) -> None:
         expected = flt(tx_amount * (flt(doc.percentage, 6) / 100), 2)
         if abs(expected - flt(doc.amount, 2)) > AMOUNT_EPSILON:
             raise_invalid_bucket_allocation("Allocation amount and percentage are inconsistent.")
+
+
+def normalize_transaction_bucket_expense_row(doc) -> None:
+    """Normalize alias fields on transaction-expense-bucket documents."""
+    if doc.get("transaction") and not doc.get("transaction_id"):
+        doc.transaction_id = doc.get("transaction")
+    if doc.get("bucket") and not doc.get("bucket_id"):
+        doc.bucket_id = doc.get("bucket")
+
+    if doc.get("wallet_id") in (None, "") and doc.get("transaction_id"):
+        doc.wallet_id = frappe.get_value("Hisabi Transaction", doc.get("transaction_id"), "wallet_id")
+
+    wallet_id = doc.get("wallet_id")
+    transaction_id = doc.get("transaction_id")
+    bucket_id = doc.get("bucket_id")
+
+    if doc.get("is_deleted"):
+        return
+
+    if not transaction_id:
+        raise_invalid_bucket_expense_assignment("transaction_id is required.")
+    if not bucket_id:
+        raise_invalid_bucket_expense_assignment("bucket_id is required.")
+    if not wallet_id:
+        raise_invalid_bucket_expense_assignment("wallet_id is required.")
+
+    ensure_expense_transaction(transaction_id, wallet_id)
+    ensure_bucket_wallet_scope(
+        bucket_id,
+        wallet_id,
+        raise_error=raise_invalid_bucket_expense_assignment,
+    )

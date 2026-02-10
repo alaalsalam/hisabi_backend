@@ -128,6 +128,7 @@ LINK_OWNERSHIP_FIELDS = {
     "Hisabi Allocation Rule Line": {"rule": "Hisabi Allocation Rule", "bucket": "Hisabi Bucket"},
     "Hisabi Transaction Allocation": {"transaction": "Hisabi Transaction", "bucket": "Hisabi Bucket"},
     "Hisabi Transaction Bucket": {"transaction_id": "Hisabi Transaction", "bucket_id": "Hisabi Bucket"},
+    "Hisabi Transaction Bucket Expense": {"transaction_id": "Hisabi Transaction", "bucket_id": "Hisabi Bucket"},
     "Hisabi Budget": {"account": "Hisabi Account", "category": "Hisabi Category"},
     "Hisabi Goal": {"account": "Hisabi Account"},
     "Hisabi Debt": {"account": "Hisabi Account"},

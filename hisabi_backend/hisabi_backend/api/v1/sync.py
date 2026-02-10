@@ -42,6 +42,7 @@ DOCTYPE_LIST = [
     "Hisabi Allocation Rule Line",
     "Hisabi Transaction Allocation",
     "Hisabi Transaction Bucket",
+    "Hisabi Transaction Bucket Expense",
     "Hisabi Budget",
     "Hisabi Goal",
     "Hisabi Debt",
@@ -71,6 +72,7 @@ SYNC_PUSH_ALLOWLIST = {
     "Hisabi Allocation Rule Line",
     "Hisabi Transaction Allocation",
     "Hisabi Transaction Bucket",
+    "Hisabi Transaction Bucket Expense",
     "Hisabi Jameya",
     "Hisabi Jameya Payment",
     "Hisabi Attachment",
@@ -317,6 +319,18 @@ SYNC_PUSH_ALLOWED_FIELDS = {
         "is_deleted",
         "deleted_at",
     },
+    "Hisabi Transaction Bucket Expense": {
+        "client_id",
+        "wallet_id",
+        "transaction_id",
+        "bucket_id",
+        "transaction",
+        "bucket",
+        "client_created_ms",
+        "client_modified_ms",
+        "is_deleted",
+        "deleted_at",
+    },
     "Hisabi Jameya": {
         "client_id",
         "wallet_id",
@@ -385,6 +399,7 @@ SYNC_PUSH_REQUIRED_FIELDS_CREATE = {
     "Hisabi Allocation Rule Line": {"rule", "bucket"},
     "Hisabi Transaction Allocation": {"transaction", "bucket"},
     "Hisabi Transaction Bucket": set(),
+    "Hisabi Transaction Bucket Expense": {"transaction_id", "bucket_id"},
     "Hisabi Jameya": {"jameya_name", "monthly_amount", "total_members", "my_turn", "start_date"},
     "Hisabi Jameya Payment": {"jameya"},
     "Hisabi Attachment": {"owner_entity_type", "owner_client_id", "file_mime", "file_size"},
@@ -396,6 +411,7 @@ SYNC_PUSH_REQUIRED_FIELD_GROUPS = {
     "Hisabi Budget": [{"amount", "amount_base"}],
     "Hisabi Goal": [{"target_amount", "target_amount_base"}],
     "Hisabi Transaction Bucket": [{"transaction_id", "transaction"}, {"bucket_id", "bucket"}, {"amount", "percentage", "percent"}],
+    "Hisabi Transaction Bucket Expense": [{"transaction_id", "transaction"}, {"bucket_id", "bucket"}],
 }
 
 SYNC_PUSH_FIELD_TYPES = {
@@ -520,6 +536,10 @@ FIELD_MAP = {
         "bucket": "bucket_id",
         "percent": "percentage",
     },
+    "Hisabi Transaction Bucket Expense": {
+        "transaction": "transaction_id",
+        "bucket": "bucket_id",
+    },
     "Hisabi Budget": {
         "name": "budget_name",
         "title": "budget_name",
@@ -551,6 +571,7 @@ SYNC_CLIENT_ID_PRIMARY_KEY_DOCTYPES = {
     "Hisabi Bucket",
     "Hisabi Bucket Template",
     "Hisabi Transaction Bucket",
+    "Hisabi Transaction Bucket Expense",
 }
 
 SYNC_PUSH_DATETIME_FIELDS = {
@@ -563,6 +584,7 @@ SYNC_PUSH_DATETIME_FIELDS = {
     "Hisabi Jameya": {"start_date", "deleted_at"},
     "Hisabi Jameya Payment": {"due_date", "paid_at", "deleted_at"},
     "Hisabi Transaction Bucket": {"deleted_at"},
+    "Hisabi Transaction Bucket Expense": {"deleted_at"},
     "Hisabi Bucket Template": {"deleted_at"},
     "Hisabi Attachment": {"deleted_at"},
 }

@@ -141,3 +141,45 @@ def wallet_leave(wallet_id: str, device_id: Optional[str] = None) -> Dict[str, A
     from .wallets import wallet_leave as _impl
 
     return _impl(wallet_id=wallet_id, device_id=device_id)
+
+
+@frappe.whitelist(allow_guest=False)
+def bucket_expenses_set(
+    transaction_id: str,
+    bucket_id: str,
+    wallet_id: Optional[str] = None,
+    client_id: Optional[str] = None,
+    op_id: Optional[str] = None,
+    base_version: Optional[int] = None,
+    device_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    from .bucket_expenses import set as _impl
+
+    return _impl(
+        transaction_id=transaction_id,
+        bucket_id=bucket_id,
+        wallet_id=wallet_id,
+        client_id=client_id,
+        op_id=op_id,
+        base_version=base_version,
+        device_id=device_id,
+    )
+
+
+@frappe.whitelist(allow_guest=False)
+def bucket_expenses_clear(
+    transaction_id: str,
+    wallet_id: Optional[str] = None,
+    op_id: Optional[str] = None,
+    base_version: Optional[int] = None,
+    device_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    from .bucket_expenses import clear as _impl
+
+    return _impl(
+        transaction_id=transaction_id,
+        wallet_id=wallet_id,
+        op_id=op_id,
+        base_version=base_version,
+        device_id=device_id,
+    )
