@@ -156,6 +156,123 @@ if [[ "$(echo "${RERUN_RESP}" | jq -r '.message.status // empty')" != "ok" || ${
   exit 1
 fi
 
+echo "==> Edit rule payload and rebuild future scheduled instances"
+UPDATED_AMOUNT="21.75"
+REBUILD_FROM=$(date -u -d '+15 day' +%F)
+REBUILD_TO=$(date -u -d '+25 day' +%F)
+RULE_UPDATE_PAYLOAD=$(cat <<JSON
+{
+  "wallet_id":"${WALLET_ID}",
+  "client_id":"${RULE_ID}",
+  "amount":${UPDATED_AMOUNT},
+  "note":"updated by verify_recurring sprint08"
+}
+JSON
+)
+RULE_UPDATE_RESP=$(post_json "/api/method/hisabi_backend.api.v1.recurring.upsert_rule" "${RULE_UPDATE_PAYLOAD}" "${TOKEN}")
+if [[ "$(echo "${RULE_UPDATE_RESP}" | jq -r '.message.status // empty')" != "ok" ]]; then
+  echo "rule payload update failed" >&2
+  echo "${RULE_UPDATE_RESP}" >&2
+  exit 1
+fi
+
+BEFORE_REBUILD_PULL=$(post_json "/api/method/hisabi_backend.api.v1.sync.sync_pull" "{\"device_id\":\"${DEVICE_ID}\",\"wallet_id\":\"${WALLET_ID}\",\"limit\":1000}" "${TOKEN}")
+TX_COUNT_BEFORE=$(echo "${BEFORE_REBUILD_PULL}" | jq '[.message.items[] | select(.entity_type == "Hisabi Transaction" and ((.client_id // "") | startswith("rtx-")))] | length')
+
+REBUILD_PAYLOAD=$(cat <<JSON
+{
+  "wallet_id":"${WALLET_ID}",
+  "rule_id":"${RULE_ID}",
+  "mode":"rebuild_scheduled",
+  "from_date":"${REBUILD_FROM}",
+  "horizon_days":10
+}
+JSON
+)
+REBUILD_RESP=$(post_json "/api/method/hisabi_backend.api.v1.recurring.apply_changes" "${REBUILD_PAYLOAD}" "${TOKEN}")
+if [[ "$(echo "${REBUILD_RESP}" | jq -r '.message.status // empty')" != "ok" ]]; then
+  echo "apply_changes rebuild_scheduled failed" >&2
+  echo "${REBUILD_RESP}" >&2
+  exit 1
+fi
+REBUILD_CREATED=$(echo "${REBUILD_RESP}" | jq -r '.message.counts.created // 0')
+if [[ ${REBUILD_CREATED} -le 0 ]]; then
+  echo "rebuild_scheduled did not create scheduled instances" >&2
+  echo "${REBUILD_RESP}" >&2
+  exit 1
+fi
+
+AFTER_REBUILD_PULL=$(post_json "/api/method/hisabi_backend.api.v1.sync.sync_pull" "{\"device_id\":\"${DEVICE_ID}\",\"wallet_id\":\"${WALLET_ID}\",\"limit\":1000}" "${TOKEN}")
+TX_COUNT_AFTER=$(echo "${AFTER_REBUILD_PULL}" | jq '[.message.items[] | select(.entity_type == "Hisabi Transaction" and ((.client_id // "") | startswith("rtx-")))] | length')
+if [[ "${TX_COUNT_AFTER}" != "${TX_COUNT_BEFORE}" ]]; then
+  echo "rebuild_scheduled unexpectedly created transactions" >&2
+  echo "${AFTER_REBUILD_PULL}" >&2
+  exit 1
+fi
+
+SKIP_INSTANCE_ID=$(echo "${AFTER_REBUILD_PULL}" | jq -r --arg rule_id "${RULE_ID}" --arg from "${REBUILD_FROM}" '
+  .message.items
+  | map(select(.entity_type == "Hisabi Recurring Instance" and .entity_id != null and ((.payload.rule_id // "") == $rule_id) and (((.payload.occurrence_date // "") | tostring) >= $from) and ((.payload.status // "") == "scheduled") and (((.payload.transaction_id // "") | tostring) == "")))
+  | sort_by(.payload.occurrence_date)
+  | .[0].entity_id // empty
+')
+SKIP_OCC_DATE=$(echo "${AFTER_REBUILD_PULL}" | jq -r --arg iid "${SKIP_INSTANCE_ID}" '
+  .message.items
+  | map(select(.entity_type == "Hisabi Recurring Instance" and .entity_id == $iid))
+  | .[0].payload.occurrence_date // empty
+')
+if [[ -z "${SKIP_INSTANCE_ID}" || -z "${SKIP_OCC_DATE}" ]]; then
+  echo "could not locate scheduled instance to skip" >&2
+  echo "${AFTER_REBUILD_PULL}" >&2
+  exit 1
+fi
+
+echo "==> Skip one scheduled instance then generate future range"
+SKIP_PAYLOAD=$(cat <<JSON
+{"instance_id":"${SKIP_INSTANCE_ID}","wallet_id":"${WALLET_ID}","reason":"gate_skip"}
+JSON
+)
+SKIP_RESP=$(post_json "/api/method/hisabi_backend.api.v1.recurring.skip_instance" "${SKIP_PAYLOAD}" "${TOKEN}")
+if [[ "$(echo "${SKIP_RESP}" | jq -r '.message.status // empty')" != "ok" ]]; then
+  echo "skip_instance failed" >&2
+  echo "${SKIP_RESP}" >&2
+  exit 1
+fi
+
+FUTURE_WRITE_PAYLOAD=$(cat <<JSON
+{"wallet_id":"${WALLET_ID}","from_date":"${REBUILD_FROM}","to_date":"${REBUILD_TO}","dry_run":0}
+JSON
+)
+FUTURE_WRITE_RESP=$(post_json "/api/method/hisabi_backend.api.v1.recurring.generate" "${FUTURE_WRITE_PAYLOAD}" "${TOKEN}")
+if [[ "$(echo "${FUTURE_WRITE_RESP}" | jq -r '.message.status // empty')" != "ok" ]]; then
+  echo "future generate failed" >&2
+  echo "${FUTURE_WRITE_RESP}" >&2
+  exit 1
+fi
+
+POST_GEN_PULL=$(post_json "/api/method/hisabi_backend.api.v1.sync.sync_pull" "{\"device_id\":\"${DEVICE_ID}\",\"wallet_id\":\"${WALLET_ID}\",\"limit\":1200}" "${TOKEN}")
+SKIPPED_STILL=$(echo "${POST_GEN_PULL}" | jq -r --arg iid "${SKIP_INSTANCE_ID}" --arg occ "${SKIP_OCC_DATE}" '
+  .message.items
+  | map(select(.entity_type == "Hisabi Recurring Instance" and .entity_id == $iid and (.payload.occurrence_date == $occ) and (.payload.status == "skipped") and (((.payload.transaction_id // "") | tostring) == "")))
+  | length
+')
+if [[ "${SKIPPED_STILL}" -lt 1 ]]; then
+  echo "skipped instance was regenerated unexpectedly" >&2
+  echo "${POST_GEN_PULL}" >&2
+  exit 1
+fi
+
+UPDATED_AMOUNT_COUNT=$(echo "${POST_GEN_PULL}" | jq -r --arg from "${REBUILD_FROM}" --argjson amt ${UPDATED_AMOUNT} '
+  .message.items
+  | map(select(.entity_type == "Hisabi Transaction" and ((.client_id // "") | startswith("rtx-")) and ((((.payload.date_time // .date_time // "") | tostring)) >= $from) and ((((.payload.amount // .amount // 0) | tonumber)) == $amt)))
+  | length
+')
+if [[ "${UPDATED_AMOUNT_COUNT}" -lt 1 ]]; then
+  echo "no generated transaction found with updated recurring payload amount ${UPDATED_AMOUNT}" >&2
+  echo "${POST_GEN_PULL}" >&2
+  exit 1
+fi
+
 echo "==> Verify rule instances and linked transactions"
 RULES_RESP=$(get_json "/api/method/hisabi_backend.api.v1.recurring.rules_list?wallet_id=${WALLET_ID}" "${TOKEN}")
 if ! echo "${RULES_RESP}" | jq -e --arg rule_id "${RULE_ID}" '.message.rules | any(.client_id == $rule_id)' >/dev/null; then
