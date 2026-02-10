@@ -96,3 +96,24 @@ Requirement note: CORS must be configured only via Frappe `allow_cors` in `site_
 1. Sudo failures:
    1. Re-run `visudo -cf` checks.
    1. Verify the file permissions are `0440`.
+
+## Sprint 06 Deploy + Verification Checklist
+Run from `/home/frappe/frappe-bench`.
+
+1. Deploy code to `main` for backend and frontend.
+1. Run migration:
+   1. `bench --site expense.yemenfrappe.com migrate`
+1. Clear site cache:
+   1. `bench --site expense.yemenfrappe.com clear-cache`
+1. Restart services:
+   1. `sudo /usr/local/bin/bench restart`
+1. Run localhost gate suite:
+   1. `BASE_URL=http://127.0.0.1:18000 ORIGIN=http://localhost:8082 bash apps/hisabi_backend/hisabi_backend/hisabi_backend/scripts/verify_auth_smoke.sh`
+   1. `BASE_URL=http://127.0.0.1:18000 ORIGIN=http://localhost:8082 bash apps/hisabi_backend/hisabi_backend/hisabi_backend/scripts/verify_sync_push_e2e.sh`
+   1. `BASE_URL=http://127.0.0.1:18000 ORIGIN=http://localhost:8082 bash apps/hisabi_backend/hisabi_backend/hisabi_backend/scripts/verify_bucket_reports.sh`
+   1. `BASE_URL=http://127.0.0.1:18000 ORIGIN=http://localhost:8082 bash apps/hisabi_backend/hisabi_backend/hisabi_backend/scripts/verify_bucket_effectiveness.sh`
+1. Run frontend contract verifier:
+   1. `cd /home/frappe/frappe-bench/apps/hisabi_backend/hisabi-your-smart-wallet`
+   1. `eval "$(BASE_URL=http://127.0.0.1:18000 bash ../hisabi_backend/hisabi_backend/scripts/mint_device_token.sh)" && HISABI_BASE_URL=http://127.0.0.1:18000 HISABI_TOKEN="$HISABI_TOKEN" node --import tsx src/dev/verifyReportsContract.ts`
+1. Optional production diagnostics:
+   1. `curl -sS https://expense.yemenfrappe.com/api/method/hisabi_backend.api.v1.health.diag`
