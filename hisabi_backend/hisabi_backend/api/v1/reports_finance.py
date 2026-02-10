@@ -497,6 +497,81 @@ def _income_allocations_for_tx(
     return by_legacy.get(tx_id) or []
 
 
+def _load_expense_bucket_map(
+    *,
+    wallet_id: str,
+    expense_tx_ids: list[str],
+    bucket_meta: Dict[str, Dict[str, str]],
+) -> Dict[str, str]:
+    """Resolve one bucket assignment per expense transaction.
+
+    Priority:
+    1) New expense-assignment doctype (authoritative)
+    2) Legacy transaction.bucket fallback for backward compatibility
+    """
+    if not expense_tx_ids:
+        return {}
+
+    tx_ids = tuple(sorted(set(expense_tx_ids)))
+    mapped: Dict[str, str] = {}
+
+    if frappe.db.exists("DocType", "Hisabi Transaction Bucket Expense"):
+        rows = frappe.db.sql(
+            """
+            SELECT
+                transaction_id,
+                bucket_id
+            FROM `tabHisabi Transaction Bucket Expense`
+            WHERE wallet_id=%(wallet_id)s
+              AND is_deleted=0
+              AND transaction_id IN %(tx_ids)s
+            ORDER BY transaction_id ASC, server_modified DESC, name DESC
+            """,
+            {"wallet_id": wallet_id, "tx_ids": tx_ids},
+            as_dict=True,
+        )
+        for row in rows:
+            tx_id = str(row.get("transaction_id") or "").strip()
+            bucket_id = str(row.get("bucket_id") or "").strip()
+            if not tx_id or not bucket_id:
+                continue
+            if tx_id in mapped:
+                continue
+            if bucket_id not in bucket_meta:
+                continue
+            mapped[tx_id] = bucket_id
+
+    fallback_rows = frappe.db.sql(
+        """
+        SELECT
+            name,
+            bucket
+        FROM `tabHisabi Transaction`
+        WHERE wallet_id=%(wallet_id)s
+          AND is_deleted=0
+          AND transaction_type='expense'
+          AND name IN %(tx_ids)s
+          AND bucket IS NOT NULL
+          AND bucket != ''
+        ORDER BY name ASC
+        """,
+        {"wallet_id": wallet_id, "tx_ids": tx_ids},
+        as_dict=True,
+    )
+    for row in fallback_rows:
+        tx_id = str(row.get("name") or "").strip()
+        bucket_id = str(row.get("bucket") or "").strip()
+        if not tx_id or not bucket_id:
+            continue
+        if tx_id in mapped:
+            continue
+        if bucket_id not in bucket_meta:
+            continue
+        mapped[tx_id] = bucket_id
+
+    return mapped
+
+
 @frappe.whitelist(allow_guest=False)
 def report_summary(
     from_date: Optional[str] = None,
@@ -945,9 +1020,19 @@ def _aggregate_bucket_cashflow(
         for tx in tx_rows
         if (tx.get("transaction_type") or "").strip().lower() == "income" and tx.get("name")
     ]
+    expense_tx_ids = [
+        str(tx.get("name"))
+        for tx in tx_rows
+        if (tx.get("transaction_type") or "").strip().lower() == "expense" and tx.get("name")
+    ]
     by_new, by_legacy = _load_income_allocation_maps(
         wallet_id=wallet_id,
         income_tx_ids=income_tx_ids,
+        bucket_meta=bucket_meta,
+    )
+    expense_bucket_by_tx = _load_expense_bucket_map(
+        wallet_id=wallet_id,
+        expense_tx_ids=expense_tx_ids,
         bucket_meta=bucket_meta,
     )
 
@@ -987,7 +1072,7 @@ def _aggregate_bucket_cashflow(
                 points[(period_key, str(row.get("bucket_id")))] += converted
             continue
 
-        # Expense transactions are intentionally grouped under a virtual bucket.
+        assigned_bucket = expense_bucket_by_tx.get(tx_name) or UNALLOCATED_BUCKET_ID
         expense_amount = _convert_amount_to_currency(
             amount=tx.get("amount"),
             source_currency=tx_currency,
@@ -1000,7 +1085,7 @@ def _aggregate_bucket_cashflow(
         )
         if expense_amount is None:
             continue
-        points[(period_key, UNALLOCATED_BUCKET_ID)] -= expense_amount
+        points[(period_key, assigned_bucket)] -= expense_amount
 
     return points, warnings
 
@@ -1097,6 +1182,177 @@ def report_bucket_breakdown(
     data.sort(key=lambda row: (-flt(row.get("total_amount") or 0), str(row.get("bucket_id") or "")))
     return {
         "data": data,
+        "currency": target_currency,
+        "from_date": from_date,
+        "to_date": to_date,
+        "warnings": warnings,
+        "server_time": now_datetime().isoformat(),
+    }
+
+
+@frappe.whitelist(allow_guest=False)
+def report_bucket_effectiveness(
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    currency: Optional[str] = None,
+    wallet_id: Optional[str] = None,
+    device_id: Optional[str] = None,
+) -> Dict[str, Any] | Response:
+    user, _device = require_device_token_auth()
+    wallet_id_resolved = _resolve_wallet_id_param(wallet_id)
+    if isinstance(wallet_id_resolved, Response):
+        return wallet_id_resolved
+    wallet_id = wallet_id_resolved
+    require_wallet_member(wallet_id, user, min_role="viewer")
+
+    from_date, to_date = _resolve_date_range(
+        from_date=from_date,
+        to_date=to_date,
+        date_from=date_from,
+        date_to=date_to,
+    )
+
+    target_currency = _resolve_report_currency(
+        wallet_id=wallet_id,
+        user=user,
+        currency=_resolve_currency_param(currency),
+    )
+    bucket_meta = _get_wallet_bucket_meta(wallet_id)
+
+    income_filters, income_params = _build_tx_filters(
+        wallet_id=wallet_id,
+        from_date=from_date,
+        to_date=to_date,
+        type_filter="income",
+    )
+    income_rows = _query_transactions(filters=income_filters, params=income_params)
+    income_tx_ids = [str(tx.get("name")) for tx in income_rows if tx.get("name")]
+    by_new, by_legacy = _load_income_allocation_maps(
+        wallet_id=wallet_id,
+        income_tx_ids=income_tx_ids,
+        bucket_meta=bucket_meta,
+    )
+
+    expense_filters, expense_params = _build_tx_filters(
+        wallet_id=wallet_id,
+        from_date=from_date,
+        to_date=to_date,
+        type_filter="expense",
+    )
+    expense_rows = _query_transactions(filters=expense_filters, params=expense_params)
+    expense_tx_ids = [str(tx.get("name")) for tx in expense_rows if tx.get("name")]
+    expense_bucket_by_tx = _load_expense_bucket_map(
+        wallet_id=wallet_id,
+        expense_tx_ids=expense_tx_ids,
+        bucket_meta=bucket_meta,
+    )
+
+    fx_cache: Dict[tuple[str, str, str, str], Optional[float]] = {}
+    warnings: list[Dict[str, Any]] = []
+    warning_state = {"fx_missing": False}
+
+    income_by_bucket: Dict[str, float] = defaultdict(float)
+    for tx in income_rows:
+        tx_name = str(tx.get("name") or "")
+        tx_currency = _normalize_currency(tx.get("currency"))
+        alloc_rows = _income_allocations_for_tx(
+            tx_id=tx_name,
+            by_new=by_new,
+            by_legacy=by_legacy,
+        )
+        for row in alloc_rows:
+            bucket_id = str(row.get("bucket_id") or "").strip()
+            if not bucket_id:
+                continue
+            converted = _convert_amount_to_currency(
+                amount=row.get("amount"),
+                source_currency=row.get("currency") or tx_currency,
+                target_currency=target_currency,
+                tx_date_time=tx.get("date_time"),
+                wallet_id=wallet_id,
+                fx_cache=fx_cache,
+                warnings=warnings,
+                warning_state=warning_state,
+            )
+            if converted is None:
+                continue
+            income_by_bucket[bucket_id] += converted
+
+    expenses_by_bucket: Dict[str, float] = defaultdict(float)
+    for tx in expense_rows:
+        tx_name = str(tx.get("name") or "")
+        bucket_id = expense_bucket_by_tx.get(tx_name) or UNALLOCATED_BUCKET_ID
+        tx_currency = _normalize_currency(tx.get("currency"))
+        converted = _convert_amount_to_currency(
+            amount=tx.get("amount"),
+            source_currency=tx_currency,
+            target_currency=target_currency,
+            tx_date_time=tx.get("date_time"),
+            wallet_id=wallet_id,
+            fx_cache=fx_cache,
+            warnings=warnings,
+            warning_state=warning_state,
+        )
+        if converted is None:
+            continue
+        expenses_by_bucket[bucket_id] += converted
+
+    def _burn_rate(income_value: float, expense_value: float) -> Optional[float]:
+        if income_value > 0:
+            return flt((expense_value / income_value) * 100, 2)
+        if expense_value == 0:
+            return 0.0
+        return None
+
+    all_bucket_ids = {
+        *set(income_by_bucket.keys()),
+        *(bucket_id for bucket_id in expenses_by_bucket.keys() if bucket_id != UNALLOCATED_BUCKET_ID),
+    }
+
+    data = []
+    for bucket_id in sorted(all_bucket_ids):
+        income_value = flt(income_by_bucket.get(bucket_id) or 0)
+        expense_value = flt(expenses_by_bucket.get(bucket_id) or 0)
+        net_value = flt(income_value - expense_value)
+        data.append(
+            {
+                "bucket_id": bucket_id,
+                "bucket_title": (bucket_meta.get(bucket_id) or {}).get("bucket_title") or bucket_id,
+                "income_allocated": income_value,
+                "expenses_assigned": expense_value,
+                "net": net_value,
+                "burn_rate": _burn_rate(income_value, expense_value),
+                "savings_delta": net_value,
+                "currency": target_currency,
+            }
+        )
+
+    data.sort(key=lambda row: (-flt(row.get("net") or 0), str(row.get("bucket_id") or "")))
+
+    unallocated_expense = flt(expenses_by_bucket.get(UNALLOCATED_BUCKET_ID) or 0)
+    unallocated = {
+        "bucket_id": UNALLOCATED_BUCKET_ID,
+        "bucket_title": "Unallocated",
+        "income_allocated": 0.0,
+        "expenses_assigned": unallocated_expense,
+        "net": flt(0 - unallocated_expense),
+        "burn_rate": None,
+        "savings_delta": flt(0 - unallocated_expense),
+        "currency": target_currency,
+    }
+
+    totals = {
+        "income_allocated": flt(sum(income_by_bucket.values())),
+        "expenses_assigned": flt(sum(expenses_by_bucket.values())),
+        "net": flt(sum(income_by_bucket.values()) - sum(expenses_by_bucket.values())),
+    }
+
+    return {
+        "data": data,
+        "unallocated": unallocated,
+        "totals": totals,
         "currency": target_currency,
         "from_date": from_date,
         "to_date": to_date,
@@ -1205,7 +1461,9 @@ def report_bucket_trends(
     )
 
     data = []
+    net_points: Dict[str, float] = defaultdict(float)
     for (period_start, bucket_id), amount in sorted(points_map.items(), key=lambda item: (item[0][0], item[0][1])):
+        net_points[period_start] += amount
         data.append(
             {
                 "period_start": period_start,
@@ -1214,9 +1472,18 @@ def report_bucket_trends(
             }
         )
 
+    net = [
+        {
+            "period_start": period_start,
+            "amount": flt(amount),
+        }
+        for period_start, amount in sorted(net_points.items(), key=lambda item: item[0])
+    ]
+
     return {
         "granularity": normalized_granularity,
         "data": data,
+        "net": net,
         "currency": target_currency,
         "from_date": from_date,
         "to_date": to_date,

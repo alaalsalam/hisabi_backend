@@ -35,6 +35,11 @@ def bucket_summary(
     allocation_tx_field = "transaction_id" if allocation_doctype == "Hisabi Transaction Bucket" else "transaction"
     allocation_bucket_field = "bucket_id" if allocation_doctype == "Hisabi Transaction Bucket" else "bucket"
     allocation_currency_expr = "tx.currency" if allocation_doctype == "Hisabi Transaction Bucket" else "alloc.currency"
+    expense_map_doctype = (
+        "Hisabi Transaction Bucket Expense"
+        if frappe.db.exists("DocType", "Hisabi Transaction Bucket Expense")
+        else None
+    )
 
     # Reporting must exclude soft-deleted rows unless explicitly requested.
     filters = ["tx.wallet_id = %(wallet_id)s", "tx.is_deleted = 0", "alloc.is_deleted = 0"]
@@ -78,6 +83,27 @@ def bucket_summary(
 
     expense_alloc_rows = frappe.db.sql(expense_alloc_sql, params, as_dict=True)
 
+    expense_map_rows = []
+    if expense_map_doctype:
+        expense_map_sql = """
+            SELECT exp.bucket_id as bucket, tx.currency as currency, SUM(tx.amount) as expense_spent
+            FROM `tabHisabi Transaction Bucket Expense` exp
+            INNER JOIN `tabHisabi Transaction` tx ON tx.name = exp.transaction_id
+            WHERE exp.wallet_id = %(wallet_id)s
+              AND exp.is_deleted = 0
+              AND tx.wallet_id = %(wallet_id)s
+              AND tx.is_deleted = 0
+              AND tx.transaction_type = 'expense'
+        """
+        if from_date:
+            expense_map_sql += " AND tx.date_time >= %(from_date)s"
+        if to_date:
+            expense_map_sql += " AND tx.date_time <= %(to_date)s"
+        if currency:
+            expense_map_sql += " AND tx.currency = %(currency)s"
+        expense_map_sql += " GROUP BY exp.bucket_id, tx.currency"
+        expense_map_rows = frappe.db.sql(expense_map_sql, params, as_dict=True)
+
     bucket_link_filters = ["tx.wallet_id = %(wallet_id)s", "tx.is_deleted = 0", "tx.bucket IS NOT NULL", "tx.bucket != ''"]
     if from_date:
         bucket_link_filters.append("tx.date_time >= %(from_date)s")
@@ -95,6 +121,7 @@ def bucket_summary(
             SELECT 1 FROM {allocation_table} alloc
             WHERE alloc.{allocation_tx_field} = tx.name AND alloc.is_deleted = 0
           )
+          {"AND NOT EXISTS (SELECT 1 FROM `tabHisabi Transaction Bucket Expense` exp WHERE exp.transaction_id = tx.name AND exp.is_deleted = 0)" if expense_map_doctype else ""}
         GROUP BY tx.bucket, tx.currency
     """
 
@@ -115,6 +142,11 @@ def bucket_summary(
         summary[key]["income_allocated"] = row.income_allocated or 0
 
     for row in expense_alloc_rows:
+        key = (row.bucket, row.currency)
+        summary.setdefault(key, {"bucket": row.bucket, "currency": row.currency, "income_allocated": 0, "expense_spent": 0})
+        summary[key]["expense_spent"] += row.expense_spent or 0
+
+    for row in expense_map_rows:
         key = (row.bucket, row.currency)
         summary.setdefault(key, {"bucket": row.bucket, "currency": row.currency, "income_allocated": 0, "expense_spent": 0})
         summary[key]["expense_spent"] += row.expense_spent or 0
