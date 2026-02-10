@@ -5,7 +5,10 @@ from __future__ import annotations
 import datetime
 import hashlib
 import json
+import subprocess
 from dataclasses import dataclass
+from importlib.metadata import PackageNotFoundError, version
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import frappe
@@ -440,6 +443,21 @@ def _instance_client_id(rule_id: str, occurrence_date: datetime.date) -> str:
 
 def _ledger_op_id(wallet_id: str, op_id: str) -> str:
     return f"{wallet_id}:{op_id}"
+
+
+def _app_version() -> str:
+    try:
+        return version("hisabi_backend")
+    except PackageNotFoundError:
+        return "unknown"
+
+
+def _repo_commit() -> str:
+    try:
+        root = Path(__file__).resolve().parents[4]
+        return subprocess.check_output(["git", "-C", str(root), "rev-parse", "--short", "HEAD"], text=True).strip()
+    except Exception:
+        return "unknown"
 
 
 def _get_sync_op_result(user: str, device_id: str, wallet_id: str, op_id: str) -> Optional[Dict[str, Any]]:
@@ -988,6 +1006,248 @@ def generate(
             "updated_instance_ids": updated_instance_ids,
             "warnings": warnings,
             "preview": preview,
+            "server_time": now_datetime().isoformat(),
+        }
+    except Exception as exc:
+        if isinstance(exc, frappe.ValidationError):
+            frappe.clear_last_message()
+            return _build_invalid_request(str(exc))
+        raise
+
+
+def _resolve_date_range(
+    *,
+    from_date: Optional[str],
+    to_date: Optional[str],
+    default_days: int = 7,
+) -> tuple[datetime.date, datetime.date]:
+    today = now_datetime().date()
+    from_day = _parse_date(from_date, param="from_date") if from_date else today
+    to_day = _parse_date(to_date, param="to_date") if to_date else (from_day + datetime.timedelta(days=default_days))
+    return from_day, to_day
+
+
+@frappe.whitelist(allow_guest=False)
+def due(
+    wallet_id: Optional[str] = None,
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    device_id: Optional[str] = None,
+) -> Dict[str, Any] | Response:
+    try:
+        payload = _request_payload()
+        wallet_id = _resolve_param(wallet_id, "wallet_id") or payload.get("wallet_id")
+        from_date = _resolve_param(from_date, "from") or _resolve_param(from_date, "from_date") or payload.get("from") or payload.get("from_date")
+        to_date = _resolve_param(to_date, "to") or _resolve_param(to_date, "to_date") or payload.get("to") or payload.get("to_date")
+        user, _device = require_device_token_auth()
+        if not wallet_id:
+            return _build_invalid_request("wallet_id is required", param="wallet_id")
+        wallet_id = validate_client_id(wallet_id)
+        require_wallet_member(wallet_id, user, min_role="viewer")
+
+        try:
+            from_day, to_day = _resolve_date_range(from_date=from_date, to_date=to_date, default_days=7)
+        except ValueError as exc:
+            return _build_invalid_request(str(exc))
+
+        if to_day < from_day:
+            return _build_invalid_request("to_date must be greater than or equal to from_date", param="to_date")
+
+        rule_names = frappe.get_all(RULE_DTYPE, filters={"wallet_id": wallet_id, "is_deleted": 0}, pluck="name", order_by="name asc")
+        rules = [frappe.get_doc(RULE_DTYPE, name) for name in rule_names]
+        existing = _existing_instance_rows(wallet_id, rule_names, from_day, to_day)
+
+        rules_payload: List[Dict[str, Any]] = []
+        due_instances: List[Dict[str, Any]] = []
+        due_count = 0
+        skipped_count = 0
+        paused_count = 0
+
+        for rule in rules:
+            rule_id = rule.client_id or rule.name
+            resume_date = get_datetime(rule.resume_date).date() if getattr(rule, "resume_date", None) else None
+            is_active = cint(rule.is_active or 0) == 1
+            candidates, rule_warnings = _rule_occurrences(rule, from_day, to_day)
+
+            rule_due = 0
+            rule_skipped = 0
+            rule_paused = 0
+
+            for candidate in candidates:
+                occurrence_iso = candidate.occurrence_date.isoformat()
+                key = (rule.name, occurrence_iso)
+                existing_row = existing.get(key)
+                is_paused = (not is_active) and (resume_date is None or candidate.occurrence_date < resume_date)
+
+                status = "due"
+                skip_reason: Optional[str] = None
+                tx_id: Optional[str] = None
+                existing_status: Optional[str] = None
+
+                if is_paused:
+                    status = "paused"
+                    skip_reason = "pause_until" if resume_date else "rule_inactive"
+                    paused_count += 1
+                    rule_paused += 1
+                elif existing_row:
+                    existing_status = (existing_row.get("status") or "").strip().lower() or None
+                    tx_id = existing_row.get("transaction_id")
+                    if existing_status == "skipped":
+                        status = "skipped"
+                        skip_reason = existing_row.get("skip_reason") or "manual_skip"
+                        skipped_count += 1
+                        rule_skipped += 1
+                    elif existing_status == "generated" or tx_id:
+                        status = "already-generated"
+                    else:
+                        status = "due"
+                        due_count += 1
+                        rule_due += 1
+                else:
+                    due_count += 1
+                    rule_due += 1
+
+                due_instances.append(
+                    {
+                        "instance_id": (existing_row or {}).get("client_id") or (existing_row or {}).get("name") or _instance_client_id(rule.name, candidate.occurrence_date),
+                        "rule_id": rule_id,
+                        "occurrence_date": occurrence_iso,
+                        "status": status,
+                        "skip_reason": skip_reason,
+                        "transaction_id": tx_id,
+                        "existing_status": existing_status,
+                    }
+                )
+
+            for warning in rule_warnings:
+                warning_date = warning.get("occurrence_date")
+                if not warning_date:
+                    continue
+                try:
+                    warning_day = _parse_date(warning_date, param="occurrence_date")
+                except ValueError:
+                    continue
+                due_instances.append(
+                    {
+                        "instance_id": _instance_client_id(rule.name, warning_day),
+                        "rule_id": rule_id,
+                        "occurrence_date": warning_date,
+                        "status": "skipped",
+                        "skip_reason": warning.get("reason") or "invalid",
+                        "transaction_id": None,
+                        "existing_status": None,
+                    }
+                )
+                skipped_count += 1
+                rule_skipped += 1
+
+            rules_payload.append(
+                {
+                    "id": rule_id,
+                    "title": rule.title,
+                    "transaction_type": rule.transaction_type,
+                    "amount": flt(rule.amount, 2),
+                    "currency": rule.currency,
+                    "account_id": rule.account_id,
+                    "category_id": rule.category_id,
+                    "is_active": cint(rule.is_active or 0),
+                    "resume_date": str(rule.resume_date) if getattr(rule, "resume_date", None) else None,
+                    "state": "active" if is_active else "paused",
+                    "due_in_range": rule_due,
+                    "skipped_in_range": rule_skipped,
+                    "paused_in_range": rule_paused,
+                }
+            )
+
+        due_instances.sort(key=lambda row: ((row.get("occurrence_date") or ""), (row.get("rule_id") or ""), (row.get("instance_id") or "")))
+        rules_payload.sort(key=lambda row: (row.get("id") or ""))
+
+        generated_at = now_datetime().isoformat()
+        return {
+            "meta": {
+                "wallet_id": wallet_id,
+                "from_date": from_day.isoformat(),
+                "to_date": to_day.isoformat(),
+                "generated_at": generated_at,
+                "server_time": generated_at,
+                "version": _app_version(),
+                "commit": _repo_commit(),
+            },
+            "rules": rules_payload,
+            "due_instances": due_instances,
+            "stats": {
+                "due_count": due_count,
+                "skipped_count": skipped_count,
+                "paused_count": paused_count,
+            },
+        }
+    except Exception as exc:
+        if isinstance(exc, frappe.ValidationError):
+            frappe.clear_last_message()
+            return _build_invalid_request(str(exc))
+        raise
+
+
+@frappe.whitelist(allow_guest=False)
+def generate_due(
+    wallet_id: Optional[str] = None,
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    mode: Optional[str] = "create_missing",
+    device_id: Optional[str] = None,
+) -> Dict[str, Any] | Response:
+    try:
+        payload = _request_payload()
+        wallet_id = _resolve_param(wallet_id, "wallet_id") or payload.get("wallet_id")
+        from_date = _resolve_param(from_date, "from_date") or payload.get("from_date")
+        to_date = _resolve_param(to_date, "to_date") or payload.get("to_date")
+        mode = (_resolve_param(mode, "mode") or payload.get("mode") or "create_missing").strip().lower()
+        user, _device = require_device_token_auth()
+        if not wallet_id:
+            return _build_invalid_request("wallet_id is required", param="wallet_id")
+        wallet_id = validate_client_id(wallet_id)
+        require_wallet_member(wallet_id, user, min_role="member")
+        if mode != "create_missing":
+            return _build_invalid_request("mode is invalid", param="mode")
+
+        try:
+            from_day, to_day = _resolve_date_range(from_date=from_date, to_date=to_date, default_days=7)
+        except ValueError as exc:
+            return _build_invalid_request(str(exc))
+        if to_day < from_day:
+            return _build_invalid_request("to_date must be greater than or equal to from_date", param="to_date")
+
+        generated = generate(
+            wallet_id=wallet_id,
+            from_date=from_day.isoformat(),
+            to_date=to_day.isoformat(),
+            dry_run=0,
+            device_id=device_id,
+        )
+        if isinstance(generated, Response):
+            return generated
+        if not isinstance(generated, dict):
+            return _build_invalid_request("failed to generate recurring due instances")
+
+        created_ids = list(generated.get("created_instance_ids") or [])
+        updated_ids = list(generated.get("updated_instance_ids") or [])
+        instance_count = len(set(created_ids + updated_ids))
+        transaction_count = cint(generated.get("generated") or 0)
+
+        skipped = [
+            {
+                "rule_id": row.get("rule_id"),
+                "occurrence_date": row.get("occurrence_date"),
+                "reason": row.get("reason") or row.get("code") or "skipped",
+            }
+            for row in (generated.get("warnings") or [])
+        ]
+        skipped.sort(key=lambda row: ((row.get("occurrence_date") or ""), (row.get("rule_id") or ""), (row.get("reason") or "")))
+
+        return {
+            "created": {"instances": instance_count, "transactions": transaction_count},
+            "skipped": skipped,
+            "conflicts": [],
             "server_time": now_datetime().isoformat(),
         }
     except Exception as exc:

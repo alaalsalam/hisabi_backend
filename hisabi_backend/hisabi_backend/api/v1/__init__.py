@@ -289,6 +289,31 @@ def recurring_preview(
 
 
 @frappe.whitelist(allow_guest=False)
+def recurring_due(
+    wallet_id: Optional[str] = None,
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    device_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    from .recurring import due as _impl
+
+    return _impl(wallet_id=wallet_id, from_date=from_date, to_date=to_date, device_id=device_id)
+
+
+@frappe.whitelist(allow_guest=False)
+def recurring_generate_due(
+    wallet_id: Optional[str] = None,
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    mode: Optional[str] = "create_missing",
+    device_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    from .recurring import generate_due as _impl
+
+    return _impl(wallet_id=wallet_id, from_date=from_date, to_date=to_date, mode=mode, device_id=device_id)
+
+
+@frappe.whitelist(allow_guest=False)
 def backup_export(wallet_id: Optional[str] = None, format: str = "hisabi_json_v1"):
     from .backup import export as _impl
 
