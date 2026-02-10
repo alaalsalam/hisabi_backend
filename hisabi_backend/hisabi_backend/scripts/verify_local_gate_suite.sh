@@ -56,6 +56,7 @@ run_gate "verify_sync_push_e2e.sh"
 run_gate "verify_sync_conflict_resolution.sh"
 run_gate "verify_bucket_reports.sh"
 run_gate "verify_recurring.sh"
+run_gate "verify_backup_restore.sh"
 
 DIAG_URL="${BASE_URL}/api/method/hisabi_backend.api.v1.health.diag"
 echo "==> RUN health diag ${DIAG_URL}"

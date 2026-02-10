@@ -286,3 +286,24 @@ def recurring_preview(
     from .recurring import preview as _impl
 
     return _impl(wallet_id=wallet_id, rule_id=rule_id, from_date=from_date, to_date=to_date, device_id=device_id)
+
+
+@frappe.whitelist(allow_guest=False)
+def backup_export(wallet_id: Optional[str] = None, format: str = "hisabi_json_v1"):
+    from .backup import export as _impl
+
+    return _impl(wallet_id=wallet_id, format=format)
+
+
+@frappe.whitelist(allow_guest=False)
+def backup_validate_restore(wallet_id: Optional[str] = None, payload: dict | None = None):
+    from .backup import validate_restore as _impl
+
+    return _impl(wallet_id=wallet_id, payload=payload)
+
+
+@frappe.whitelist(allow_guest=False)
+def backup_apply_restore(wallet_id: Optional[str] = None, payload: dict | None = None, mode: str = "merge"):
+    from .backup import apply_restore as _impl
+
+    return _impl(wallet_id=wallet_id, payload=payload, mode=mode)
