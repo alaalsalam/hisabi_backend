@@ -28,9 +28,11 @@ def _list_account_ledger_entries(
 
     scope_field = "wallet_id" if wallet_id else "user"
     scope_value = wallet_id or user
+    has_converted_amount = frappe.db.has_column("Hisabi Transaction", "converted_amount")
+    converted_expr = "converted_amount" if has_converted_amount else "NULL AS converted_amount"
     return frappe.db.sql(
         f"""
-        SELECT name, transaction_type, amount, account, to_account, date_time
+        SELECT name, transaction_type, amount, {converted_expr}, account, to_account, date_time
         FROM `tabHisabi Transaction`
         WHERE {scope_field}=%s
           AND is_deleted=0
@@ -51,18 +53,25 @@ def _ledger_delta_for_account(entry: Mapping[str, Any], account_id: str) -> floa
     source_account = entry.get("account")
     target_account = entry.get("to_account")
     amount = flt(entry.get("amount") or 0)
-    if not amount:
+    converted_amount = flt(entry.get("converted_amount") or 0)
+    if not amount and not converted_amount:
         return 0.0
+
+    source_leg_amount = converted_amount or amount
+    if tx_type == "transfer":
+        # Transfers store the source leg in `amount` and destination leg in `converted_amount`.
+        source_leg_amount = amount
+    target_leg_amount = converted_amount or amount
 
     delta = 0.0
     if source_account == account_id:
         if tx_type == "income":
-            delta += amount
+            delta += source_leg_amount
         elif tx_type in {"expense", "transfer"}:
-            delta -= amount
-    if target_account == account_id:
+            delta -= source_leg_amount
+    if target_account == account_id and tx_type == "transfer":
         # Transfer incoming leg increases the destination account balance.
-        delta += amount
+        delta += target_leg_amount
     return flt(delta)
 
 

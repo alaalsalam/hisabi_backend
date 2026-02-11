@@ -11,6 +11,9 @@
   "date_time",
   "amount",
   "currency",
+  "original_amount",
+  "original_currency",
+  "converted_amount",
   "account",
   "to_account",
   "category",
@@ -70,6 +73,21 @@
    "fieldtype": "Data",
    "label": "Currency",
    "reqd": 1
+  },
+  {
+   "fieldname": "original_amount",
+   "fieldtype": "Currency",
+   "label": "Original Amount"
+  },
+  {
+   "fieldname": "original_currency",
+   "fieldtype": "Data",
+   "label": "Original Currency"
+  },
+  {
+   "fieldname": "converted_amount",
+   "fieldtype": "Currency",
+   "label": "Converted Amount"
   },
   {
    "fieldname": "account",

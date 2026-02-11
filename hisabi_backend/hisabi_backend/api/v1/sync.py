@@ -143,12 +143,17 @@ SYNC_PUSH_ALLOWED_FIELDS = {
         "date_time",
         "amount",
         "currency",
+        "original_amount",
+        "original_currency",
+        "converted_amount",
         "account",
         "to_account",
         "category",
         "bucket",
         "note",
         "amount_base",
+        "base_amount",
+        "fx_rate",
         "fx_rate_used",
         "client_created_ms",
         "client_modified_ms",
@@ -505,6 +510,7 @@ SYNC_PUSH_FIELD_TYPES = {
     "skip_reason": "string",
     "amount": "number",
     "amount_base": "number",
+    "base_amount": "number",
     "principal_amount": "number",
     "target_amount": "number",
     "target_amount_base": "number",
@@ -512,13 +518,17 @@ SYNC_PUSH_FIELD_TYPES = {
     "total_members": "number",
     "my_turn": "number",
     "file_size": "number",
+    "original_amount": "number",
+    "converted_amount": "number",
     "fx_rate_used": "number",
+    "fx_rate": "number",
     "percentage": "number",
     "is_active": "number",
     "is_default": "number",
     "interval": "number",
     "bymonthday": "number",
     "count": "number",
+    "original_currency": "string",
 }
 
 SYNC_PAYLOAD_LOG_IGNORE_KEYS = {"id"}
@@ -624,9 +634,20 @@ FIELD_MAP = {
     "Hisabi Transaction": {
         "type": "transaction_type",
         "account_id": "account",
+        "accountId": "account",
         "to_account_id": "to_account",
+        "toAccountId": "to_account",
         "category_id": "category",
+        "categoryId": "category",
         "bucket_id": "bucket",
+        "bucketId": "bucket",
+        "amountBase": "amount_base",
+        "base_amount": "amount_base",
+        "fxRateUsed": "fx_rate_used",
+        "fx_rate": "fx_rate_used",
+        "originalAmount": "original_amount",
+        "originalCurrency": "original_currency",
+        "convertedAmount": "converted_amount",
     },
 }
 
@@ -976,6 +997,48 @@ def _invalid_field_types(payload: Dict[str, Any], fields: set[str]) -> Dict[str,
         elif expected == "list" and not isinstance(value, list):
             invalid[field] = "list"
     return invalid
+
+
+def _normalize_currency_code(value: Any) -> str:
+    if value is None:
+        return ""
+    return str(value).strip().upper()
+
+
+def _collect_transaction_fx_sanity_warnings(doc: frappe.model.document.Document) -> List[str]:
+    if getattr(doc, "doctype", "") != "Hisabi Transaction":
+        return []
+    account = getattr(doc, "account", None)
+    tx_currency = _normalize_currency_code(getattr(doc, "currency", None))
+    if not account or not tx_currency:
+        return []
+
+    account_currency = _normalize_currency_code(frappe.get_value("Hisabi Account", account, "currency"))
+    if not account_currency or account_currency == tx_currency:
+        return []
+
+    warnings: List[str] = []
+    fx_rate_used = flt(getattr(doc, "fx_rate_used", 0) or 0)
+    if fx_rate_used <= 0:
+        warnings.append("fx_rate_non_positive_for_currency_mismatch")
+
+    amount = flt(getattr(doc, "amount", 0) or 0)
+    converted_amount = flt(getattr(doc, "converted_amount", 0) or 0)
+    if amount > 0 and converted_amount <= 0:
+        warnings.append("converted_amount_missing_for_currency_mismatch")
+
+    if warnings:
+        frappe.logger("hisabi_backend.sync").warning(
+            "fx_sanity_warning",
+            extra={
+                "transaction": getattr(doc, "client_id", None) or getattr(doc, "name", None),
+                "wallet_id": getattr(doc, "wallet_id", None),
+                "currency": tx_currency,
+                "account_currency": account_currency,
+                "warnings": warnings,
+            },
+        )
+    return warnings
 
 
 ERROR_MESSAGE_MAP = {
@@ -1690,6 +1753,9 @@ def sync_push(
                         payload["target_amount"] = payload.get("target_amount_base")
 
             doc = _prepare_doc_for_write(entity_type, payload, user, existing=existing)
+            fx_sanity_warnings: List[str] = []
+            if entity_type == "Hisabi Transaction":
+                fx_sanity_warnings = _collect_transaction_fx_sanity_warnings(doc)
             mark_deleted = operation == "delete"
 
             if entity_type == "Hisabi Account" and not existing:
@@ -1781,6 +1847,8 @@ def sync_push(
                 "doc_version": doc.doc_version,
                 "server_modified": _to_iso(doc.server_modified),
             }
+            if fx_sanity_warnings:
+                result["warnings"] = fx_sanity_warnings
             results.append(result)
 
             _store_op_id(
