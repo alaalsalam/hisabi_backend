@@ -34,6 +34,7 @@ from hisabi_backend.utils.wallet_acl import (
 from hisabi_backend.utils.auth_lockout import on_login_failed, on_login_success, raise_if_locked
 from hisabi_backend.utils.request_context import get_request_ip
 from hisabi_backend.utils.audit_security import audit_security_event
+from hisabi_backend.utils.request_headers import strip_expect_header
 
 
 def _resolve_user(identifier: str) -> str:
@@ -221,6 +222,7 @@ def login(
     device: Optional[dict] = None,
 ) -> Dict[str, Any]:
     """Login by email or phone and issue/rotate device token."""
+    strip_expect_header()
     try:
         if not identifier:
             frappe.throw(_("identifier is required"), frappe.ValidationError)
@@ -330,15 +332,41 @@ def logout() -> Dict[str, Any]:
 @frappe.whitelist(allow_guest=False)
 def me() -> Dict[str, Any]:
     """Return current user profile and wallet memberships (requires device token)."""
-    user, device = require_device_token_auth()
-    default_wallet_id = ensure_default_wallet_for_user(user, device_id=device.device_id)
-    return {
-        "user": _serialize_user(user),
-        "device": {"device_id": device.device_id, "status": device.status, "last_seen_at": device.last_seen_at},
-        "default_wallet_id": default_wallet_id,
-        "wallets": get_wallets_for_user(user, default_wallet_id=default_wallet_id),
-        "server_time": now_datetime().isoformat(),
-    }
+    strip_expect_header()
+    try:
+        user, device = require_device_token_auth()
+        default_wallet_id = ensure_default_wallet_for_user(user, device_id=device.device_id)
+        return {
+            "user": _serialize_user(user),
+            "device": {"device_id": device.device_id, "status": device.status, "last_seen_at": device.last_seen_at},
+            "default_wallet_id": default_wallet_id,
+            "wallets": get_wallets_for_user(user, default_wallet_id=default_wallet_id),
+            "server_time": now_datetime().isoformat(),
+        }
+    except frappe.ValidationError as exc:
+        return error_response(
+            status_code=400,
+            code="VALIDATION_ERROR",
+            message=str(exc),
+            user_message="طلب غير صالح.",
+            action="retry",
+        )
+    except frappe.AuthenticationError as exc:
+        return error_response(
+            status_code=401,
+            code="UNAUTHORIZED",
+            message=str(exc),
+            user_message="تحتاج إلى تسجيل الدخول.",
+            action="retry",
+        )
+    except frappe.PermissionError as exc:
+        return error_response(
+            status_code=403,
+            code="FORBIDDEN",
+            message=str(exc),
+            user_message="غير مصرح.",
+            action="contact_support",
+        )
 
 
 @frappe.whitelist(allow_guest=False)

@@ -9,6 +9,8 @@ from __future__ import annotations
 from typing import Any, Dict, Optional
 
 import frappe
+from hisabi_backend.utils.api_errors import error_response
+from hisabi_backend.utils.request_headers import strip_expect_header
 
 
 def _serialize_user(user: str) -> Dict[str, Any]:
@@ -37,8 +39,33 @@ def register_user(
 @frappe.whitelist(allow_guest=True)
 def login(identifier: str, password: str, device: dict | None = None):
     from .auth_v2 import login as _impl
-
-    return _impl(identifier=identifier, password=password, device=device)
+    strip_expect_header()
+    try:
+        return _impl(identifier=identifier, password=password, device=device)
+    except frappe.ValidationError as exc:
+        return error_response(
+            status_code=400,
+            code="VALIDATION_ERROR",
+            message=str(exc),
+            user_message="بيانات غير صحيحة. يرجى التحقق والمحاولة مرة أخرى.",
+            action="retry",
+        )
+    except frappe.AuthenticationError as exc:
+        return error_response(
+            status_code=401,
+            code="INVALID_CREDENTIALS",
+            message=str(exc),
+            user_message="بيانات الدخول غير صحيحة.",
+            action="retry",
+        )
+    except frappe.PermissionError as exc:
+        return error_response(
+            status_code=403,
+            code="FORBIDDEN",
+            message=str(exc),
+            user_message="غير مصرح.",
+            action="contact_support",
+        )
 
 
 @frappe.whitelist(allow_guest=False)
@@ -50,25 +77,51 @@ def logout():
 
 @frappe.whitelist(allow_guest=False)
 def me():
+    strip_expect_header()
     # Keep response shape stable for clients: include default_wallet_id + wallets[].isDefault.
     from frappe.utils import now_datetime
 
     from hisabi_backend.utils.security import require_device_token_auth
     from hisabi_backend.utils.wallet_acl import ensure_default_wallet_for_user, get_wallets_for_user
 
-    user, device = require_device_token_auth()
-    default_wallet_id = ensure_default_wallet_for_user(user, device_id=device.device_id)
-    wallets = get_wallets_for_user(user, default_wallet_id=default_wallet_id)
-    # Defensive: ensure the derived flag exists even if helper output changes.
-    for row in wallets:
-        row["isDefault"] = row.get("wallet") == default_wallet_id
-    return {
-        "user": _serialize_user(user),
-        "device": {"device_id": device.device_id, "status": device.status, "last_seen_at": device.last_seen_at},
-        "default_wallet_id": default_wallet_id,
-        "wallets": wallets,
-        "server_time": now_datetime().isoformat(),
-    }
+    try:
+        user, device = require_device_token_auth()
+        default_wallet_id = ensure_default_wallet_for_user(user, device_id=device.device_id)
+        wallets = get_wallets_for_user(user, default_wallet_id=default_wallet_id)
+        # Defensive: ensure the derived flag exists even if helper output changes.
+        for row in wallets:
+            row["isDefault"] = row.get("wallet") == default_wallet_id
+        return {
+            "user": _serialize_user(user),
+            "device": {"device_id": device.device_id, "status": device.status, "last_seen_at": device.last_seen_at},
+            "default_wallet_id": default_wallet_id,
+            "wallets": wallets,
+            "server_time": now_datetime().isoformat(),
+        }
+    except frappe.ValidationError as exc:
+        return error_response(
+            status_code=400,
+            code="VALIDATION_ERROR",
+            message=str(exc),
+            user_message="طلب غير صالح.",
+            action="retry",
+        )
+    except frappe.AuthenticationError as exc:
+        return error_response(
+            status_code=401,
+            code="UNAUTHORIZED",
+            message=str(exc),
+            user_message="تحتاج إلى تسجيل الدخول.",
+            action="retry",
+        )
+    except frappe.PermissionError as exc:
+        return error_response(
+            status_code=403,
+            code="FORBIDDEN",
+            message=str(exc),
+            user_message="غير مصرح.",
+            action="contact_support",
+        )
 
 
 @frappe.whitelist(allow_guest=False)
