@@ -6,6 +6,7 @@ ORIGIN=${ORIGIN:-"http://localhost:8082"}
 UNIQUE_SUFFIX=${UNIQUE_SUFFIX:-"$(date +%s)-$RANDOM"}
 PASSWORD=${PASSWORD:-"Test1234!"}
 DEVICE_ID=${DEVICE_ID:-"dev-${UNIQUE_SUFFIX}"}
+CURL_NO_COOKIES=(-b "" -c /dev/null)
 
 generate_valid_phone() {
   local seed
@@ -37,6 +38,7 @@ require_jq
 echo "==> Preflight OPTIONS"
 curl -s -i -X OPTIONS \
   "${BASE_URL}/api/method/hisabi_backend.api.v1.register_user" \
+  "${CURL_NO_COOKIES[@]}" \
   -H "Origin: ${ORIGIN}" \
   -H "Access-Control-Request-Method: POST" \
   -H "Access-Control-Request-Headers: Content-Type, Authorization" | head -n 5
@@ -47,6 +49,7 @@ REGISTER_PAYLOAD=$(cat <<JSON
 JSON
 )
 REGISTER_RESP=$(curl -s -X POST "${BASE_URL}/api/method/hisabi_backend.api.v1.register_user" \
+  "${CURL_NO_COOKIES[@]}" \
   -H "Content-Type: application/json" \
   -d "${REGISTER_PAYLOAD}")
 
@@ -74,6 +77,7 @@ LOGIN_PAYLOAD=$(cat <<JSON
 JSON
 )
 LOGIN_RESP=$(curl -s -X POST "${BASE_URL}/api/method/hisabi_backend.api.v1.login" \
+  "${CURL_NO_COOKIES[@]}" \
   -H "Content-Type: application/json" \
   -d "${LOGIN_PAYLOAD}")
 
@@ -93,6 +97,7 @@ fi
 
 echo "==> Me"
 ME_RESP=$(curl -s -X GET "${BASE_URL}/api/method/hisabi_backend.api.v1.me" \
+  "${CURL_NO_COOKIES[@]}" \
   -H "Authorization: Bearer ${LOGIN_TOKEN}")
 
 if ! echo "${ME_RESP}" | jq -e . >/dev/null 2>&1; then
