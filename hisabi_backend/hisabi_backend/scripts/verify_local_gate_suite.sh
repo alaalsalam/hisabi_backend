@@ -53,6 +53,7 @@ fi
 run_gate "verify_auth_smoke.sh"
 run_gate "verify_sync_pull.sh"
 run_gate "verify_sync_push_e2e.sh"
+run_gate "verify_fx_sanity.sh"
 run_gate "verify_sync_conflict_resolution.sh"
 run_gate "verify_bucket_reports.sh"
 run_gate "verify_recurring.sh"
