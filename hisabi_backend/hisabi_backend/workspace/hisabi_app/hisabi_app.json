@@ -1,0 +1,374 @@
+{
+ "charts": [],
+ "content": "[{\"id\":\"hdr-hisabi\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Hisabi</span>\",\"col\":12}},{\"id\":\"card-start\",\"type\":\"card\",\"data\":{\"card_name\":\"البدء\",\"col\":4}},{\"id\":\"card-daily\",\"type\":\"card\",\"data\":{\"card_name\":\"العمليات اليومية\",\"col\":4}},{\"id\":\"card-review\",\"type\":\"card\",\"data\":{\"card_name\":\"المراجعة والمتابعة\",\"col\":4}},{\"id\":\"card-reports\",\"type\":\"card\",\"data\":{\"card_name\":\"التقارير\",\"col\":4}},{\"id\":\"card-tools\",\"type\":\"card\",\"data\":{\"card_name\":\"الأدوات والجودة\",\"col\":4}},{\"id\":\"card-settings\",\"type\":\"card\",\"data\":{\"card_name\":\"الإعدادات\",\"col\":4}}]",
+ "creation": "2026-02-11 05:07:06.372220",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "money-coins-1",
+ "idx": 0,
+ "indicator_color": "green",
+ "is_hidden": 0,
+ "label": "Hisabi App",
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "البدء",
+   "link_count": 7,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "المحافظ",
+   "link_count": 0,
+   "link_to": "Hisabi Wallet",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "أعضاء المحفظة",
+   "link_count": 0,
+   "link_to": "Hisabi Wallet Member",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "دعوات المحفظة",
+   "link_count": 0,
+   "link_to": "Hisabi Wallet Invite",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "الحسابات",
+   "link_count": 0,
+   "link_to": "Hisabi Account",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "الفئات",
+   "link_count": 0,
+   "link_to": "Hisabi Category",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "قوالب الصناديق",
+   "link_count": 0,
+   "link_to": "Hisabi Bucket Template",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "الصناديق",
+   "link_count": 0,
+   "link_to": "Hisabi Bucket",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "العمليات اليومية",
+   "link_count": 5,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "المعاملات",
+   "link_count": 0,
+   "link_to": "Hisabi Transaction",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "تخصيصات المعاملة",
+   "link_count": 0,
+   "link_to": "Hisabi Transaction Allocation",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "توزيع الصناديق",
+   "link_count": 0,
+   "link_to": "Hisabi Transaction Bucket",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "مصروفات الصناديق",
+   "link_count": 0,
+   "link_to": "Hisabi Transaction Bucket Expense",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "المرفقات",
+   "link_count": 0,
+   "link_to": "Hisabi Attachment",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "المراجعة والمتابعة",
+   "link_count": 9,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "الميزانيات",
+   "link_count": 0,
+   "link_to": "Hisabi Budget",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "الأهداف",
+   "link_count": 0,
+   "link_to": "Hisabi Goal",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "الديون",
+   "link_count": 0,
+   "link_to": "Hisabi Debt",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "طلبات الديون",
+   "link_count": 0,
+   "link_to": "Hisabi Debt Request",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "أقساط الديون",
+   "link_count": 0,
+   "link_to": "Hisabi Debt Installment",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "الجمعيات",
+   "link_count": 0,
+   "link_to": "Hisabi Jameya",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "دفعات الجمعية",
+   "link_count": 0,
+   "link_to": "Hisabi Jameya Payment",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "القواعد الدورية",
+   "link_count": 0,
+   "link_to": "Hisabi Recurring Rule",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "العمليات الدورية",
+   "link_count": 0,
+   "link_to": "Hisabi Recurring Instance",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "التقارير",
+   "link_count": 2,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "سجل المزامنة",
+   "link_count": 0,
+   "link_to": "Hisabi Sync Op",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "سجل التدقيق",
+   "link_count": 0,
+   "link_to": "Hisabi Audit Log",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "الأدوات والجودة",
+   "link_count": 2,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "الأجهزة",
+   "link_count": 0,
+   "link_to": "Hisabi Device",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "أنواع البيانات",
+   "link_count": 0,
+   "link_to": "Hisabi Doctype",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "الإعدادات",
+   "link_count": 4,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "إعدادات التطبيق",
+   "link_count": 0,
+   "link_to": "Hisabi Settings",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "أسعار الصرف",
+   "link_count": 0,
+   "link_to": "Hisabi FX Rate",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "العملات المخصصة",
+   "link_count": 0,
+   "link_to": "Hisabi Custom Currency",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "مستخدمو Hisabi",
+   "link_count": 0,
+   "link_to": "Hisabi User",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ],
+ "modified": "2026-02-11 05:07:16.098750",
+ "modified_by": "Administrator",
+ "module": "Hisabi Backend",
+ "name": "Hisabi App",
+ "number_cards": [],
+ "owner": "Administrator",
+ "parent_page": "",
+ "public": 1,
+ "quick_lists": [],
+ "roles": [],
+ "sequence_id": 27.1,
+ "shortcuts": [],
+ "title": "Hisabi App"
+}
