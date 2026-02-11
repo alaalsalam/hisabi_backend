@@ -34,3 +34,16 @@ BASE_URL=http://127.0.0.1:18000 ORIGIN=http://localhost:8082 bash apps/hisabi_ba
 ## Notes
 - No API contract changes.
 - No sync/offline behavior removed.
+
+---
+
+## 2026-02-11 Frontend Auth Hotfix (Sessionless Token Login)
+
+### Changes
+- Forced auth calls to be sessionless for `/api/method/hisabi_backend.api.v1.register_user` and `/api/method/hisabi_backend.api.v1.login`.
+- Removed auth header injection for login/register; credentials are JSON-only.
+- Preserved device-token flow and offline-first sync behavior.
+
+### Evidence
+- `npm run build`: NOT RUN (local verification pending).
+- Login/Register now send no cookies/CSRF headers and do not rely on proxy/session coupling.

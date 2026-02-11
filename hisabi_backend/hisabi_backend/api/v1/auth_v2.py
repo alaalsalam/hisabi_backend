@@ -37,6 +37,27 @@ from hisabi_backend.utils.audit_security import audit_security_event
 from hisabi_backend.utils.request_headers import strip_expect_header
 
 
+def _force_sessionless_json_request() -> None:
+    """Ensure auth endpoints behave as pure JSON + token flows without session/csrf coupling."""
+    req = getattr(frappe.local, "request", None)
+    if req is not None:
+        try:
+            req.is_json = True
+        except Exception:
+            pass
+    # Defensive: ensure downstream handlers treat body as JSON.
+    try:
+        frappe.local.request.is_json = True
+    except Exception:
+        pass
+
+    # Avoid emitting or mutating cookies for auth endpoints.
+    cookie_manager = getattr(frappe.local, "cookie_manager", None)
+    if cookie_manager is not None:
+        cookie_manager.cookies = {}
+        cookie_manager.to_delete = []
+
+
 def _resolve_user(identifier: str) -> str:
     if not identifier:
         frappe.throw(_("identifier is required"), frappe.ValidationError)
@@ -95,6 +116,7 @@ def register_user(
     device: Optional[dict] = None,
 ) -> Dict[str, Any]:
     """Register a user and issue a device token."""
+    _force_sessionless_json_request()
     try:
         # Rate limit by IP (and globally per site db_name prefix).
         # Keep abuse guard while avoiding false lockouts during normal QA / onboarding retries.
@@ -223,6 +245,7 @@ def login(
 ) -> Dict[str, Any]:
     """Login by email or phone and issue/rotate device token."""
     strip_expect_header()
+    _force_sessionless_json_request()
     try:
         if not identifier:
             frappe.throw(_("identifier is required"), frappe.ValidationError)
@@ -249,7 +272,6 @@ def login(
             rate_limit(f"login:ip:{ip}:id:{identifier_key}", limit=5, window_seconds=300)
             on_login_failed(identifier, user=user, device_id=(device or {}).get("device_id"))
             frappe.throw(_("Invalid credentials"), frappe.AuthenticationError)
-        login_manager.post_login()
         on_login_success(user, device_id=(device or {}).get("device_id"))
 
         device = device or {}
