@@ -153,6 +153,37 @@ def wallet_create(client_id: str, wallet_name: str, device_id: Optional[str] = N
 
 
 @frappe.whitelist(allow_guest=False)
+def wallet_update(wallet_id: str, wallet_name: str, device_id: Optional[str] = None) -> Dict[str, Any]:
+    from .wallets import wallet_update as _impl
+
+    return _impl(wallet_id=wallet_id, wallet_name=wallet_name, device_id=device_id)
+
+
+@frappe.whitelist(allow_guest=False)
+def wallet_delete_preview(wallet_id: str, device_id: Optional[str] = None) -> Dict[str, Any]:
+    from .wallets import wallet_delete_preview as _impl
+
+    return _impl(wallet_id=wallet_id, device_id=device_id)
+
+
+@frappe.whitelist(allow_guest=False)
+def wallet_delete(
+    wallet_id: str,
+    confirm_delete_transactions: Optional[int] = 0,
+    expected_transaction_count: Optional[int] = None,
+    device_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    from .wallets import wallet_delete as _impl
+
+    return _impl(
+        wallet_id=wallet_id,
+        confirm_delete_transactions=confirm_delete_transactions,
+        expected_transaction_count=expected_transaction_count,
+        device_id=device_id,
+    )
+
+
+@frappe.whitelist(allow_guest=False)
 def wallet_invite_create(
     wallet_id: str,
     role_to_grant: str = "member",

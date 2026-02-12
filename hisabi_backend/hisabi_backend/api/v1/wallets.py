@@ -2,16 +2,17 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 import frappe
 from frappe import _
-from frappe.utils import add_to_date, now_datetime
+from frappe.utils import add_to_date, cint, now_datetime
 
 from hisabi_backend.utils.security import require_device_token_auth
 from hisabi_backend.utils.sync_common import apply_common_sync_fields
 from hisabi_backend.utils.validators import normalize_phone, validate_client_id
 from hisabi_backend.utils.wallet_acl import (
+    get_or_create_hisabi_user,
     ensure_default_wallet_for_user,
     get_wallets_for_user,
     require_wallet_member,
@@ -25,6 +26,102 @@ def _generate_invite_code() -> str:
 
 def _generate_invite_token() -> str:
     return frappe.generate_hash(length=32)
+
+
+WALLET_DELETE_CASCADE_DOCTYPES: Tuple[str, ...] = (
+    "Hisabi Wallet Member",
+    "Hisabi Account",
+    "Hisabi Category",
+    "Hisabi Transaction",
+    "Hisabi Debt",
+    "Hisabi Debt Installment",
+    "Hisabi Debt Request",
+    "Hisabi Budget",
+    "Hisabi Goal",
+    "Hisabi Bucket",
+    "Hisabi Bucket Template",
+    "Hisabi Allocation Rule",
+    "Hisabi Allocation Rule Line",
+    "Hisabi Transaction Bucket",
+    "Hisabi Transaction Bucket Expense",
+    "Hisabi Recurring Rule",
+    "Hisabi Recurring Instance",
+    "Hisabi Transaction Allocation",
+    "Hisabi Jameya",
+    "Hisabi Jameya Payment",
+    "Hisabi Attachment",
+    "Hisabi FX Rate",
+    "Hisabi Custom Currency",
+    "Hisabi User Settings",
+)
+
+
+def _wallet_filter_for_doctype(doctype: str, wallet_id: str) -> Optional[Dict[str, Any]]:
+    if not frappe.db.exists("DocType", doctype):
+        return None
+    meta = frappe.get_meta(doctype)
+    if meta.has_field("wallet_id"):
+        return {"wallet_id": wallet_id}
+    if meta.has_field("wallet"):
+        return {"wallet": wallet_id}
+    return None
+
+
+def _count_doctype_rows(doctype: str, wallet_id: str, *, active_only: bool = False) -> int:
+    filters = _wallet_filter_for_doctype(doctype, wallet_id)
+    if filters is None:
+        return 0
+    if active_only and frappe.get_meta(doctype).has_field("is_deleted"):
+        filters["is_deleted"] = 0
+    return cint(frappe.db.count(doctype, filters))
+
+
+def _collect_wallet_delete_counts(wallet_id: str) -> Dict[str, Any]:
+    counts: Dict[str, int] = {}
+    for doctype in WALLET_DELETE_CASCADE_DOCTYPES:
+        count = _count_doctype_rows(doctype, wallet_id, active_only=True)
+        if count > 0:
+            counts[doctype] = count
+    transaction_count = counts.get("Hisabi Transaction", 0)
+    active_members = cint(
+        frappe.db.count("Hisabi Wallet Member", {"wallet": wallet_id, "status": "active", "is_deleted": 0})
+    )
+    return {
+        "wallet_id": wallet_id,
+        "transaction_count": transaction_count,
+        "active_member_count": active_members,
+        "counts_by_doctype": counts,
+    }
+
+
+def _soft_delete_wallet_scope(wallet_id: str) -> Dict[str, int]:
+    deleted_counts: Dict[str, int] = {}
+    for doctype in WALLET_DELETE_CASCADE_DOCTYPES:
+        filters = _wallet_filter_for_doctype(doctype, wallet_id)
+        if filters is None:
+            continue
+        names = frappe.get_all(doctype, filters=filters, pluck="name", limit_page_length=5000)
+        if not names:
+            continue
+        deleted_in_doctype = 0
+        for name in names:
+            doc = frappe.get_doc(doctype, name)
+            if doctype == "Hisabi Wallet Member":
+                doc.status = "removed"
+                if doc.meta.has_field("removed_at") and not doc.removed_at:
+                    doc.removed_at = now_datetime()
+            apply_common_sync_fields(doc, bump_version=True, mark_deleted=True)
+            doc.save(ignore_permissions=True)
+            deleted_in_doctype += 1
+        if deleted_in_doctype > 0:
+            deleted_counts[doctype] = deleted_in_doctype
+
+    wallet = frappe.get_doc("Hisabi Wallet", wallet_id)
+    wallet.status = "archived"
+    apply_common_sync_fields(wallet, bump_version=True, mark_deleted=True)
+    wallet.save(ignore_permissions=True)
+    deleted_counts["Hisabi Wallet"] = 1
+    return deleted_counts
 
 
 @frappe.whitelist(allow_guest=False)
@@ -74,6 +171,110 @@ def wallet_create(client_id: str, wallet_name: str, device_id: Optional[str] = N
         "member": frappe.get_value(
             "Hisabi Wallet Member", {"wallet": wallet.name, "user": user}, ["role", "status"], as_dict=True
         ),
+        "server_time": now_datetime().isoformat(),
+    }
+
+
+@frappe.whitelist(allow_guest=False)
+def wallet_update(wallet_id: str, wallet_name: str, device_id: Optional[str] = None) -> Dict[str, Any]:
+    user, _device = require_device_token_auth()
+    wallet_id = validate_client_id(wallet_id)
+    wallet_name = (wallet_name or "").strip()
+    if not wallet_name:
+        frappe.throw(_("wallet_name is required"), frappe.ValidationError)
+
+    member = require_wallet_member(wallet_id, user, min_role="admin")
+    if member.status != "active":
+        frappe.throw(_("Not a member of this wallet"), frappe.PermissionError)
+
+    wallet = frappe.get_doc("Hisabi Wallet", wallet_id)
+    if cint(getattr(wallet, "is_deleted", 0)) == 1:
+        frappe.throw(_("Wallet already deleted"), frappe.ValidationError)
+
+    wallet.wallet_name = wallet_name
+    apply_common_sync_fields(wallet, bump_version=True, mark_deleted=False)
+    wallet.save(ignore_permissions=True)
+    audit_security_event("wallet_updated", user=user, payload={"wallet_id": wallet_id, "wallet_name": wallet_name})
+
+    return {
+        "wallet": wallet.as_dict(),
+        "server_time": now_datetime().isoformat(),
+    }
+
+
+@frappe.whitelist(allow_guest=False)
+def wallet_delete_preview(wallet_id: str, device_id: Optional[str] = None) -> Dict[str, Any]:
+    user, _device = require_device_token_auth()
+    wallet_id = validate_client_id(wallet_id)
+    member = require_wallet_member(wallet_id, user, min_role="owner")
+    if member.role != "owner":
+        frappe.throw(_("Only owner can delete wallet"), frappe.PermissionError)
+    if not frappe.db.exists("Hisabi Wallet", wallet_id):
+        frappe.throw(_("Wallet not found"), frappe.ValidationError)
+    return {
+        **_collect_wallet_delete_counts(wallet_id),
+        "server_time": now_datetime().isoformat(),
+    }
+
+
+@frappe.whitelist(allow_guest=False)
+def wallet_delete(
+    wallet_id: str,
+    confirm_delete_transactions: Optional[int] = 0,
+    expected_transaction_count: Optional[int] = None,
+    device_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    user, _device = require_device_token_auth()
+    wallet_id = validate_client_id(wallet_id)
+    member = require_wallet_member(wallet_id, user, min_role="owner")
+    if member.role != "owner":
+        frappe.throw(_("Only owner can delete wallet"), frappe.PermissionError)
+
+    wallet = frappe.get_doc("Hisabi Wallet", wallet_id)
+    if wallet.owner_user != user:
+        frappe.throw(_("Only wallet owner can delete this wallet"), frappe.PermissionError)
+
+    summary = _collect_wallet_delete_counts(wallet_id)
+    tx_count = cint(summary.get("transaction_count") or 0)
+    if tx_count > 0 and not cint(confirm_delete_transactions):
+        frappe.throw(_("confirm_delete_transactions is required"), frappe.ValidationError)
+    if expected_transaction_count is not None and cint(expected_transaction_count) != tx_count:
+        frappe.throw(_("transaction_count_changed"), frappe.ValidationError)
+
+    active_others = cint(
+        frappe.db.count(
+            "Hisabi Wallet Member",
+            {"wallet": wallet_id, "status": "active", "is_deleted": 0, "user": ["!=", user]},
+        )
+    )
+    if active_others > 0:
+        frappe.throw(_("Remove active members before deleting wallet"), frappe.PermissionError)
+
+    deleted_counts = _soft_delete_wallet_scope(wallet_id)
+
+    profile = get_or_create_hisabi_user(user)
+    if getattr(profile, "default_wallet", None) == wallet_id:
+        profile.default_wallet = None
+        profile.save(ignore_permissions=True)
+    next_default_wallet_id = ensure_default_wallet_for_user(user, device_id=device_id)
+
+    audit_security_event(
+        "wallet_deleted",
+        user=user,
+        payload={
+            "wallet_id": wallet_id,
+            "transaction_count": tx_count,
+            "deleted_counts": deleted_counts,
+            "next_default_wallet_id": next_default_wallet_id,
+        },
+    )
+
+    return {
+        "status": "deleted",
+        "wallet_id": wallet_id,
+        "transaction_count": tx_count,
+        "deleted_counts": deleted_counts,
+        "next_default_wallet_id": next_default_wallet_id,
         "server_time": now_datetime().isoformat(),
     }
 
