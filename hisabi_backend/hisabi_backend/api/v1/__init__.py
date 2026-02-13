@@ -153,15 +153,41 @@ def list_wallets(device_id: Optional[str] = None) -> Dict[str, Any]:
 
 
 @frappe.whitelist(allow_guest=False)
-def wallet_create(client_id: str, wallet_name: str, device_id: Optional[str] = None) -> Dict[str, Any]:
+def wallet_create(
+    client_id: Optional[str] = None,
+    wallet_name: Optional[str] = None,
+    device_id: Optional[str] = None,
+) -> Dict[str, Any]:
     from .wallets import wallet_create as _impl
+
+    request_json = frappe.request.get_json(silent=True) if getattr(frappe, "request", None) else {}
+    request_json = request_json or {}
+    if client_id is None:
+        client_id = frappe.form_dict.get("client_id") or request_json.get("client_id")
+    if wallet_name is None:
+        wallet_name = frappe.form_dict.get("wallet_name") or request_json.get("wallet_name")
+    if device_id is None:
+        device_id = frappe.form_dict.get("device_id") or request_json.get("device_id")
 
     return _impl(client_id=client_id, wallet_name=wallet_name, device_id=device_id)
 
 
 @frappe.whitelist(allow_guest=False)
-def wallet_update(wallet_id: str, wallet_name: str, device_id: Optional[str] = None) -> Dict[str, Any]:
+def wallet_update(
+    wallet_id: Optional[str] = None,
+    wallet_name: Optional[str] = None,
+    device_id: Optional[str] = None,
+) -> Dict[str, Any]:
     from .wallets import wallet_update as _impl
+
+    request_json = frappe.request.get_json(silent=True) if getattr(frappe, "request", None) else {}
+    request_json = request_json or {}
+    if wallet_id is None:
+        wallet_id = frappe.form_dict.get("wallet_id") or request_json.get("wallet_id")
+    if wallet_name is None:
+        wallet_name = frappe.form_dict.get("wallet_name") or request_json.get("wallet_name")
+    if device_id is None:
+        device_id = frappe.form_dict.get("device_id") or request_json.get("device_id")
 
     return _impl(wallet_id=wallet_id, wallet_name=wallet_name, device_id=device_id)
 
