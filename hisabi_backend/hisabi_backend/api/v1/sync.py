@@ -1049,7 +1049,7 @@ ERROR_MESSAGE_MAP = {
     "invalid_operation": "invalid operation",
     "entity_id_required": "entity_id is required",
     "payload_must_be_object": "payload must be an object",
-    "wallet_id_mismatch": "wallet_id mismatch",
+    "wallet_id_mismatch": "عدم تطابق معرف المحفظة (wallet_id_mismatch)",
     "entity_id_mismatch": "entity_id does not match payload client_id",
     "invalid_client_id": "invalid client_id",
     "base_version_required": "base_version is required",
@@ -1409,6 +1409,47 @@ def _write_audit_log(
         frappe.log_error("Failed to write audit log", "hisabi_backend.sync")
 
 
+def _log_rejected_sync_item(
+    *,
+    user: str,
+    device_id: str,
+    wallet_id: str,
+    op_id: Optional[str],
+    entity_type: Optional[str],
+    client_id: Optional[str],
+    reason: str,
+    payload: Dict[str, Any],
+) -> None:
+    code = str(reason or "").strip() or "rejected"
+    if code in {"wallet_id_mismatch", "entity_id_mismatch"}:
+        frappe.logger("hisabi_backend.sync").warning(
+            "sync_push_rejected",
+            extra={
+                "reason": code,
+                "wallet_id": wallet_id,
+                "entity_type": entity_type,
+                "client_id": client_id,
+                "op_id": op_id,
+                "device_id": device_id,
+                "user": user,
+            },
+        )
+
+    _write_audit_log(
+        user=user,
+        device_id=device_id,
+        op_id=op_id or "",
+        entity_type=entity_type or "",
+        entity_client_id=client_id or "",
+        status="rejected",
+        payload={
+            "reason": code,
+            "wallet_id": wallet_id,
+            "payload": payload,
+        },
+    )
+
+
 def _check_rate_limit(device_id: str) -> None:
     cache = frappe.cache()
     key = f"hisabi_sync_rate:{device_id}"
@@ -1580,6 +1621,16 @@ def sync_push(
             if validation_error.get("error") in {"unsupported_entity_type", "doctype_not_installed"}:
                 return _build_sync_response({"error": validation_error.get("error")}, status_code=417)
             results.append(validation_error)
+            _log_rejected_sync_item(
+                user=user,
+                device_id=device_id,
+                wallet_id=wallet_id,
+                op_id=op_id if isinstance(op_id, str) else None,
+                entity_type=entity_type if isinstance(entity_type, str) else None,
+                client_id=client_id if isinstance(client_id, str) else None,
+                reason=str(validation_error.get("error") or "rejected"),
+                payload=item,
+            )
             continue
 
         operation = item.get("operation")
@@ -1705,12 +1756,21 @@ def sync_push(
         # Wallet creation special case: create wallet + owner member.
         if entity_type == "Hisabi Wallet" and operation == "create":
             if client_id != wallet_id:
-                results.append(
-                    _build_item_error(
-                        error_code="wallet_id_must_equal_client_id",
-                        entity_type=entity_type,
-                        client_id=client_id,
-                    )
+                wallet_error = _build_item_error(
+                    error_code="wallet_id_must_equal_client_id",
+                    entity_type=entity_type,
+                    client_id=client_id,
+                )
+                results.append(wallet_error)
+                _log_rejected_sync_item(
+                    user=user,
+                    device_id=device_id,
+                    wallet_id=wallet_id,
+                    op_id=op_id if isinstance(op_id, str) else None,
+                    entity_type=entity_type if isinstance(entity_type, str) else None,
+                    client_id=client_id if isinstance(client_id, str) else None,
+                    reason="wallet_id_mismatch",
+                    payload={"item": item, "validation_error": wallet_error},
                 )
                 continue
 
@@ -1947,6 +2007,32 @@ def sync_push(
         {"message": {"results": results, "server_time": now_datetime().isoformat()}},
         status_code=200,
     )
+
+
+def _build_sync_pull_seed_warnings(wallet_id: str) -> List[Dict[str, Any]]:
+    warnings: List[Dict[str, Any]] = []
+    if not wallet_id:
+        return warnings
+
+    seed_doctypes = ("Hisabi Account", "Hisabi Category")
+    missing: List[str] = []
+    for doctype in seed_doctypes:
+        if not frappe.db.exists("DocType", doctype):
+            continue
+        count = cint(frappe.db.count(doctype, {"wallet_id": wallet_id, "is_deleted": 0}) or 0)
+        if count == 0:
+            missing.append(doctype)
+
+    if missing:
+        warnings.append(
+            {
+                "code": "seed_records_empty",
+                "message": "تحذير: سجلات البذور الأساسية فارغة على الخادم، لا تحذف بذور العميل تلقائياً قبل التحقق اليدوي.",
+                "wallet_id": wallet_id,
+                "doctypes": missing,
+            }
+        )
+    return warnings
 
 
 @frappe.whitelist(allow_guest=False)
@@ -2225,6 +2311,7 @@ def sync_pull(
     device.db_set("last_pull_at", device.last_pull_at, update_modified=False)
     device.db_set("last_pull_ms", device.last_pull_ms, update_modified=False)
 
+    warnings = _build_sync_pull_seed_warnings(wallet_id)
     return _build_sync_response(
         {
             "message": {
@@ -2232,6 +2319,7 @@ def sync_pull(
                 "next_cursor": next_cursor,
                 "has_more": has_more,
                 "server_time": now_datetime().isoformat(),
+                "warnings": warnings,
             }
         },
         status_code=200,
