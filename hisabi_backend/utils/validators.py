@@ -5,7 +5,7 @@ import re
 import frappe
 from frappe import _
 
-CLIENT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{2,127}$")
+CLIENT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_:-]{2,127}$")
 PHONE_ALLOWED_RE = re.compile(r"^\+?[0-9]+$")
 PHONE_MIN_DIGITS = 8
 PHONE_MAX_DIGITS = 15
@@ -14,7 +14,9 @@ PHONE_MAX_DIGITS = 15
 def validate_client_id(client_id: str) -> str:
     """Validate and normalize client_id.
 
-    Expected format: 3-128 chars, starts with alnum, contains alnum/_/-.
+    Expected format: 3-128 chars, starts with alnum, contains alnum/_/-/:.
+    Colon is allowed for wallet-scoped legacy seed ids such as
+    `wallet-id:cat-seed-id` so queued local data can sync without loss.
     """
     if not client_id:
         frappe.throw(_("client_id is required"), frappe.ValidationError)
