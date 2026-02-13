@@ -11,6 +11,9 @@
   "base_currency",
   "enabled_currencies",
   "locale",
+  "phone_number",
+  "notifications_preferences",
+  "enforce_fx",
   "week_start_day",
   "use_arabic_numerals",
   "client_created_ms",
@@ -60,6 +63,22 @@
    "fieldname": "locale",
    "fieldtype": "Data",
    "label": "Locale"
+  },
+  {
+   "fieldname": "phone_number",
+   "fieldtype": "Data",
+   "label": "Phone Number"
+  },
+  {
+   "fieldname": "notifications_preferences",
+   "fieldtype": "JSON",
+   "label": "Notifications Preferences"
+  },
+  {
+   "default": "0",
+   "fieldname": "enforce_fx",
+   "fieldtype": "Check",
+   "label": "Enforce FX"
   },
   {
    "default": "6",

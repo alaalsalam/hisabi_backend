@@ -114,6 +114,9 @@ SYNC_PUSH_ALLOWED_FIELDS = {
         "base_currency",
         "enabled_currencies",
         "locale",
+        "phone_number",
+        "notifications_preferences",
+        "enforce_fx",
         "week_start_day",
         "use_arabic_numerals",
         "client_created_ms",
@@ -527,6 +530,8 @@ SYNC_PUSH_FIELD_TYPES = {
     "quote_currency": "string",
     "enabled_currencies": "list",
     "locale": "string",
+    "phone_number": "string",
+    "notifications_preferences": "json",
     "source": "string",
     "code": "string",
     "name_ar": "string",
@@ -588,8 +593,17 @@ SYNC_PUSH_FIELD_TYPES = {
     "count": "number",
     "week_start_day": "number",
     "use_arabic_numerals": "number",
+    "enforce_fx": "number",
     "decimals": "number",
     "original_currency": "string",
+}
+
+SENSITIVE_SYNC_FIELDS = {
+    "password",
+    "pwd",
+    "passcode",
+    "device_token",
+    "device_token_hash",
 }
 
 SYNC_PAYLOAD_LOG_IGNORE_KEYS = {"id"}
@@ -633,6 +647,10 @@ FIELD_MAP = {
         "defaultCurrency": "base_currency",
         "baseCurrency": "base_currency",
         "enabledCurrencies": "enabled_currencies",
+        "phoneNumber": "phone_number",
+        "notificationPreferences": "notifications_preferences",
+        "notificationsPreferences": "notifications_preferences",
+        "enforceFx": "enforce_fx",
         "weekStartDay": "week_start_day",
         "useArabicNumerals": "use_arabic_numerals",
     },
@@ -1100,6 +1118,8 @@ def _invalid_field_types(doctype: str, payload: Dict[str, Any], fields: set[str]
             invalid[field] = "number"
         elif expected == "list" and not isinstance(value, list):
             invalid[field] = "list"
+        elif expected == "json" and not isinstance(value, (list, dict)):
+            invalid[field] = "json"
     return invalid
 
 
@@ -1162,6 +1182,7 @@ ERROR_MESSAGE_MAP = {
     "missing_required_fields": "missing required fields",
     "invalid_field": "invalid field",
     "invalid_field_type": "invalid field type",
+    "sensitive_field_not_allowed": "sensitive field is not allowed in sync payload",
     "not_found": "record not found",
     "payload_too_large": "payload too large",
     "wallet_id_must_equal_client_id": "wallet_id must equal client_id",
@@ -1260,6 +1281,15 @@ def _validate_sync_push_item(item: Dict[str, Any], wallet_id: str) -> Optional[D
     if not isinstance(payload, dict):
         return _build_item_error(error_code="payload_must_be_object", entity_type=entity_type)
 
+    lowered_payload_keys = {str(key).strip().lower() for key in payload.keys()}
+    blocked_sensitive_fields = sorted([field for field in SENSITIVE_SYNC_FIELDS if field in lowered_payload_keys])
+    if blocked_sensitive_fields:
+        return _build_item_error(
+            error_code="sensitive_field_not_allowed",
+            entity_type=entity_type,
+            detail=blocked_sensitive_fields,
+        )
+
     if payload.get("wallet_id") and payload.get("wallet_id") != wallet_id:
         return _build_item_error(error_code="wallet_id_mismatch", entity_type=entity_type)
 
@@ -1305,6 +1335,17 @@ def _validate_sync_push_item(item: Dict[str, Any], wallet_id: str) -> Optional[D
             detail=unknown_fields,
         )
 
+    strict_optional_fields = {"phone_number", "notifications_preferences", "enforce_fx"}
+    typed_fields = {field for field in normalized.keys() if field in strict_optional_fields}
+    invalid_types = _invalid_field_types(entity_type, normalized, typed_fields)
+    if invalid_types:
+        return _build_item_error(
+            error_code="invalid_field_type",
+            entity_type=entity_type,
+            client_id=client_id,
+            detail=invalid_types,
+        )
+
     if operation == "create":
         required = SYNC_PUSH_REQUIRED_FIELDS_CREATE.get(entity_type, set())
         missing = [field for field in required if normalized.get(field) in (None, "")]
@@ -1325,7 +1366,8 @@ def _validate_sync_push_item(item: Dict[str, Any], wallet_id: str) -> Optional[D
                     detail=sorted(group),
                 )
 
-        invalid_types = _invalid_field_types(entity_type, normalized, required)
+        required_typed_fields = {field for field in required if SYNC_PUSH_FIELD_TYPES.get(field)}
+        invalid_types = _invalid_field_types(entity_type, normalized, required_typed_fields)
         if invalid_types:
             return _build_item_error(
                 error_code="invalid_field_type",

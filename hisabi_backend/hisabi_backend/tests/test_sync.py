@@ -2,6 +2,7 @@ import json
 from datetime import datetime, timezone
 
 import frappe
+from frappe.custom.doctype.custom_field.custom_field import create_custom_field
 from frappe.tests.utils import FrappeTestCase
 from frappe.utils import now_datetime
 from frappe.utils.password import update_password
@@ -41,6 +42,7 @@ class TestSyncV1(FrappeTestCase):
         return response
 
     def setUp(self):
+        self._ensure_settings_profile_fields()
         ensure_roles()
         email = f"sync_test_{frappe.generate_hash(length=6)}@example.com"
         user = frappe.get_doc({
@@ -63,6 +65,35 @@ class TestSyncV1(FrappeTestCase):
         frappe.local.request = type("obj", (object,), {"headers": {"Authorization": f"Bearer {self.device_token}"}})()
         self.wallet_id = f"wallet-{frappe.generate_hash(length=6)}"
         wallet_create(client_id=self.wallet_id, wallet_name="Test Wallet", device_id=self.device_id)
+
+    def _ensure_settings_profile_fields(self):
+        custom_fields = [
+            {
+                "fieldname": "phone_number",
+                "label": "Phone Number",
+                "fieldtype": "Data",
+                "insert_after": "locale",
+            },
+            {
+                "fieldname": "notifications_preferences",
+                "label": "Notifications Preferences",
+                "fieldtype": "JSON",
+                "insert_after": "phone_number",
+            },
+            {
+                "fieldname": "enforce_fx",
+                "label": "Enforce FX",
+                "fieldtype": "Check",
+                "default": "0",
+                "insert_after": "notifications_preferences",
+            },
+        ]
+        meta = frappe.get_meta("Hisabi Settings")
+        for custom_field in custom_fields:
+            if meta.has_field(custom_field["fieldname"]):
+                continue
+            create_custom_field("Hisabi Settings", custom_field, ignore_validate=True)
+        frappe.clear_cache(doctype="Hisabi Settings")
 
     def test_sync_create_account_and_transaction(self):
         response = sync_push(
@@ -524,6 +555,9 @@ class TestSyncV1(FrappeTestCase):
                         "base_currency": "SAR",
                         "enabled_currencies": ["SAR", "USD"],
                         "locale": "en",
+                        "phone_number": "+967700000123",
+                        "notifications_preferences": ["debt_reminders", "budget_alerts"],
+                        "enforce_fx": 1,
                         "week_start_day": 6,
                     },
                 },
@@ -664,6 +698,15 @@ class TestSyncV1(FrappeTestCase):
         self.assertGreaterEqual(int(settings.doc_version or 0), 1)
         self.assertGreaterEqual(int(fx_rate.doc_version or 0), 1)
         self.assertGreaterEqual(int(tx_fx.doc_version or 0), 1)
+        self.assertEqual(settings.phone_number, "+967700000123")
+        self.assertEqual(int(settings.enforce_fx or 0), 1)
+        notifications_preferences = settings.notifications_preferences
+        if isinstance(notifications_preferences, str):
+            parsed_notifications = json.loads(notifications_preferences)
+        else:
+            parsed_notifications = notifications_preferences or []
+        self.assertIn("debt_reminders", parsed_notifications)
+        self.assertIn("budget_alerts", parsed_notifications)
         self.assertEqual(tx_fx.account, account_base_id)
         self.assertEqual(tx_fx.category, category_id)
         self.assertEqual(str(tx_fx.currency or "").upper(), "USD")
@@ -673,6 +716,115 @@ class TestSyncV1(FrappeTestCase):
             self.assertIn("USD", enabled_currencies)
         else:
             self.assertIn("USD", enabled_currencies or [])
+
+    def test_sync_push_settings_update_accepts_camel_case_fields(self):
+        suffix = frappe.generate_hash(length=6)
+        settings_id = f"settings-camel-{suffix}"
+        create_response = sync_push(
+            device_id=self.device_id,
+            wallet_id=self.wallet_id,
+            items=[
+                {
+                    "op_id": f"op-settings-create-{suffix}",
+                    "entity_type": "Hisabi Settings",
+                    "entity_id": settings_id,
+                    "operation": "create",
+                    "payload": {
+                        "client_id": settings_id,
+                        "base_currency": "SAR",
+                        "enabled_currencies": ["SAR", "USD"],
+                        "locale": "ar-SA",
+                    },
+                }
+            ],
+        )
+        self.assertEqual(create_response["results"][0]["status"], "accepted")
+        create_doc_version = int(create_response["results"][0]["doc_version"] or 0)
+        self.assertGreaterEqual(create_doc_version, 1)
+
+        update_response = sync_push(
+            device_id=self.device_id,
+            wallet_id=self.wallet_id,
+            items=[
+                {
+                    "op_id": f"op-settings-update-{suffix}",
+                    "entity_type": "Hisabi Settings",
+                    "entity_id": settings_id,
+                    "operation": "update",
+                    "base_version": create_doc_version,
+                    "payload": {
+                        "client_id": settings_id,
+                        "phoneNumber": "+967700000555",
+                        "notificationsPreferences": {"enabled": True, "debtReminders": False},
+                        "enforceFx": 1,
+                    },
+                }
+            ],
+        )
+        self.assertEqual(update_response["results"][0]["status"], "accepted")
+
+        settings_name = frappe.get_value("Hisabi Settings", {"client_id": settings_id, "wallet_id": self.wallet_id})
+        self.assertTrue(settings_name)
+        settings = frappe.get_doc("Hisabi Settings", settings_name)
+        self.assertEqual(settings.phone_number, "+967700000555")
+        self.assertEqual(int(settings.enforce_fx or 0), 1)
+        notifications_preferences = settings.notifications_preferences
+        if isinstance(notifications_preferences, str):
+            parsed_notifications = json.loads(notifications_preferences)
+        else:
+            parsed_notifications = notifications_preferences or {}
+        self.assertEqual(parsed_notifications.get("enabled"), True)
+        self.assertEqual(parsed_notifications.get("debtReminders"), False)
+
+    def test_sync_push_rejects_sensitive_password_field_in_payload(self):
+        response = sync_push(
+            device_id=self.device_id,
+            wallet_id=self.wallet_id,
+            items=[
+                {
+                    "op_id": "op-sensitive-payload-1",
+                    "entity_type": "Hisabi Settings",
+                    "entity_id": "settings-sensitive-1",
+                    "operation": "create",
+                    "payload": {
+                        "client_id": "settings-sensitive-1",
+                        "base_currency": "SAR",
+                        "password": "should-never-sync",
+                    },
+                }
+            ],
+        )
+        result = response["results"][0]
+        self.assertEqual(result["status"], "error")
+        self.assertEqual(result["error_code"], "sensitive_field_not_allowed")
+
+    def test_sync_push_rejects_invalid_settings_optional_field_types(self):
+        response = sync_push(
+            device_id=self.device_id,
+            wallet_id=self.wallet_id,
+            items=[
+                {
+                    "op_id": "op-settings-invalid-types-1",
+                    "entity_type": "Hisabi Settings",
+                    "entity_id": "settings-invalid-types-1",
+                    "operation": "create",
+                    "payload": {
+                        "client_id": "settings-invalid-types-1",
+                        "base_currency": "SAR",
+                        "phone_number": 123456,
+                        "notifications_preferences": "bad-string",
+                        "enforce_fx": "yes",
+                    },
+                }
+            ],
+        )
+        result = response["results"][0]
+        self.assertEqual(result["status"], "error")
+        self.assertEqual(result["error_code"], "invalid_field_type")
+        detail = result.get("detail") or {}
+        self.assertEqual(detail.get("phone_number"), "string")
+        self.assertEqual(detail.get("notifications_preferences"), "json")
+        self.assertEqual(detail.get("enforce_fx"), "number")
 
     def test_sync_pull_enforces_wallet_scope_for_fx_and_transactions(self):
         suffix = frappe.generate_hash(length=6)
