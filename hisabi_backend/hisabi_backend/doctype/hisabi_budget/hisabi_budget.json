@@ -50,12 +50,14 @@
   {
    "fieldname": "budget_name",
    "fieldtype": "Data",
+   "in_list_view": 1,
    "label": "Budget Name",
    "reqd": 1
   },
   {
    "fieldname": "period",
    "fieldtype": "Select",
+   "in_list_view": 1,
    "label": "Period",
    "options": "weekly\nmonthly\nquarterly\nyearly\ncustom",
    "reqd": 1
@@ -88,11 +90,13 @@
   {
    "fieldname": "amount_base",
    "fieldtype": "Currency",
+   "in_list_view": 1,
    "label": "Amount Base"
   },
   {
    "fieldname": "spent_amount",
    "fieldtype": "Currency",
+   "in_list_view": 1,
    "label": "Spent Amount"
   },
   {
@@ -115,6 +119,7 @@
    "default": "0",
    "fieldname": "archived",
    "fieldtype": "Check",
+   "in_list_view": 1,
    "label": "Archived"
   },
   {
@@ -148,7 +153,7 @@
    "fieldname": "deleted_at",
    "fieldtype": "Datetime",
    "label": "Deleted At"
-  }
+ }
  ],
  "indexes": [
   {
@@ -191,6 +196,8 @@
    "write": 1
   }
  ],
- "sort_field": "modified",
- "sort_order": "DESC"
+ "search_fields": "budget_name,period,scope_type,category,currency,client_id",
+ "sort_field": "start_date",
+ "sort_order": "DESC",
+ "title_field": "budget_name"
 }

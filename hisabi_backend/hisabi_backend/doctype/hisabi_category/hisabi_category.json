@@ -46,12 +46,14 @@
   {
    "fieldname": "category_name",
    "fieldtype": "Data",
+   "in_list_view": 1,
    "label": "Category Name",
    "reqd": 1
   },
   {
    "fieldname": "kind",
    "fieldtype": "Select",
+   "in_list_view": 1,
    "label": "Kind",
    "options": "expense\nincome",
    "reqd": 1
@@ -59,6 +61,7 @@
   {
    "fieldname": "parent_category",
    "fieldtype": "Link",
+   "in_list_view": 1,
    "label": "Parent Category",
    "options": "Hisabi Category"
   },
@@ -76,12 +79,14 @@
    "default": "0",
    "fieldname": "archived",
    "fieldtype": "Check",
+   "in_list_view": 1,
    "label": "Archived"
   },
   {
    "default": "0",
    "fieldname": "sort_order",
    "fieldtype": "Int",
+   "in_list_view": 1,
    "label": "Sort Order"
   },
   {
@@ -121,7 +126,7 @@
    "fieldname": "deleted_at",
    "fieldtype": "Datetime",
    "label": "Deleted At"
-  }
+ }
  ],
  "indexes": [
   {
@@ -166,6 +171,8 @@
    "write": 1
   }
  ],
- "sort_field": "modified",
- "sort_order": "DESC"
+ "search_fields": "category_name,kind,parent_category,client_id",
+ "sort_field": "sort_order",
+ "sort_order": "ASC",
+ "title_field": "category_name"
 }

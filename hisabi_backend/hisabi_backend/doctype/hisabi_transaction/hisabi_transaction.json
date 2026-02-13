@@ -52,6 +52,7 @@
   {
    "fieldname": "transaction_type",
    "fieldtype": "Select",
+   "in_list_view": 1,
    "label": "Transaction Type",
    "options": "expense\nincome\ntransfer",
    "reqd": 1
@@ -59,18 +60,21 @@
   {
    "fieldname": "date_time",
    "fieldtype": "Datetime",
+   "in_list_view": 1,
    "label": "Date Time",
    "reqd": 1
   },
   {
    "fieldname": "amount",
    "fieldtype": "Currency",
+   "in_list_view": 1,
    "label": "Amount",
    "reqd": 1
   },
   {
    "fieldname": "currency",
    "fieldtype": "Data",
+   "in_list_view": 1,
    "label": "Currency",
    "reqd": 1
   },
@@ -92,6 +96,7 @@
   {
    "fieldname": "account",
    "fieldtype": "Link",
+   "in_list_view": 1,
    "label": "Account",
    "options": "Hisabi Account",
    "reqd": 1
@@ -105,6 +110,7 @@
   {
    "fieldname": "category",
    "fieldtype": "Link",
+   "in_list_view": 1,
    "label": "Category",
    "options": "Hisabi Category"
   },
@@ -160,7 +166,7 @@
    "fieldname": "deleted_at",
    "fieldtype": "Datetime",
    "label": "Deleted At"
-  }
+ }
  ],
  "indexes": [
   {
@@ -221,6 +227,8 @@
    "write": 1
   }
  ],
- "sort_field": "modified",
- "sort_order": "DESC"
+ "search_fields": "client_id,transaction_type,account,category,note,currency",
+ "sort_field": "date_time",
+ "sort_order": "DESC",
+ "title_field": "client_id"
 }

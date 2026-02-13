@@ -51,12 +51,14 @@
   {
    "fieldname": "goal_name",
    "fieldtype": "Data",
+   "in_list_view": 1,
    "label": "Goal Name",
    "reqd": 1
   },
   {
    "fieldname": "goal_type",
    "fieldtype": "Select",
+   "in_list_view": 1,
    "label": "Goal Type",
    "options": "save\npay_debt",
    "reqd": 1
@@ -70,6 +72,7 @@
   {
    "fieldname": "target_amount",
    "fieldtype": "Currency",
+   "in_list_view": 1,
    "label": "Target Amount",
    "reqd": 1
   },
@@ -81,6 +84,7 @@
   {
    "fieldname": "current_amount",
    "fieldtype": "Currency",
+   "in_list_view": 1,
    "label": "Current Amount"
   },
   {
@@ -113,6 +117,7 @@
   {
    "fieldname": "status",
    "fieldtype": "Select",
+   "in_list_view": 1,
    "label": "Status",
    "options": "active\ncompleted\ncancelled"
   },
@@ -152,7 +157,7 @@
    "fieldname": "deleted_at",
    "fieldtype": "Datetime",
    "label": "Deleted At"
-  }
+ }
  ],
  "indexes": [
   {
@@ -195,6 +200,8 @@
    "write": 1
   }
  ],
- "sort_field": "modified",
- "sort_order": "DESC"
+ "search_fields": "goal_name,goal_type,status,currency,client_id",
+ "sort_field": "target_date",
+ "sort_order": "ASC",
+ "title_field": "goal_name"
 }

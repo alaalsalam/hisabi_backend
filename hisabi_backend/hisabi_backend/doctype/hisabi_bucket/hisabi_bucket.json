@@ -45,11 +45,13 @@
   {
    "fieldname": "title",
    "fieldtype": "Data",
+   "in_list_view": 1,
    "label": "Title"
   },
   {
    "fieldname": "bucket_name",
    "fieldtype": "Data",
+   "in_list_view": 1,
    "label": "Bucket Name"
   },
   {
@@ -66,18 +68,21 @@
    "default": "0",
    "fieldname": "sort_order",
    "fieldtype": "Int",
+   "in_list_view": 1,
    "label": "Sort Order"
   },
   {
    "default": "1",
    "fieldname": "is_active",
    "fieldtype": "Check",
+   "in_list_view": 1,
    "label": "Is Active"
   },
   {
    "default": "0",
    "fieldname": "archived",
    "fieldtype": "Check",
+   "in_list_view": 1,
    "label": "Archived"
   },
   {
@@ -111,7 +116,7 @@
    "fieldname": "deleted_at",
    "fieldtype": "Datetime",
    "label": "Deleted At"
-  }
+ }
  ],
  "indexes": [
   {
@@ -154,6 +159,8 @@
    "write": 1
   }
  ],
- "sort_field": "modified",
- "sort_order": "DESC"
+ "search_fields": "bucket_name,title,client_id,color",
+ "sort_field": "sort_order",
+ "sort_order": "ASC",
+ "title_field": "bucket_name"
 }

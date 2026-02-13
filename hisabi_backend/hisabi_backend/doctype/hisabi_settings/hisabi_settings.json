@@ -47,11 +47,13 @@
   {
    "fieldname": "user_name",
    "fieldtype": "Data",
+   "in_list_view": 1,
    "label": "User Name"
   },
   {
    "fieldname": "base_currency",
    "fieldtype": "Data",
+   "in_list_view": 1,
    "label": "Base Currency"
   },
   {
@@ -62,6 +64,7 @@
   {
    "fieldname": "locale",
    "fieldtype": "Data",
+   "in_list_view": 1,
    "label": "Locale"
   },
   {
@@ -78,6 +81,7 @@
    "default": "0",
    "fieldname": "enforce_fx",
    "fieldtype": "Check",
+   "in_list_view": 1,
    "label": "Enforce FX"
   },
   {
@@ -123,7 +127,7 @@
    "fieldname": "deleted_at",
    "fieldtype": "Datetime",
    "label": "Deleted At"
-  }
+ }
  ],
  "indexes": [
   {
@@ -166,6 +170,8 @@
    "write": 1
   }
  ],
- "sort_field": "modified",
- "sort_order": "DESC"
+ "search_fields": "user_name,user,wallet_id,base_currency,locale,client_id",
+ "sort_field": "server_modified",
+ "sort_order": "DESC",
+ "title_field": "user_name"
 }
