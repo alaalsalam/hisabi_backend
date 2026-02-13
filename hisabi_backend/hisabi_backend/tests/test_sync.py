@@ -427,6 +427,119 @@ class TestSyncV1(FrappeTestCase):
         result = response["results"][0]
         self.assertEqual(result["status"], "conflict")
 
+    def test_sync_push_rejects_wallet_id_mismatch_with_custom_message_and_audit(self):
+        response = sync_push(
+            device_id=self.device_id,
+            wallet_id=self.wallet_id,
+            items=[
+                {
+                    "op_id": "op-wallet-mismatch-1",
+                    "entity_type": "Hisabi Account",
+                    "entity_id": "acc-wallet-mismatch",
+                    "operation": "create",
+                    "payload": {
+                        "client_id": "acc-wallet-mismatch",
+                        "wallet_id": "wallet-other",
+                        "account_name": "Cash",
+                        "account_type": "cash",
+                        "currency": "SAR",
+                    },
+                }
+            ],
+        )
+        result = response["results"][0]
+        self.assertEqual(result["status"], "error")
+        self.assertEqual(result["error_code"], "wallet_id_mismatch")
+        self.assertIn("wallet_id_mismatch", result.get("error_message", ""))
+
+        audits = frappe.get_all(
+            "Hisabi Audit Log",
+            filters={"op_id": "op-wallet-mismatch-1", "status": "rejected"},
+            fields=["name"],
+            order_by="creation desc",
+            limit_page_length=1,
+        )
+        self.assertTrue(audits)
+        audit = frappe.get_doc("Hisabi Audit Log", audits[0].name)
+        self.assertIn("wallet_id_mismatch", audit.payload_json or "")
+
+    def test_sync_push_create_account_binds_wallet_id_from_request(self):
+        response = sync_push(
+            device_id=self.device_id,
+            wallet_id=self.wallet_id,
+            items=[
+                {
+                    "op_id": "op-account-bind-wallet",
+                    "entity_type": "Hisabi Account",
+                    "entity_id": "acc-bind-wallet",
+                    "operation": "create",
+                    "payload": {
+                        "client_id": "acc-bind-wallet",
+                        "account_name": "Cash",
+                        "account_type": "cash",
+                        "currency": "SAR",
+                    },
+                }
+            ],
+        )
+        result = response["results"][0]
+        self.assertEqual(result["status"], "accepted")
+        account = frappe.get_doc("Hisabi Account", "acc-bind-wallet")
+        self.assertEqual(account.wallet_id, self.wallet_id)
+
+    def test_same_client_id_cross_wallet_mismatch_is_rejected(self):
+        other_wallet_id = f"wallet-{frappe.generate_hash(length=6)}"
+        wallet_create(client_id=other_wallet_id, wallet_name="Other Wallet", device_id=self.device_id)
+
+        first = sync_push(
+            device_id=self.device_id,
+            wallet_id=self.wallet_id,
+            items=[
+                {
+                    "op_id": "op-shared-id-wallet-a",
+                    "entity_type": "Hisabi Account",
+                    "entity_id": "acc-shared-id",
+                    "operation": "create",
+                    "payload": {
+                        "client_id": "acc-shared-id",
+                        "account_name": "Wallet A Account",
+                        "account_type": "cash",
+                        "currency": "SAR",
+                    },
+                }
+            ],
+        )
+        self.assertEqual(first["results"][0]["status"], "accepted")
+
+        second = sync_push(
+            device_id=self.device_id,
+            wallet_id=other_wallet_id,
+            items=[
+                {
+                    "op_id": "op-shared-id-wallet-b-mismatch",
+                    "entity_type": "Hisabi Account",
+                    "entity_id": "acc-shared-id",
+                    "operation": "create",
+                    "payload": {
+                        "client_id": "acc-shared-id",
+                        "wallet_id": self.wallet_id,
+                        "account_name": "Wallet B Account",
+                        "account_type": "cash",
+                        "currency": "SAR",
+                    },
+                }
+            ],
+        )
+        result = second["results"][0]
+        self.assertEqual(result["status"], "error")
+        self.assertEqual(result["error_code"], "wallet_id_mismatch")
+
+    def test_sync_pull_returns_seed_warning_when_server_seed_records_missing(self):
+        pull = self._pull_message(sync_pull(device_id=self.device_id, wallet_id=self.wallet_id))
+        warnings = pull.get("warnings") or []
+        self.assertIsInstance(warnings, list)
+        self.assertTrue(any(w.get("code") == "seed_records_empty" for w in warnings))
+
     def test_pull_delete_and_cursor(self):
         sync_push(
             device_id=self.device_id,
