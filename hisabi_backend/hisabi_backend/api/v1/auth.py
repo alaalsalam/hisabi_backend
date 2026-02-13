@@ -9,9 +9,20 @@ from frappe.utils import now_datetime
 from frappe.utils.password import update_password
 
 from hisabi_backend.install import ensure_roles
-from hisabi_backend.utils.security import generate_device_token, hash_device_token
+from hisabi_backend.utils.security import (
+    generate_device_token_v2,
+    hash_device_token,
+    hash_device_token_v2,
+)
 from hisabi_backend.utils.sync_common import apply_common_sync_fields
 from hisabi_backend.utils.validators import normalize_phone, validate_password_strength, validate_platform
+from hisabi_backend.utils.wallet_acl import ensure_default_wallet_for_user
+
+INT32_MAX = 2147483647
+
+
+def _now_ms_int32() -> int:
+    return min(int(now_datetime().timestamp() * 1000), INT32_MAX)
 
 
 def _get_or_create_device(user: str, device_id: str):
@@ -157,15 +168,20 @@ def register_device(
         device.device_name = device_name
     device.status = "active"
     device.client_id = device.client_id or device_id
+    device.wallet_id = ensure_default_wallet_for_user(user, device_id=device_id)
 
-    now_ms = int(now_datetime().timestamp() * 1000)
+    now_ms = _now_ms_int32()
     if not device.created_at_ms:
         device.created_at_ms = now_ms
     device.updated_at_ms = now_ms
 
     apply_common_sync_fields(device, {"client_modified_ms": now_ms}, bump_version=True, mark_deleted=False)
 
-    device_token = generate_device_token()
+    device_token = generate_device_token_v2()
+    device.token_hash = hash_device_token_v2(device_token)
+    device.token_last4 = device_token[-4:]
+    device.issued_at = now_datetime()
+    device.expires_at = None
     device.device_token_hash = hash_device_token(device_token)
 
     device.save(ignore_permissions=True)
@@ -174,6 +190,7 @@ def register_device(
         "device_id": device.device_id,
         "device_token": device_token,
         "status": device.status,
+        "wallet_id": device.wallet_id,
     }
 
 
@@ -206,15 +223,20 @@ def link_device_to_user(device_id: str, platform: str | None = None) -> dict:
     elif not device.platform:
         device.platform = "web"
     device.status = "active"
+    device.wallet_id = ensure_default_wallet_for_user(user, device_id=device_id)
 
-    now_ms = int(now_datetime().timestamp() * 1000)
+    now_ms = _now_ms_int32()
     if not device.created_at_ms:
         device.created_at_ms = now_ms
     device.updated_at_ms = now_ms
 
     apply_common_sync_fields(device, {"client_modified_ms": now_ms}, bump_version=True, mark_deleted=False)
 
-    device_token = generate_device_token()
+    device_token = generate_device_token_v2()
+    device.token_hash = hash_device_token_v2(device_token)
+    device.token_last4 = device_token[-4:]
+    device.issued_at = now_datetime()
+    device.expires_at = None
     device.device_token_hash = hash_device_token(device_token)
     device.save(ignore_permissions=True)
 
@@ -222,4 +244,5 @@ def link_device_to_user(device_id: str, platform: str | None = None) -> dict:
         "device_id": device.device_id,
         "device_token": device_token,
         "status": device.status,
+        "wallet_id": device.wallet_id,
     }

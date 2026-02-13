@@ -37,6 +37,9 @@ class TestSyncV1(FrappeTestCase):
         self.user = user
         self.device_id = f"device-{frappe.generate_hash(length=6)}"
         device = register_device(self.device_id, "android", "Pixel 8")
+        self.assertTrue(device.get("wallet_id"))
+        device_name = frappe.get_value("Hisabi Device", {"device_id": self.device_id})
+        self.assertEqual(frappe.db.get_value("Hisabi Device", device_name, "wallet_id"), device.get("wallet_id"))
         self.device_token = device.get("device_token")
         frappe.local.request = type("obj", (object,), {"headers": {"Authorization": f"Bearer {self.device_token}"}})()
         self.wallet_id = f"wallet-{frappe.generate_hash(length=6)}"
