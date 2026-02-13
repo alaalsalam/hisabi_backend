@@ -2,6 +2,7 @@ import frappe
 from frappe.tests.utils import FrappeTestCase
 from frappe.utils.password import update_password
 
+from hisabi_backend.api.v1 import list_wallets, wallet_create
 from hisabi_backend.api.v1.auth import link_device_to_user, login, register, register_device
 from hisabi_backend.install import ensure_roles
 
@@ -64,3 +65,18 @@ class TestAuthV1(FrappeTestCase):
         device_name = frappe.get_value("Hisabi Device", {"device_id": device_id})
         self.assertTrue(device_name)
         self.assertEqual(frappe.db.get_value("Hisabi Device", device_name, "wallet_id"), response.get("wallet_id"))
+
+    def test_list_wallets_returns_existing_wallets(self):
+        user = self._create_hisabi_user("list_wallets")
+        frappe.set_user(user)
+        device_id = f"device-wallets-{frappe.generate_hash(length=6)}"
+        device = register_device(device_id, "android", "Pixel")
+        token = device.get("device_token")
+        frappe.local.request = type("obj", (object,), {"headers": {"Authorization": f"Bearer {token}"}})()
+        wallet_id = f"wallet-{frappe.generate_hash(length=6)}"
+        wallet_create(client_id=wallet_id, wallet_name="Secondary Wallet", device_id=device_id)
+        payload = list_wallets(device_id=device_id)
+        wallet_ids = payload.get("wallet_ids") or []
+        self.assertTrue(payload.get("default_wallet_id"))
+        self.assertIn(wallet_id, wallet_ids)
+        self.assertIn(payload.get("default_wallet_id"), wallet_ids)

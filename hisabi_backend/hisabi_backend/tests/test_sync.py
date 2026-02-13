@@ -1024,6 +1024,58 @@ class TestSyncV1(FrappeTestCase):
         self.assertEqual(result["status"], "error")
         self.assertEqual(result["error_code"], "wallet_id_mismatch")
 
+    def test_sync_pull_full_load_without_cursor_returns_wallet_entities(self):
+        sync_push(
+            device_id=self.device_id,
+            wallet_id=self.wallet_id,
+            items=[
+                {
+                    "op_id": "op-full-account",
+                    "entity_type": "Hisabi Account",
+                    "entity_id": "acc-full",
+                    "operation": "create",
+                    "payload": {
+                        "client_id": "acc-full",
+                        "account_name": "Full Load Cash",
+                        "account_type": "cash",
+                        "currency": "SAR",
+                    },
+                },
+                {
+                    "op_id": "op-full-category",
+                    "entity_type": "Hisabi Category",
+                    "entity_id": "cat-full",
+                    "operation": "create",
+                    "payload": {
+                        "client_id": "cat-full",
+                        "category_name": "Full Load Category",
+                        "kind": "expense",
+                    },
+                },
+                {
+                    "op_id": "op-full-transaction",
+                    "entity_type": "Hisabi Transaction",
+                    "entity_id": "tx-full",
+                    "operation": "create",
+                    "payload": {
+                        "client_id": "tx-full",
+                        "transaction_type": "expense",
+                        "date_time": now_datetime(),
+                        "amount": 25,
+                        "currency": "SAR",
+                        "account": "acc-full",
+                        "category": "cat-full",
+                    },
+                },
+            ],
+        )
+
+        pull = self._pull_message(sync_pull(device_id=self.device_id, wallet_id=self.wallet_id, cursor=None))
+        entity_keys = {(row.get("entity_type"), row.get("client_id")) for row in pull.get("items") or []}
+        self.assertIn(("Hisabi Account", "acc-full"), entity_keys)
+        self.assertIn(("Hisabi Category", "cat-full"), entity_keys)
+        self.assertIn(("Hisabi Transaction", "tx-full"), entity_keys)
+
     def test_sync_pull_returns_seed_warning_when_server_seed_records_missing(self):
         pull = self._pull_message(sync_pull(device_id=self.device_id, wallet_id=self.wallet_id))
         warnings = pull.get("warnings") or []

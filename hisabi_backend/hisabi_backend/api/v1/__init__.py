@@ -146,6 +146,13 @@ def wallets_list(device_id: Optional[str] = None) -> Dict[str, Any]:
 
 
 @frappe.whitelist(allow_guest=False)
+def list_wallets(device_id: Optional[str] = None) -> Dict[str, Any]:
+    from .wallets import list_wallets as _impl
+
+    return _impl(device_id=device_id)
+
+
+@frappe.whitelist(allow_guest=False)
 def wallet_create(client_id: str, wallet_name: str, device_id: Optional[str] = None) -> Dict[str, Any]:
     from .wallets import wallet_create as _impl
 

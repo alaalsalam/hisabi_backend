@@ -136,6 +136,18 @@ def wallets_list(device_id: Optional[str] = None) -> Dict[str, Any]:
 
 
 @frappe.whitelist(allow_guest=False)
+def list_wallets(device_id: Optional[str] = None) -> Dict[str, Any]:
+    payload = wallets_list(device_id=device_id)
+    wallets = payload.get("wallets") or []
+    wallet_ids = [row.get("wallet") for row in wallets if isinstance(row, dict) and row.get("wallet")]
+    return {
+        "wallet_ids": wallet_ids,
+        "default_wallet_id": payload.get("default_wallet_id"),
+        "server_time": payload.get("server_time") or now_datetime().isoformat(),
+    }
+
+
+@frappe.whitelist(allow_guest=False)
 def wallet_create(client_id: str, wallet_name: str, device_id: Optional[str] = None) -> Dict[str, Any]:
     user, device = require_device_token_auth()
     client_id = validate_client_id(client_id)
