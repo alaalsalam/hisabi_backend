@@ -60,6 +60,9 @@ DOCTYPE_LIST = [
 SYNC_PUSH_ALLOWLIST = {
     "Hisabi Wallet",
     "Hisabi Wallet Member",
+    "Hisabi Settings",
+    "Hisabi FX Rate",
+    "Hisabi Custom Currency",
     "Hisabi Account",
     "Hisabi Category",
     "Hisabi Transaction",
@@ -103,6 +106,47 @@ SYNC_PUSH_ALLOWED_FIELDS = {
         "removed_at",
         "client_created_ms",
         "client_modified_ms",
+    },
+    "Hisabi Settings": {
+        "client_id",
+        "wallet_id",
+        "user_name",
+        "base_currency",
+        "enabled_currencies",
+        "locale",
+        "week_start_day",
+        "use_arabic_numerals",
+        "client_created_ms",
+        "client_modified_ms",
+        "is_deleted",
+        "deleted_at",
+    },
+    "Hisabi FX Rate": {
+        "client_id",
+        "wallet_id",
+        "base_currency",
+        "quote_currency",
+        "rate",
+        "effective_date",
+        "source",
+        "last_updated",
+        "client_created_ms",
+        "client_modified_ms",
+        "is_deleted",
+        "deleted_at",
+    },
+    "Hisabi Custom Currency": {
+        "client_id",
+        "wallet_id",
+        "code",
+        "name_ar",
+        "name_en",
+        "symbol",
+        "decimals",
+        "client_created_ms",
+        "client_modified_ms",
+        "is_deleted",
+        "deleted_at",
     },
     "Hisabi Account": {
         "client_id",
@@ -436,6 +480,9 @@ SYNC_PUSH_ALLOWED_FIELDS = {
 SYNC_PUSH_REQUIRED_FIELDS_CREATE = {
     "Hisabi Wallet": {"wallet_name", "status"},
     "Hisabi Wallet Member": {"wallet", "user", "role", "status"},
+    "Hisabi Settings": {"base_currency"},
+    "Hisabi FX Rate": {"base_currency", "quote_currency", "rate"},
+    "Hisabi Custom Currency": {"code"},
     "Hisabi Account": {"account_name", "account_type", "currency"},
     "Hisabi Category": {"category_name", "kind"},
     "Hisabi Transaction": {"transaction_type", "date_time", "amount", "currency", "account"},
@@ -475,6 +522,16 @@ SYNC_PUSH_FIELD_TYPES = {
     "wallet": "string",
     "user": "string",
     "role": "string",
+    "user_name": "string",
+    "base_currency": "string",
+    "quote_currency": "string",
+    "enabled_currencies": "list",
+    "locale": "string",
+    "source": "string",
+    "code": "string",
+    "name_ar": "string",
+    "name_en": "string",
+    "symbol": "string",
     "account_name": "string",
     "account_type": "string",
     "currency": "string",
@@ -509,6 +566,7 @@ SYNC_PUSH_FIELD_TYPES = {
     "generated_at": "string",
     "skip_reason": "string",
     "amount": "number",
+    "rate": "number",
     "amount_base": "number",
     "base_amount": "number",
     "principal_amount": "number",
@@ -528,6 +586,9 @@ SYNC_PUSH_FIELD_TYPES = {
     "interval": "number",
     "bymonthday": "number",
     "count": "number",
+    "week_start_day": "number",
+    "use_arabic_numerals": "number",
+    "decimals": "number",
     "original_currency": "string",
 }
 
@@ -567,6 +628,24 @@ SYNC_PULL_SYSTEM_FIELDS = {
 }
 
 FIELD_MAP = {
+    "Hisabi Settings": {
+        "default_currency": "base_currency",
+        "defaultCurrency": "base_currency",
+        "baseCurrency": "base_currency",
+        "enabledCurrencies": "enabled_currencies",
+        "weekStartDay": "week_start_day",
+        "useArabicNumerals": "use_arabic_numerals",
+    },
+    "Hisabi FX Rate": {
+        "from_currency": "base_currency",
+        "to_currency": "quote_currency",
+        "fromCurrency": "base_currency",
+        "toCurrency": "quote_currency",
+        "updated_at": "last_updated",
+    },
+    "Hisabi Custom Currency": {
+        "name": "name_en",
+    },
     "Hisabi Account": {
         "name": "account_name",
         "title": "account_name",
@@ -666,6 +745,9 @@ SYNC_CLIENT_ID_PRIMARY_KEY_DOCTYPES = {
 
 SYNC_PUSH_DATETIME_FIELDS = {
     "Hisabi Wallet Member": {"joined_at", "removed_at"},
+    "Hisabi Settings": {"deleted_at"},
+    "Hisabi FX Rate": {"effective_date", "last_updated", "deleted_at"},
+    "Hisabi Custom Currency": {"deleted_at"},
     "Hisabi Transaction": {"date_time", "deleted_at"},
     "Hisabi Debt": {"due_date", "deleted_at"},
     "Hisabi Debt Installment": {"due_date", "paid_at", "deleted_at"},
@@ -749,6 +831,23 @@ def _normalize_sync_datetime_fields(doctype: str, payload: Dict[str, Any]) -> Di
             continue
         # Data correctness: normalize ISO-8601 values (including `Z`) before DB datetime writes.
         normalized[field] = _cursor_dt(parsed) or parsed
+    return normalized
+
+
+def _normalize_json_field_values(
+    doc: frappe.model.document.Document, payload: Dict[str, Any]
+) -> Dict[str, Any]:
+    if not payload:
+        return {}
+    normalized = dict(payload)
+    for fieldname, value in list(normalized.items()):
+        if value is None:
+            continue
+        df = doc.meta.get_field(fieldname)
+        if not df or df.fieldtype != "JSON":
+            continue
+        if isinstance(value, (list, dict)):
+            normalized[fieldname] = frappe.as_json(value)
     return normalized
 
 
@@ -983,14 +1082,19 @@ def _is_number(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
-def _invalid_field_types(payload: Dict[str, Any], fields: set[str]) -> Dict[str, str]:
+def _invalid_field_types(doctype: str, payload: Dict[str, Any], fields: set[str]) -> Dict[str, str]:
     invalid: Dict[str, str] = {}
+    datetime_fields = SYNC_PUSH_DATETIME_FIELDS.get(doctype, set())
     for field in fields:
         expected = SYNC_PUSH_FIELD_TYPES.get(field)
         if not expected or field not in payload:
             continue
         value = payload.get(field)
-        if expected == "string" and not isinstance(value, str):
+        if expected == "string":
+            if isinstance(value, str):
+                continue
+            if field in datetime_fields and isinstance(value, (datetime.datetime, datetime.date)):
+                continue
             invalid[field] = "string"
         elif expected == "number" and not _is_number(value):
             invalid[field] = "number"
@@ -1221,7 +1325,7 @@ def _validate_sync_push_item(item: Dict[str, Any], wallet_id: str) -> Optional[D
                     detail=sorted(group),
                 )
 
-        invalid_types = _invalid_field_types(normalized, required)
+        invalid_types = _invalid_field_types(entity_type, normalized, required)
         if invalid_types:
             return _build_item_error(
                 error_code="invalid_field_type",
@@ -1263,6 +1367,7 @@ def _prepare_doc_for_write(
         payload = _normalize_bucket_template_payload(payload)
     payload = _filter_payload_fields(doc, payload)
     payload = _normalize_sync_datetime_fields(doctype, payload)
+    payload = _normalize_json_field_values(doc, payload)
     ensure_link_ownership(
         doctype,
         payload,
@@ -1473,6 +1578,8 @@ def sync_push(
     request = getattr(frappe, "request", None)
     form_dict = getattr(frappe, "form_dict", {}) or {}
     json_body = None
+    request_form = getattr(request, "form", {}) or {}
+    request_args = getattr(request, "args", {}) or {}
 
     if request:
         try:
@@ -1489,11 +1596,11 @@ def sync_push(
 
     if request:
         if device_id is None:
-            device_id = request.form.get("device_id") or request.args.get("device_id")
+            device_id = request_form.get("device_id") or request_args.get("device_id")
         if wallet_id is None:
-            wallet_id = request.form.get("wallet_id") or request.args.get("wallet_id")
+            wallet_id = request_form.get("wallet_id") or request_args.get("wallet_id")
         if items is None:
-            items = request.form.get("items") or request.args.get("items")
+            items = request_form.get("items") or request_args.get("items")
 
     if device_id is None and json_body:
         device_id = json_body.get("device_id")
@@ -1503,7 +1610,10 @@ def sync_push(
         items = json_body.get("items")
 
     if items is None and request:
-        raw = request.data.decode("utf-8") if request.data else ""
+        request_data = getattr(request, "data", b"") or b""
+        if isinstance(request_data, str):
+            request_data = request_data.encode("utf-8")
+        raw = request_data.decode("utf-8") if request_data else ""
         if raw:
             try:
                 parsed = json.loads(raw)
@@ -2126,20 +2236,25 @@ def sync_pull(
     if limit is None:
         limit = form_dict.get("limit")
 
-    if request and request.args:
+    request_args = getattr(request, "args", {}) or {}
+    if request and request_args:
         if device_id is None:
-            device_id = request.args.get("device_id")
+            device_id = request_args.get("device_id")
         if wallet_id is None:
-            wallet_id = request.args.get("wallet_id")
+            wallet_id = request_args.get("wallet_id")
         if since is None:
-            since = request.args.get("since")
+            since = request_args.get("since")
         if cursor is None:
-            cursor = request.args.get("cursor")
+            cursor = request_args.get("cursor")
         if limit is None:
-            limit = request.args.get("limit")
+            limit = request_args.get("limit")
 
-    if request and getattr(request, "query_string", None):
-        parsed = parse_qs(request.query_string.decode("utf-8"))
+    request_query = getattr(request, "query_string", None)
+    if request and request_query:
+        if isinstance(request_query, bytes):
+            parsed = parse_qs(request_query.decode("utf-8"))
+        else:
+            parsed = parse_qs(str(request_query))
         if device_id is None:
             device_id = (parsed.get("device_id") or [None])[0]
         if wallet_id is None:
@@ -2151,8 +2266,13 @@ def sync_pull(
         if limit is None:
             limit = (parsed.get("limit") or [None])[0]
 
-    if request and request.data and request.content_type and "application/json" in request.content_type:
-        raw = request.data.decode("utf-8")
+    request_data = getattr(request, "data", None)
+    request_content_type = getattr(request, "content_type", None)
+    if request and request_data and request_content_type and "application/json" in request_content_type:
+        if isinstance(request_data, str):
+            raw = request_data
+        else:
+            raw = request_data.decode("utf-8")
         if raw:
             try:
                 json_body = json.loads(raw)

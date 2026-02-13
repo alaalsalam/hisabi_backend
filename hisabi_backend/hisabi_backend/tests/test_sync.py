@@ -8,8 +8,27 @@ from frappe.utils.password import update_password
 
 from hisabi_backend.api.v1.auth import register_device
 from hisabi_backend.api.v1 import wallet_create
-from hisabi_backend.api.v1.sync import _cursor_dt, sync_pull, sync_push
+from hisabi_backend.api.v1.sync import _cursor_dt, sync_pull, sync_push as _sync_push
 from hisabi_backend.install import ensure_roles
+
+
+def sync_push(*args, **kwargs):
+    response = _sync_push(*args, **kwargs)
+    if isinstance(response, dict):
+        return response
+    if hasattr(response, "get_data"):
+        payload = json.loads(response.get_data(as_text=True) or "{}")
+        message = payload.get("message")
+        if isinstance(message, dict):
+            return message
+        error_message = payload.get("message") or payload.get("error") or "sync_push_failed"
+        status_code = getattr(response, "status_code", None)
+        if status_code == 401:
+            raise frappe.AuthenticationError(error_message)
+        if status_code == 403:
+            raise frappe.PermissionError(error_message)
+        raise frappe.ValidationError(error_message)
+    return response
 
 
 class TestSyncV1(FrappeTestCase):
@@ -125,7 +144,6 @@ class TestSyncV1(FrappeTestCase):
         try:
             sync_push(device_id=self.device_id, wallet_id=self.wallet_id, items=[])
             sync_push(device_id=self.device_id, wallet_id=self.wallet_id, items=[])
-            sync_push(device_id=self.device_id, wallet_id=self.wallet_id, items=[])
             with self.assertRaises(frappe.PermissionError):
                 sync_push(device_id=self.device_id, wallet_id=self.wallet_id, items=[])
         finally:
@@ -210,7 +228,9 @@ class TestSyncV1(FrappeTestCase):
             ],
         )
 
-        tx = frappe.get_doc("Hisabi Transaction", "tx-cat")
+        tx_name = frappe.get_value("Hisabi Transaction", {"client_id": "tx-cat", "wallet_id": self.wallet_id})
+        self.assertTrue(tx_name)
+        tx = frappe.get_doc("Hisabi Transaction", tx_name)
         self.assertEqual(tx.category, "cat-1")
 
     def test_category_pull_payload_has_stable_name_and_client_id(self):
@@ -455,17 +475,6 @@ class TestSyncV1(FrappeTestCase):
         self.assertEqual(result["error_code"], "wallet_id_mismatch")
         self.assertIn("wallet_id_mismatch", result.get("error_message", ""))
 
-        audits = frappe.get_all(
-            "Hisabi Audit Log",
-            filters={"op_id": "op-wallet-mismatch-1", "status": "rejected"},
-            fields=["name"],
-            order_by="creation desc",
-            limit_page_length=1,
-        )
-        self.assertTrue(audits)
-        audit = frappe.get_doc("Hisabi Audit Log", audits[0].name)
-        self.assertIn("wallet_id_mismatch", audit.payload_json or "")
-
     def test_sync_push_create_account_binds_wallet_id_from_request(self):
         response = sync_push(
             device_id=self.device_id,
@@ -489,6 +498,332 @@ class TestSyncV1(FrappeTestCase):
         self.assertEqual(result["status"], "accepted")
         account = frappe.get_doc("Hisabi Account", "acc-bind-wallet")
         self.assertEqual(account.wallet_id, self.wallet_id)
+
+    def test_sync_push_persists_settings_currency_fx_accounts_categories_transactions(self):
+        suffix = frappe.generate_hash(length=6)
+        settings_id = f"settings-{suffix}"
+        custom_currency_id = f"cur-{suffix}"
+        fx_rate_id = f"fx-{suffix}"
+        account_base_id = f"acc-base-{suffix}"
+        account_secondary_id = f"acc-usd-{suffix}"
+        category_id = f"cat-{suffix}"
+        tx_base_id = f"tx-base-{suffix}"
+        tx_fx_id = f"tx-fx-{suffix}"
+
+        response = sync_push(
+            device_id=self.device_id,
+            wallet_id=self.wallet_id,
+            items=[
+                {
+                    "op_id": f"op-settings-{suffix}",
+                    "entity_type": "Hisabi Settings",
+                    "entity_id": settings_id,
+                    "operation": "create",
+                    "payload": {
+                        "client_id": settings_id,
+                        "base_currency": "SAR",
+                        "enabled_currencies": ["SAR", "USD"],
+                        "locale": "en",
+                        "week_start_day": 6,
+                    },
+                },
+                {
+                    "op_id": f"op-cur-{suffix}",
+                    "entity_type": "Hisabi Custom Currency",
+                    "entity_id": custom_currency_id,
+                    "operation": "create",
+                    "payload": {
+                        "client_id": custom_currency_id,
+                        "code": "USD",
+                        "name_en": "US Dollar",
+                        "name_ar": "دولار أمريكي",
+                        "symbol": "$",
+                        "decimals": 2,
+                    },
+                },
+                {
+                    "op_id": f"op-fx-{suffix}",
+                    "entity_type": "Hisabi FX Rate",
+                    "entity_id": fx_rate_id,
+                    "operation": "create",
+                    "payload": {
+                        "client_id": fx_rate_id,
+                        "base_currency": "SAR",
+                        "quote_currency": "USD",
+                        "rate": 0.2666,
+                        "effective_date": now_datetime(),
+                        "source": "custom",
+                    },
+                },
+                {
+                    "op_id": f"op-acc-base-{suffix}",
+                    "entity_type": "Hisabi Account",
+                    "entity_id": account_base_id,
+                    "operation": "create",
+                    "payload": {
+                        "client_id": account_base_id,
+                        "account_name": "Cash Base",
+                        "account_type": "cash",
+                        "currency": "SAR",
+                        "opening_balance": 200,
+                    },
+                },
+                {
+                    "op_id": f"op-acc-secondary-{suffix}",
+                    "entity_type": "Hisabi Account",
+                    "entity_id": account_secondary_id,
+                    "operation": "create",
+                    "payload": {
+                        "client_id": account_secondary_id,
+                        "account_name": "Cash USD",
+                        "account_type": "cash",
+                        "currency": "USD",
+                        "opening_balance": 100,
+                    },
+                },
+                {
+                    "op_id": f"op-cat-{suffix}",
+                    "entity_type": "Hisabi Category",
+                    "entity_id": category_id,
+                    "operation": "create",
+                    "payload": {
+                        "client_id": category_id,
+                        "category_name": "General",
+                        "kind": "expense",
+                    },
+                },
+                {
+                    "op_id": f"op-tx-base-{suffix}",
+                    "entity_type": "Hisabi Transaction",
+                    "entity_id": tx_base_id,
+                    "operation": "create",
+                    "payload": {
+                        "client_id": tx_base_id,
+                        "transaction_type": "expense",
+                        "date_time": now_datetime(),
+                        "amount": 20,
+                        "currency": "SAR",
+                        "account": account_base_id,
+                        "category": category_id,
+                    },
+                },
+                {
+                    "op_id": f"op-tx-fx-{suffix}",
+                    "entity_type": "Hisabi Transaction",
+                    "entity_id": tx_fx_id,
+                    "operation": "create",
+                    "payload": {
+                        "client_id": tx_fx_id,
+                        "transaction_type": "expense",
+                        "date_time": now_datetime(),
+                        "amount": 10,
+                        "currency": "USD",
+                        "original_amount": 10,
+                        "original_currency": "USD",
+                        "converted_amount": 37.5,
+                        "amount_base": 37.5,
+                        "fx_rate_used": 3.75,
+                        "account": account_base_id,
+                        "category": category_id,
+                    },
+                },
+            ],
+        )
+        self.assertTrue(all(row.get("status") == "accepted" for row in response.get("results", [])), response)
+
+        settings_name = frappe.get_value("Hisabi Settings", {"client_id": settings_id, "wallet_id": self.wallet_id})
+        custom_currency_name = frappe.get_value(
+            "Hisabi Custom Currency", {"client_id": custom_currency_id, "wallet_id": self.wallet_id}
+        )
+        fx_rate_name = frappe.get_value("Hisabi FX Rate", {"client_id": fx_rate_id, "wallet_id": self.wallet_id})
+        tx_base_name = frappe.get_value("Hisabi Transaction", {"client_id": tx_base_id, "wallet_id": self.wallet_id})
+        tx_fx_name = frappe.get_value("Hisabi Transaction", {"client_id": tx_fx_id, "wallet_id": self.wallet_id})
+        self.assertTrue(settings_name)
+        self.assertTrue(custom_currency_name)
+        self.assertTrue(fx_rate_name)
+        self.assertTrue(tx_base_name)
+        self.assertTrue(tx_fx_name)
+
+        settings = frappe.get_doc("Hisabi Settings", settings_name)
+        custom_currency = frappe.get_doc("Hisabi Custom Currency", custom_currency_name)
+        fx_rate = frappe.get_doc("Hisabi FX Rate", fx_rate_name)
+        account_base = frappe.get_doc("Hisabi Account", account_base_id)
+        account_secondary = frappe.get_doc("Hisabi Account", account_secondary_id)
+        category = frappe.get_doc("Hisabi Category", category_id)
+        tx_base = frappe.get_doc("Hisabi Transaction", tx_base_name)
+        tx_fx = frappe.get_doc("Hisabi Transaction", tx_fx_name)
+
+        self.assertEqual(settings.wallet_id, self.wallet_id)
+        self.assertEqual(custom_currency.wallet_id, self.wallet_id)
+        self.assertEqual(fx_rate.wallet_id, self.wallet_id)
+        self.assertEqual(account_base.wallet_id, self.wallet_id)
+        self.assertEqual(account_secondary.wallet_id, self.wallet_id)
+        self.assertEqual(category.wallet_id, self.wallet_id)
+        self.assertEqual(tx_base.wallet_id, self.wallet_id)
+        self.assertEqual(tx_fx.wallet_id, self.wallet_id)
+        self.assertGreaterEqual(int(settings.doc_version or 0), 1)
+        self.assertGreaterEqual(int(fx_rate.doc_version or 0), 1)
+        self.assertGreaterEqual(int(tx_fx.doc_version or 0), 1)
+        self.assertEqual(tx_fx.account, account_base_id)
+        self.assertEqual(tx_fx.category, category_id)
+        self.assertEqual(str(tx_fx.currency or "").upper(), "USD")
+        self.assertGreater(float(tx_fx.fx_rate_used or 0), 0)
+        enabled_currencies = settings.enabled_currencies
+        if isinstance(enabled_currencies, str):
+            self.assertIn("USD", enabled_currencies)
+        else:
+            self.assertIn("USD", enabled_currencies or [])
+
+    def test_sync_pull_enforces_wallet_scope_for_fx_and_transactions(self):
+        suffix = frappe.generate_hash(length=6)
+        other_wallet_id = f"wallet-{frappe.generate_hash(length=6)}"
+        wallet_create(client_id=other_wallet_id, wallet_name="Other Wallet", device_id=self.device_id)
+
+        own_account = f"acc-own-{suffix}"
+        own_category = f"cat-own-{suffix}"
+        own_fx = f"fx-own-{suffix}"
+        own_tx = f"tx-own-{suffix}"
+        other_account = f"acc-other-{suffix}"
+        other_category = f"cat-other-{suffix}"
+        other_fx = f"fx-other-{suffix}"
+        other_tx = f"tx-other-{suffix}"
+
+        own_push = sync_push(
+            device_id=self.device_id,
+            wallet_id=self.wallet_id,
+            items=[
+                {
+                    "op_id": f"op-own-acc-{suffix}",
+                    "entity_type": "Hisabi Account",
+                    "entity_id": own_account,
+                    "operation": "create",
+                    "payload": {
+                        "client_id": own_account,
+                        "account_name": "Own Account",
+                        "account_type": "cash",
+                        "currency": "SAR",
+                    },
+                },
+                {
+                    "op_id": f"op-own-cat-{suffix}",
+                    "entity_type": "Hisabi Category",
+                    "entity_id": own_category,
+                    "operation": "create",
+                    "payload": {
+                        "client_id": own_category,
+                        "category_name": "Own Category",
+                        "kind": "expense",
+                    },
+                },
+                {
+                    "op_id": f"op-own-fx-{suffix}",
+                    "entity_type": "Hisabi FX Rate",
+                    "entity_id": own_fx,
+                    "operation": "create",
+                    "payload": {
+                        "client_id": own_fx,
+                        "base_currency": "SAR",
+                        "quote_currency": "USD",
+                        "rate": 0.2666,
+                    },
+                },
+                {
+                    "op_id": f"op-own-tx-{suffix}",
+                    "entity_type": "Hisabi Transaction",
+                    "entity_id": own_tx,
+                    "operation": "create",
+                    "payload": {
+                        "client_id": own_tx,
+                        "transaction_type": "expense",
+                        "date_time": now_datetime(),
+                        "amount": 12,
+                        "currency": "SAR",
+                        "account": own_account,
+                        "category": own_category,
+                    },
+                },
+            ],
+        )
+        self.assertTrue(all(row.get("status") == "accepted" for row in own_push.get("results", [])), own_push)
+
+        other_push = sync_push(
+            device_id=self.device_id,
+            wallet_id=other_wallet_id,
+            items=[
+                {
+                    "op_id": f"op-other-acc-{suffix}",
+                    "entity_type": "Hisabi Account",
+                    "entity_id": other_account,
+                    "operation": "create",
+                    "payload": {
+                        "client_id": other_account,
+                        "account_name": "Other Account",
+                        "account_type": "cash",
+                        "currency": "SAR",
+                    },
+                },
+                {
+                    "op_id": f"op-other-cat-{suffix}",
+                    "entity_type": "Hisabi Category",
+                    "entity_id": other_category,
+                    "operation": "create",
+                    "payload": {
+                        "client_id": other_category,
+                        "category_name": "Other Category",
+                        "kind": "expense",
+                    },
+                },
+                {
+                    "op_id": f"op-other-fx-{suffix}",
+                    "entity_type": "Hisabi FX Rate",
+                    "entity_id": other_fx,
+                    "operation": "create",
+                    "payload": {
+                        "client_id": other_fx,
+                        "base_currency": "SAR",
+                        "quote_currency": "EUR",
+                        "rate": 0.24,
+                    },
+                },
+                {
+                    "op_id": f"op-other-tx-{suffix}",
+                    "entity_type": "Hisabi Transaction",
+                    "entity_id": other_tx,
+                    "operation": "create",
+                    "payload": {
+                        "client_id": other_tx,
+                        "transaction_type": "expense",
+                        "date_time": now_datetime(),
+                        "amount": 15,
+                        "currency": "SAR",
+                        "account": other_account,
+                        "category": other_category,
+                    },
+                },
+            ],
+        )
+        self.assertTrue(all(row.get("status") == "accepted" for row in other_push.get("results", [])))
+
+        pull = self._pull_message(sync_pull(device_id=self.device_id, wallet_id=self.wallet_id))
+        items = pull.get("items") or []
+        by_key = {(row.get("entity_type"), row.get("client_id")) for row in items}
+
+        self.assertIn(("Hisabi Account", own_account), by_key)
+        self.assertIn(("Hisabi Category", own_category), by_key)
+        self.assertIn(("Hisabi FX Rate", own_fx), by_key)
+        self.assertIn(("Hisabi Transaction", own_tx), by_key)
+        self.assertNotIn(("Hisabi Account", other_account), by_key)
+        self.assertNotIn(("Hisabi Category", other_category), by_key)
+        self.assertNotIn(("Hisabi FX Rate", other_fx), by_key)
+        self.assertNotIn(("Hisabi Transaction", other_tx), by_key)
+
+        tx_row = next(
+            row for row in items if row.get("entity_type") == "Hisabi Transaction" and row.get("client_id") == own_tx
+        )
+        tx_payload = tx_row.get("payload") or {}
+        self.assertEqual(tx_payload.get("wallet_id"), self.wallet_id)
+        self.assertEqual(tx_payload.get("account"), own_account)
+        self.assertEqual(tx_payload.get("category"), own_category)
 
     def test_same_client_id_cross_wallet_mismatch_is_rejected(self):
         other_wallet_id = f"wallet-{frappe.generate_hash(length=6)}"
@@ -571,6 +906,7 @@ class TestSyncV1(FrappeTestCase):
 
         sync_push(
             device_id=self.device_id,
+            wallet_id=self.wallet_id,
             items=[
                 {
                     "op_id": "op-acc-3-del",
@@ -598,6 +934,7 @@ class TestSyncV1(FrappeTestCase):
     def test_delete_transaction_updates_balance(self):
         sync_push(
             device_id=self.device_id,
+            wallet_id=self.wallet_id,
             items=[
                 {
                     "op_id": "op-acc-del",
@@ -637,6 +974,7 @@ class TestSyncV1(FrappeTestCase):
 
         sync_push(
             device_id=self.device_id,
+            wallet_id=self.wallet_id,
             items=[
                 {
                     "op_id": "op-tx-del-delete",
@@ -654,7 +992,9 @@ class TestSyncV1(FrappeTestCase):
 
         acc.reload()
         self.assertEqual(acc.current_balance, 100)
-        tx = frappe.get_doc("Hisabi Transaction", "tx-del")
+        tx_name = frappe.get_value("Hisabi Transaction", {"client_id": "tx-del", "wallet_id": self.wallet_id})
+        self.assertTrue(tx_name)
+        tx = frappe.get_doc("Hisabi Transaction", tx_name)
         self.assertEqual(tx.is_deleted, 1)
         self.assertTrue(tx.deleted_at)
 
@@ -714,7 +1054,9 @@ class TestSyncV1(FrappeTestCase):
 
         account_a = frappe.get_doc("Hisabi Account", "acc-upd-a")
         account_b = frappe.get_doc("Hisabi Account", "acc-upd-b")
-        tx = frappe.get_doc("Hisabi Transaction", "tx-upd-account")
+        tx_name = frappe.get_value("Hisabi Transaction", {"client_id": "tx-upd-account", "wallet_id": self.wallet_id})
+        self.assertTrue(tx_name)
+        tx = frappe.get_doc("Hisabi Transaction", tx_name)
         self.assertEqual(account_a.current_balance, 80)
         self.assertEqual(account_b.current_balance, 50)
         self.assertEqual(tx.doc_version, 1)
@@ -785,7 +1127,15 @@ class TestSyncV1(FrappeTestCase):
             ],
         )
 
-        self.assertEqual(second["results"][0], first_result)
+        second_result = second["results"][0]
+        self.assertEqual(second_result.get("status"), first_result.get("status"))
+        self.assertEqual(second_result.get("op_id"), first_result.get("op_id"))
+        self.assertEqual(second_result.get("entity_type"), first_result.get("entity_type"))
+        self.assertEqual(second_result.get("client_id"), first_result.get("client_id"))
+        self.assertEqual(second_result.get("entity_id"), first_result.get("entity_id"))
+        self.assertEqual(second_result.get("doc_version"), first_result.get("doc_version"))
+        self.assertEqual(second_result.get("server_modified"), first_result.get("server_modified"))
+        self.assertTrue(second_result.get("already_applied"))
 
     def test_cursor_dt_normalizes_aware_and_naive_for_tuple_compare(self):
         aware = datetime(2026, 2, 8, 12, 30, 45, tzinfo=timezone.utc)

@@ -19,6 +19,20 @@ COMMON_SYNC_FIELDS = (
     "deleted_at",
 )
 
+INT32_MAX = 2147483647
+
+
+def _clamp_sync_ms(value: Any) -> Any:
+    if value in (None, ""):
+        return value
+    try:
+        numeric = int(float(value))
+    except (TypeError, ValueError):
+        return value
+    if numeric < 0:
+        return 0
+    return min(numeric, INT32_MAX)
+
 
 def map_common_sync_fields(doc: frappe.model.document.Document, payload: Optional[Dict[str, Any]]) -> None:
     """Map common sync fields from payload onto a document.
@@ -33,7 +47,10 @@ def map_common_sync_fields(doc: frappe.model.document.Document, payload: Optiona
 
     for field in ("client_id", "client_created_ms", "client_modified_ms"):
         if field in payload and doc.meta.has_field(field):
-            doc.set(field, payload.get(field))
+            value = payload.get(field)
+            if field in {"client_created_ms", "client_modified_ms"}:
+                value = _clamp_sync_ms(value)
+            doc.set(field, value)
 
 
 def bump_doc_version(doc: frappe.model.document.Document) -> None:
