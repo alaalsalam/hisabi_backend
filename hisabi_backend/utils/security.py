@@ -7,11 +7,36 @@ import hashlib
 import secrets
 
 import frappe
+from frappe.utils import cint
 from frappe.utils.password import get_decrypted_password, passlibctx, set_encrypted_password
 
 from hisabi_backend.utils.request_context import get_request_ip, get_user_agent
 from hisabi_backend.utils.audit_security import audit_security_event
 from hisabi_backend.utils.api_errors import error_response
+
+
+def _truncate_for_doc_field(
+    doc: frappe.model.document.Document,
+    fieldname: str,
+    value: str | None,
+    *,
+    default_max_length: int = 140,
+) -> str | None:
+    if value in (None, ""):
+        return value
+    text = str(value)
+    max_length = default_max_length
+    try:
+        field = doc.meta.get_field(fieldname)
+        if field:
+            declared_length = cint(getattr(field, "length", 0) or 0)
+            if declared_length > 0:
+                max_length = declared_length
+    except Exception:
+        pass
+    if max_length > 0 and len(text) > max_length:
+        return text[:max_length]
+    return text
 
 
 def ensure_device_for_user(
@@ -207,7 +232,7 @@ def issue_device_token_for_device(
     device.user = user
     device.platform = platform
     if device_name:
-        device.device_name = device_name
+        device.device_name = _truncate_for_doc_field(device, "device_name", device_name)
     if getattr(device, "status", None) == "blocked":
         audit_security_event(
             "device_blocked",
@@ -289,9 +314,13 @@ def require_device_token_auth(*, expected_device_id: str | None = None) -> tuple
 
     device.last_seen_at = frappe.utils.now_datetime()
     if hasattr(device, "last_seen_ip"):
-        device.last_seen_ip = get_request_ip()
+        device.last_seen_ip = _truncate_for_doc_field(device, "last_seen_ip", get_request_ip())
     if hasattr(device, "last_seen_user_agent"):
-        device.last_seen_user_agent = get_user_agent()
+        device.last_seen_user_agent = _truncate_for_doc_field(
+            device,
+            "last_seen_user_agent",
+            get_user_agent(),
+        )
     device.save(ignore_permissions=True)
 
     user = device.user

@@ -1,10 +1,12 @@
 import frappe
 from frappe.tests.utils import FrappeTestCase
+from frappe.utils import cint
 from frappe.utils.password import update_password
 
 from hisabi_backend.api.v1 import list_wallets, wallet_create
 from hisabi_backend.api.v1.auth import link_device_to_user, login, register, register_device
 from hisabi_backend.install import ensure_roles
+from hisabi_backend.utils.security import require_device_token_auth
 
 
 class TestAuthV1(FrappeTestCase):
@@ -80,3 +82,38 @@ class TestAuthV1(FrappeTestCase):
         self.assertTrue(payload.get("default_wallet_id"))
         self.assertIn(wallet_id, wallet_ids)
         self.assertIn(payload.get("default_wallet_id"), wallet_ids)
+
+    def test_require_device_token_auth_truncates_user_agent(self):
+        user = self._create_hisabi_user("ua_guard")
+        frappe.set_user(user)
+        device_id = f"device-ua-{frappe.generate_hash(length=6)}"
+        device_payload = register_device(device_id, "android", "Pixel")
+        token = device_payload.get("device_token")
+        self.assertTrue(token)
+
+        previous_request = getattr(frappe.local, "request", None)
+        long_user_agent = "Mozilla/5.0 " + ("X" * 300)
+        try:
+            frappe.local.request = type(
+                "obj",
+                (object,),
+                {
+                    "headers": {
+                        "Authorization": f"Bearer {token}",
+                        "User-Agent": long_user_agent,
+                    },
+                    "remote_addr": "127.0.0.1",
+                },
+            )()
+            authed_user, _ = require_device_token_auth(expected_device_id=device_id)
+            self.assertEqual(authed_user, user)
+        finally:
+            frappe.local.request = previous_request
+
+        device_name = frappe.get_value("Hisabi Device", {"device_id": device_id})
+        self.assertTrue(device_name)
+        saved_user_agent = frappe.db.get_value("Hisabi Device", device_name, "last_seen_user_agent")
+        self.assertIsInstance(saved_user_agent, str)
+        max_length = cint(getattr(frappe.get_meta("Hisabi Device").get_field("last_seen_user_agent"), "length", 0) or 140)
+        self.assertLessEqual(len(saved_user_agent), max_length)
+        self.assertEqual(saved_user_agent, long_user_agent[:max_length])
