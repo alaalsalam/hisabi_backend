@@ -117,6 +117,7 @@ def ensure_base_version(base_version: object) -> bool:
 
 
 LINK_OWNERSHIP_FIELDS = {
+    "Hisabi Account": {"parent_account": "Hisabi Account"},
     "Hisabi Transaction": {
         "account": "Hisabi Account",
         "to_account": "Hisabi Account",

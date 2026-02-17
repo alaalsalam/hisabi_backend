@@ -10,6 +10,10 @@
   "account_name",
   "account_type",
   "currency",
+  "is_multi_currency",
+  "base_currency",
+  "group_id",
+  "parent_account",
   "opening_balance",
   "current_balance",
   "color",
@@ -65,6 +69,29 @@
    "in_list_view": 1,
    "label": "Currency",
    "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "is_multi_currency",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Is Multi Currency"
+  },
+  {
+   "fieldname": "base_currency",
+   "fieldtype": "Data",
+   "label": "Base Currency"
+  },
+  {
+   "fieldname": "group_id",
+   "fieldtype": "Data",
+   "label": "Group ID"
+  },
+  {
+   "fieldname": "parent_account",
+   "fieldtype": "Link",
+   "label": "Parent Account",
+   "options": "Hisabi Account"
   },
   {
    "default": "0",
@@ -147,6 +174,18 @@
    "fields": [
     "wallet_id"
    ]
+  },
+  {
+   "fields": [
+    "wallet_id",
+    "group_id"
+   ]
+  },
+  {
+   "fields": [
+    "wallet_id",
+    "parent_account"
+   ]
   }
  ],
  "module": "Hisabi Backend",
@@ -176,7 +215,7 @@
    "write": 1
  }
  ],
- "search_fields": "account_name,account_type,currency,client_id",
+ "search_fields": "account_name,account_type,currency,base_currency,group_id,client_id",
  "sort_field": "sort_order",
  "sort_order": "ASC",
  "title_field": "account_name"

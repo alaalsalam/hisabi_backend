@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime
 import json
+import uuid
 from typing import Any, Dict, List, Optional, Tuple
 
 import frappe
@@ -157,6 +158,10 @@ SYNC_PUSH_ALLOWED_FIELDS = {
         "account_name",
         "account_type",
         "currency",
+        "is_multi_currency",
+        "base_currency",
+        "group_id",
+        "parent_account",
         "opening_balance",
         "color",
         "icon",
@@ -486,7 +491,7 @@ SYNC_PUSH_REQUIRED_FIELDS_CREATE = {
     "Hisabi Settings": {"base_currency"},
     "Hisabi FX Rate": {"base_currency", "quote_currency", "rate"},
     "Hisabi Custom Currency": {"code"},
-    "Hisabi Account": {"account_name", "account_type", "currency"},
+    "Hisabi Account": {"account_name", "account_type"},
     "Hisabi Category": {"category_name", "kind"},
     "Hisabi Transaction": {"transaction_type", "date_time", "amount", "currency", "account"},
     "Hisabi Debt": {"debt_name", "direction", "principal_amount"},
@@ -540,6 +545,8 @@ SYNC_PUSH_FIELD_TYPES = {
     "account_name": "string",
     "account_type": "string",
     "currency": "string",
+    "group_id": "string",
+    "parent_account": "string",
     "category_name": "string",
     "kind": "string",
     "transaction_type": "string",
@@ -596,6 +603,7 @@ SYNC_PUSH_FIELD_TYPES = {
     "enforce_fx": "number",
     "decimals": "number",
     "original_currency": "string",
+    "is_multi_currency": "number",
 }
 
 SENSITIVE_SYNC_FIELDS = {
@@ -668,6 +676,12 @@ FIELD_MAP = {
         "name": "account_name",
         "title": "account_name",
         "type": "account_type",
+        "isMultiCurrency": "is_multi_currency",
+        "baseCurrency": "base_currency",
+        "groupId": "group_id",
+        "parentAccount": "parent_account",
+        "parentAccountId": "parent_account",
+        "parent_account_id": "parent_account",
     },
     "Hisabi Category": {
         "name": "category_name",
@@ -1006,6 +1020,435 @@ def _resolve_base_currency(wallet_id: str, user: str) -> str | None:
     if not currency:
         currency = frappe.db.get_single_value("System Settings", "currency")
     return currency
+
+
+def _normalize_group_id(value: Any) -> str:
+    normalized = str(value or "").strip()
+    return normalized
+
+
+def _normalize_account_currency(value: Any) -> str:
+    return _normalize_currency_code(value or "")
+
+
+def _resolve_account_doc(
+    account_ref: Any,
+    *,
+    user: str,
+    wallet_id: str,
+) -> Optional[frappe.model.document.Document]:
+    if not account_ref:
+        return None
+    ref = str(account_ref).strip()
+    if not ref:
+        return None
+
+    if frappe.db.exists("Hisabi Account", ref):
+        doc = frappe.get_doc("Hisabi Account", ref)
+        if doc.wallet_id == wallet_id:
+            return doc
+
+    return _get_doc_by_client_id("Hisabi Account", user, ref, wallet_id=wallet_id)
+
+
+def _is_multi_currency_parent(account_doc: frappe.model.document.Document | None) -> bool:
+    if not account_doc:
+        return False
+    return (
+        cint(getattr(account_doc, "is_multi_currency", 0) or 0) == 1
+        and not getattr(account_doc, "parent_account", None)
+        and cint(getattr(account_doc, "is_deleted", 0) or 0) == 0
+    )
+
+
+def _find_multi_currency_child(
+    *,
+    wallet_id: str,
+    group_id: str,
+    currency: str,
+) -> Optional[frappe.model.document.Document]:
+    if not wallet_id or not group_id or not currency:
+        return None
+    names = frappe.get_all(
+        "Hisabi Account",
+        filters={
+            "wallet_id": wallet_id,
+            "group_id": group_id,
+            "currency": currency,
+            "is_deleted": 0,
+            "parent_account": ["is", "set"],
+        },
+        pluck="name",
+        limit=1,
+        order_by="creation asc",
+    )
+    if not names:
+        return None
+    return frappe.get_doc("Hisabi Account", names[0])
+
+
+def _build_child_client_id(parent_doc: frappe.model.document.Document, currency: str) -> str:
+    parent_client_id = str(getattr(parent_doc, "client_id", "") or getattr(parent_doc, "name", "")).strip()
+    normalized_currency = str(currency or "").strip().lower()
+    if not parent_client_id:
+        parent_client_id = f"acc-{uuid.uuid4().hex[:12]}"
+    if not normalized_currency:
+        normalized_currency = "cur"
+    return f"{parent_client_id}-{normalized_currency}"
+
+
+def _ensure_multi_currency_child(
+    parent_doc: frappe.model.document.Document,
+    *,
+    currency: str,
+    user: str,
+) -> frappe.model.document.Document:
+    normalized_currency = _normalize_account_currency(currency)
+    if not normalized_currency:
+        normalized_currency = _normalize_account_currency(parent_doc.base_currency or parent_doc.currency) or "USD"
+
+    group_id = _normalize_group_id(parent_doc.group_id) or str(parent_doc.client_id or parent_doc.name)
+    if not parent_doc.group_id:
+        parent_doc.group_id = group_id
+        parent_doc.db_set("group_id", group_id, update_modified=False)
+
+    existing = _find_multi_currency_child(
+        wallet_id=parent_doc.wallet_id,
+        group_id=group_id,
+        currency=normalized_currency,
+    )
+    if existing:
+        return existing
+
+    child_client_id = _build_child_client_id(parent_doc, normalized_currency)
+    child = _get_doc_by_client_id("Hisabi Account", user, child_client_id, wallet_id=parent_doc.wallet_id)
+    if child:
+        return child
+
+    child = frappe.new_doc("Hisabi Account")
+    _set_owner(child, user)
+    child.client_id = child_client_id
+    child.name = child_client_id
+    if "Hisabi Account" in SYNC_CLIENT_ID_PRIMARY_KEY_DOCTYPES:
+        child.flags.name_set = True
+
+    child.wallet_id = parent_doc.wallet_id
+    child.account_name = f"{parent_doc.account_name} ({normalized_currency})"
+    child.account_type = parent_doc.account_type
+    child.currency = normalized_currency
+    child.base_currency = _normalize_account_currency(parent_doc.base_currency or parent_doc.currency)
+    child.group_id = group_id
+    child.parent_account = parent_doc.name
+    child.is_multi_currency = 0
+    child.opening_balance = 0
+    child.current_balance = 0
+    child.color = parent_doc.color
+    child.icon = parent_doc.icon
+    child.archived = parent_doc.archived
+    apply_common_sync_fields(child, bump_version=True, mark_deleted=False)
+    child.save(ignore_permissions=True)
+    return child
+
+
+def _resolve_fx_rate_for_wallet(
+    *,
+    wallet_id: str,
+    source_currency: str,
+    target_currency: str,
+    at: Any = None,
+) -> Optional[float]:
+    source = _normalize_account_currency(source_currency)
+    target = _normalize_account_currency(target_currency)
+    if not source or not target:
+        return None
+    if source == target:
+        return 1.0
+
+    effective_date = get_datetime(at) or now_datetime()
+    direct = frappe.db.sql(
+        """
+        SELECT rate
+        FROM `tabHisabi FX Rate`
+        WHERE wallet_id=%s
+          AND is_deleted=0
+          AND base_currency=%s
+          AND quote_currency=%s
+          AND DATE(effective_date) <= %s
+        ORDER BY effective_date DESC, server_modified DESC, name DESC
+        LIMIT 1
+        """,
+        (wallet_id, source, target, effective_date.date()),
+        as_dict=True,
+    )
+    if direct:
+        rate = flt(direct[0].get("rate") or 0)
+        if rate > 0:
+            return rate
+
+    inverse = frappe.db.sql(
+        """
+        SELECT rate
+        FROM `tabHisabi FX Rate`
+        WHERE wallet_id=%s
+          AND is_deleted=0
+          AND base_currency=%s
+          AND quote_currency=%s
+          AND DATE(effective_date) <= %s
+        ORDER BY effective_date DESC, server_modified DESC, name DESC
+        LIMIT 1
+        """,
+        (wallet_id, target, source, effective_date.date()),
+        as_dict=True,
+    )
+    if inverse:
+        reverse_rate = flt(inverse[0].get("rate") or 0)
+        if reverse_rate > 0:
+            return 1.0 / reverse_rate
+    return None
+
+
+def _convert_amount_between_currencies(
+    *,
+    wallet_id: str,
+    amount: float,
+    source_currency: str,
+    target_currency: str,
+    at: Any = None,
+) -> Tuple[Optional[float], Optional[float]]:
+    source = _normalize_account_currency(source_currency)
+    target = _normalize_account_currency(target_currency)
+    numeric_amount = flt(amount or 0)
+    if not source or not target:
+        return None, None
+    if source == target:
+        return numeric_amount, 1.0
+
+    rate = _resolve_fx_rate_for_wallet(
+        wallet_id=wallet_id,
+        source_currency=source,
+        target_currency=target,
+        at=at,
+    )
+    if not rate or rate <= 0:
+        return None, None
+    return flt(numeric_amount * rate, 8), flt(rate, 8)
+
+
+def _hydrate_transaction_fx_fields(
+    payload: Dict[str, Any],
+    *,
+    user: str,
+    wallet_id: str,
+) -> Dict[str, Any]:
+    if not payload:
+        return payload
+    normalized = dict(payload)
+    normalized["currency"] = _normalize_account_currency(normalized.get("currency"))
+
+    account_doc = _resolve_account_doc(normalized.get("account"), user=user, wallet_id=wallet_id)
+    if not account_doc:
+        return normalized
+
+    tx_currency = _normalize_account_currency(normalized.get("currency")) or _normalize_account_currency(account_doc.currency)
+    account_currency = _normalize_account_currency(account_doc.currency)
+    normalized["currency"] = tx_currency
+
+    amount = flt(normalized.get("amount") or 0)
+    if amount <= 0:
+        return normalized
+
+    fx_rate_used = flt(normalized.get("fx_rate_used") or normalized.get("fx_rate") or 0)
+    if tx_currency != account_currency and fx_rate_used <= 0:
+        inferred = _resolve_fx_rate_for_wallet(
+            wallet_id=wallet_id,
+            source_currency=tx_currency,
+            target_currency=account_currency,
+            at=normalized.get("date_time"),
+        )
+        if inferred and inferred > 0:
+            fx_rate_used = inferred
+    if tx_currency == account_currency and fx_rate_used <= 0:
+        fx_rate_used = 1.0
+
+    if fx_rate_used > 0:
+        normalized["fx_rate_used"] = flt(fx_rate_used, 8)
+        if tx_currency != account_currency and normalized.get("converted_amount") in (None, ""):
+            normalized["converted_amount"] = flt(amount * fx_rate_used, 8)
+
+    if normalized.get("amount_base") in (None, "") and normalized.get("base_amount") not in (None, ""):
+        normalized["amount_base"] = normalized.get("base_amount")
+    if normalized.get("amount_base") not in (None, ""):
+        return normalized
+
+    amount_in_account_currency = amount
+    if tx_currency != account_currency:
+        converted = flt(normalized.get("converted_amount") or 0)
+        if converted > 0:
+            amount_in_account_currency = converted
+        elif fx_rate_used > 0:
+            amount_in_account_currency = flt(amount * fx_rate_used, 8)
+
+    base_currency = _normalize_account_currency(_resolve_base_currency(wallet_id, user) or account_currency)
+    converted_base, _ = _convert_amount_between_currencies(
+        wallet_id=wallet_id,
+        amount=amount_in_account_currency,
+        source_currency=account_currency,
+        target_currency=base_currency,
+        at=normalized.get("date_time"),
+    )
+    if converted_base is not None:
+        normalized["amount_base"] = flt(converted_base, 8)
+    elif account_currency == base_currency:
+        normalized["amount_base"] = flt(amount_in_account_currency, 8)
+    return normalized
+
+
+def _resolve_multi_currency_transaction_accounts(
+    payload: Dict[str, Any],
+    *,
+    user: str,
+    wallet_id: str,
+) -> Tuple[Dict[str, Any], set[str]]:
+    if not payload:
+        return payload, set()
+    normalized = dict(payload)
+    affected_parents: set[str] = set()
+    tx_currency = _normalize_account_currency(normalized.get("currency"))
+
+    for fieldname in ("account", "to_account"):
+        account_doc = _resolve_account_doc(normalized.get(fieldname), user=user, wallet_id=wallet_id)
+        if not _is_multi_currency_parent(account_doc):
+            continue
+
+        desired_currency = tx_currency
+        if fieldname == "to_account":
+            desired_currency = _normalize_account_currency(account_doc.base_currency or account_doc.currency or tx_currency)
+        if not desired_currency:
+            desired_currency = _normalize_account_currency(account_doc.base_currency or account_doc.currency)
+
+        child = _ensure_multi_currency_child(account_doc, currency=desired_currency, user=user)
+        normalized[fieldname] = child.name
+        affected_parents.add(account_doc.name)
+
+    return normalized, affected_parents
+
+
+def _create_base_child_for_multi_currency_parent(
+    account_doc: frappe.model.document.Document,
+    *,
+    user: str,
+) -> Optional[frappe.model.document.Document]:
+    if not _is_multi_currency_parent(account_doc):
+        return None
+    base_currency = _normalize_account_currency(account_doc.base_currency or account_doc.currency)
+    if not base_currency:
+        return None
+    return _ensure_multi_currency_child(account_doc, currency=base_currency, user=user)
+
+
+def _recalculate_multi_currency_parent_balance(
+    *,
+    user: str,
+    wallet_id: str,
+    parent_account_id: str,
+) -> None:
+    parent_doc = _resolve_account_doc(parent_account_id, user=user, wallet_id=wallet_id)
+    if not _is_multi_currency_parent(parent_doc):
+        return
+
+    base_currency = _normalize_account_currency(parent_doc.base_currency or parent_doc.currency)
+    child_rows = frappe.get_all(
+        "Hisabi Account",
+        filters={
+            "wallet_id": wallet_id,
+            "parent_account": parent_doc.name,
+            "is_deleted": 0,
+        },
+        fields=["name", "currency", "current_balance"],
+    )
+    total_balance = 0.0
+    for row in child_rows:
+        child_currency = _normalize_account_currency(row.get("currency"))
+        child_balance = flt(row.get("current_balance") or 0)
+        converted, _ = _convert_amount_between_currencies(
+            wallet_id=wallet_id,
+            amount=child_balance,
+            source_currency=child_currency,
+            target_currency=base_currency,
+            at=now_datetime(),
+        )
+        if converted is None:
+            if child_currency != base_currency:
+                continue
+            converted = child_balance
+        total_balance += flt(converted)
+
+    if abs(flt(parent_doc.current_balance or 0) - flt(total_balance)) <= 0.000001:
+        return
+    parent_doc.current_balance = flt(total_balance, 8)
+    apply_common_sync_fields(parent_doc, bump_version=True, mark_deleted=False)
+    parent_doc.save(ignore_permissions=True)
+
+
+def _enrich_multi_currency_account_payload(
+    payload: Dict[str, Any],
+    *,
+    user: str,
+    wallet_id: str,
+) -> Dict[str, Any]:
+    if not payload or cint(payload.get("is_multi_currency") or 0) != 1:
+        return payload
+
+    parent_doc = _resolve_account_doc(payload.get("client_id") or payload.get("name"), user=user, wallet_id=wallet_id)
+    if not parent_doc:
+        return payload
+
+    base_currency = _normalize_account_currency(parent_doc.base_currency or parent_doc.currency)
+    rows = frappe.get_all(
+        "Hisabi Account",
+        filters={
+            "wallet_id": wallet_id,
+            "parent_account": parent_doc.name,
+            "is_deleted": 0,
+        },
+        fields=["name", "client_id", "currency", "current_balance", "opening_balance"],
+        order_by="creation asc",
+    )
+
+    supported_currencies: List[str] = []
+    sub_balances: List[Dict[str, Any]] = []
+    total_balance_base = 0.0
+    for row in rows:
+        sub_currency = _normalize_account_currency(row.get("currency"))
+        sub_balance = flt(row.get("current_balance") or 0)
+        supported_currencies.append(sub_currency)
+        sub_balances.append(
+            {
+                "account_id": row.get("client_id") or row.get("name"),
+                "currency": sub_currency,
+                "balance": flt(sub_balance, 8),
+                "opening_balance": flt(row.get("opening_balance") or 0, 8),
+            }
+        )
+        converted, _ = _convert_amount_between_currencies(
+            wallet_id=wallet_id,
+            amount=sub_balance,
+            source_currency=sub_currency,
+            target_currency=base_currency,
+            at=now_datetime(),
+        )
+        if converted is None:
+            if sub_currency != base_currency:
+                continue
+            converted = sub_balance
+        total_balance_base += flt(converted)
+
+    payload["base_currency"] = base_currency
+    payload["group_id"] = _normalize_group_id(parent_doc.group_id) or str(parent_doc.client_id or parent_doc.name)
+    payload["supported_currencies"] = sorted({c for c in supported_currencies if c})
+    payload["sub_balances"] = sub_balances
+    payload["total_balance_base"] = flt(total_balance_base, 8)
+    return payload
 
 
 def _filter_payload_fields(doc: frappe.model.document.Document, payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -1376,6 +1819,29 @@ def _validate_sync_push_item(item: Dict[str, Any], wallet_id: str) -> Optional[D
                 detail=invalid_types,
             )
 
+        if entity_type == "Hisabi Account":
+            is_multi_currency = cint(normalized.get("is_multi_currency") or 0) == 1
+            missing_account_fields = []
+            if is_multi_currency:
+                if normalized.get("base_currency") in (None, ""):
+                    missing_account_fields.append("base_currency")
+            elif normalized.get("currency") in (None, ""):
+                missing_account_fields.append("currency")
+            if missing_account_fields:
+                return _build_item_error(
+                    error_code="missing_required_fields",
+                    entity_type=entity_type,
+                    client_id=client_id,
+                    detail=missing_account_fields,
+                )
+            if is_multi_currency and normalized.get("parent_account") not in (None, ""):
+                return _build_item_error(
+                    error_code="invalid_field",
+                    entity_type=entity_type,
+                    client_id=client_id,
+                    detail=["parent_account"],
+                )
+
     return None
 
 
@@ -1474,6 +1940,10 @@ def _sanitize_pull_record(doctype: str, record: Dict[str, Any]) -> Dict[str, Any
     cleaned = dict(record or {})
     if doctype == "Hisabi Device":
         cleaned.pop("device_token_hash", None)
+    for sensitive_key in SENSITIVE_SYNC_FIELDS:
+        cleaned.pop(sensitive_key, None)
+        cleaned.pop(sensitive_key.lower(), None)
+        cleaned.pop(sensitive_key.upper(), None)
 
     allowed = SYNC_PULL_ALLOWED_FIELDS.get(doctype)
     if not allowed:
@@ -1705,6 +2175,7 @@ def sync_push(
 
     results: List[Dict[str, Any]] = []
     affected_accounts = set()
+    affected_multi_parents = set()
     affected_budgets = set()
     affected_goals = set()
     affected_debts = set()
@@ -1949,6 +2420,14 @@ def sync_push(
                 # Invariant: recalc must cover both pre-update and post-update links.
                 prev_tx_account = getattr(existing, "account", None)
                 prev_tx_to_account = getattr(existing, "to_account", None)
+                if prev_tx_account:
+                    prev_account_doc = _resolve_account_doc(prev_tx_account, user=user, wallet_id=wallet_id)
+                    if prev_account_doc and prev_account_doc.parent_account:
+                        affected_multi_parents.add(prev_account_doc.parent_account)
+                if prev_tx_to_account:
+                    prev_to_account_doc = _resolve_account_doc(prev_tx_to_account, user=user, wallet_id=wallet_id)
+                    if prev_to_account_doc and prev_to_account_doc.parent_account:
+                        affected_multi_parents.add(prev_to_account_doc.parent_account)
 
             if entity_type in {"Hisabi Budget", "Hisabi Goal"}:
                 payload = dict(payload)
@@ -1964,6 +2443,45 @@ def sync_push(
                     if payload.get("target_amount") is None and payload.get("target_amount_base") is not None:
                         payload["target_amount"] = payload.get("target_amount_base")
 
+            if entity_type == "Hisabi Account":
+                payload = dict(payload)
+                payload["currency"] = _normalize_account_currency(payload.get("currency"))
+                payload["base_currency"] = _normalize_account_currency(payload.get("base_currency"))
+                is_multi_currency = cint(payload.get("is_multi_currency") or 0) == 1
+                if is_multi_currency:
+                    payload["is_multi_currency"] = 1
+                    payload["base_currency"] = payload.get("base_currency") or payload.get("currency") or _normalize_account_currency(
+                        _resolve_base_currency(wallet_id, user)
+                    )
+                    payload["currency"] = payload.get("currency") or payload.get("base_currency")
+                    payload["group_id"] = _normalize_group_id(payload.get("group_id")) or str(client_id or uuid.uuid4())
+                    payload["parent_account"] = None
+                elif payload.get("parent_account"):
+                    payload["is_multi_currency"] = 0
+                    parent_doc = _resolve_account_doc(payload.get("parent_account"), user=user, wallet_id=wallet_id)
+                    if parent_doc:
+                        payload["parent_account"] = parent_doc.name
+                        payload["group_id"] = _normalize_group_id(payload.get("group_id")) or _normalize_group_id(parent_doc.group_id)
+                        payload["base_currency"] = payload.get("base_currency") or _normalize_account_currency(
+                            parent_doc.base_currency or parent_doc.currency
+                        )
+                elif not payload.get("base_currency") and payload.get("currency"):
+                    payload["base_currency"] = payload.get("currency")
+
+            if entity_type == "Hisabi Transaction":
+                payload = dict(payload)
+                payload["currency"] = _normalize_account_currency(payload.get("currency"))
+                payload, routed_parents = _resolve_multi_currency_transaction_accounts(
+                    payload,
+                    user=user,
+                    wallet_id=wallet_id,
+                )
+                if routed_parents:
+                    affected_multi_parents.update(routed_parents)
+                payload = _hydrate_transaction_fx_fields(payload, user=user, wallet_id=wallet_id)
+                if payload.get("base_amount") in (None, "") and payload.get("amount_base") not in (None, ""):
+                    payload["base_amount"] = payload.get("amount_base")
+
             doc = _prepare_doc_for_write(entity_type, payload, user, existing=existing)
             fx_sanity_warnings: List[str] = []
             if entity_type == "Hisabi Transaction":
@@ -1971,7 +2489,10 @@ def sync_push(
             mark_deleted = operation == "delete"
 
             if entity_type == "Hisabi Account" and not existing:
-                if not doc.current_balance and doc.opening_balance is not None:
+                if _is_multi_currency_parent(doc):
+                    doc.opening_balance = 0
+                    doc.current_balance = 0
+                elif not doc.current_balance and doc.opening_balance is not None:
                     doc.current_balance = doc.opening_balance
 
             # Keep doc_version monotonic for every accepted mutation.
@@ -2018,12 +2539,23 @@ def sync_push(
                     affected_accounts.add(prev_tx_to_account)
                 if doc.account:
                     affected_accounts.add(doc.account)
+                    source_account_doc = _resolve_account_doc(doc.account, user=user, wallet_id=wallet_id)
+                    if source_account_doc and source_account_doc.parent_account:
+                        affected_multi_parents.add(source_account_doc.parent_account)
                 if doc.to_account:
                     affected_accounts.add(doc.to_account)
+                    to_account_doc = _resolve_account_doc(doc.to_account, user=user, wallet_id=wallet_id)
+                    if to_account_doc and to_account_doc.parent_account:
+                        affected_multi_parents.add(to_account_doc.parent_account)
                 budgets_dirty = True
                 goals_dirty = True
 
             if entity_type == "Hisabi Account":
+                if _is_multi_currency_parent(doc):
+                    _create_base_child_for_multi_currency_parent(doc, user=user)
+                    affected_multi_parents.add(doc.name)
+                if doc.parent_account:
+                    affected_multi_parents.add(doc.parent_account)
                 if operation == "update":
                     affected_accounts.add(doc.name)
                 goals_dirty = True
@@ -2120,6 +2652,13 @@ def sync_push(
 
     for account_name in affected_accounts:
         _recalculate_account_balance(user, account_name, wallet_id=wallet_id)
+
+    for parent_account_name in affected_multi_parents:
+        _recalculate_multi_currency_parent_balance(
+            user=user,
+            wallet_id=wallet_id,
+            parent_account_id=parent_account_name,
+        )
 
     if affected_debts:
         recalc_debts(user, affected_debts)
@@ -2445,6 +2984,8 @@ def sync_pull(
     for row in selected:
         doctype = row["doctype"]
         doc = _sanitize_pull_record(doctype, frappe.get_doc(doctype, row["name"]).as_dict())
+        if doctype == "Hisabi Account":
+            doc = _enrich_multi_currency_account_payload(doc, user=user, wallet_id=wallet_id)
         doc = _coerce_json(doc)
         client_id = doc.get("client_id") or doc.get("name")
         items.append(
