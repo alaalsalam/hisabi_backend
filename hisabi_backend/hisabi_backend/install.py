@@ -25,3 +25,6 @@ def after_install() -> None:
 
 def before_tests() -> None:
     ensure_roles()
+    from hisabi_backend.tests.bootstrap import run_test_bootstrap
+
+    run_test_bootstrap()
