@@ -4,7 +4,7 @@
 # Safety: sends read-only OPTIONS requests; does not mutate server data.
 set -euo pipefail
 
-BASE_URL=${BASE_URL:-"https://expense.yemenfrappe.com"}
+BASE_URL=${BASE_URL:-"https://hisabi.yemenfrappe.com"}
 ORIGIN=${ORIGIN:-"http://localhost:8082"}
 
 ENDPOINTS=(

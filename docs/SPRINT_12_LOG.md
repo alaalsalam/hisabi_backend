@@ -10,14 +10,14 @@ Branch: `main`
 
 ## Required Gates Executed
 ```bash
-bench --site expense.yemenfrappe.com migrate
+bench --site hisabi.yemenfrappe.com migrate
 BASE_URL=http://127.0.0.1:18000 ORIGIN=http://localhost:8082 bash hisabi_backend/hisabi_backend/scripts/verify_local_gate_suite.sh
 ```
 
 ## PASS Evidence
-- `bench --site expense.yemenfrappe.com migrate`: PASS
-  - `Migrating expense.yemenfrappe.com`
-  - `Queued rebuilding of search index for expense.yemenfrappe.com`
+- `bench --site hisabi.yemenfrappe.com migrate`: PASS
+  - `Migrating hisabi.yemenfrappe.com`
+  - `Queued rebuilding of search index for hisabi.yemenfrappe.com`
 - `verify_local_gate_suite.sh`: PASS
   - `==> PASS verify_auth_smoke.sh`
   - `==> PASS verify_sync_pull.sh`
@@ -31,4 +31,4 @@ BASE_URL=http://127.0.0.1:18000 ORIGIN=http://localhost:8082 bash hisabi_backend
   - `LOCAL GATE SUITE PASS`
 
 ## Notes
-- Local gate suite was executed against local server endpoint `127.0.0.1:18000` in single-site serve mode for `expense.yemenfrappe.com`.
+- Local gate suite was executed against local server endpoint `127.0.0.1:18000` in single-site serve mode for `hisabi.yemenfrappe.com`.

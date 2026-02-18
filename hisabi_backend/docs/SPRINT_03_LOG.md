@@ -3,7 +3,7 @@
 Date: 2026-02-09
 Repo: `hisabi_backend`
 Branch: `sprint/02-product-core`
-Target environment: `https://expense.yemenfrappe.com`
+Target environment: `https://hisabi.yemenfrappe.com`
 
 ## Commit Units (What / Why / Verification)
 
@@ -16,7 +16,7 @@ Why:
 - Sprint 03 requires wallet-scoped deterministic balance recalculation under edits/deletes/concurrency.
 
 Verification command:
-- `bench --site expense.yemenfrappe.com run-tests --app hisabi_backend --module hisabi_backend.tests.test_transaction_balance_determinism`
+- `bench --site hisabi.yemenfrappe.com run-tests --app hisabi_backend --module hisabi_backend.tests.test_transaction_balance_determinism`
 
 Last success line:
 - `Ran 5 tests in 5.711s`
@@ -32,7 +32,7 @@ Why:
 - Sprint 03 requires stable wallet-scoped report contracts with explicit FX-missing warnings (no fake conversion).
 
 Verification command:
-- `bench --site expense.yemenfrappe.com run-tests --app hisabi_backend --module hisabi_backend.tests.test_reports_contract_v2`
+- `bench --site hisabi.yemenfrappe.com run-tests --app hisabi_backend --module hisabi_backend.tests.test_reports_contract_v2`
 
 Last success line:
 - `Ran 3 tests in 4.570s`
@@ -47,8 +47,8 @@ Why:
 - Sprint 03 requires a release gate that validates reports contract + 422 invalid_request behavior.
 
 Verification commands:
-- `BASE_URL=https://expense.yemenfrappe.com ORIGIN=http://localhost:8082 bash hisabi_backend/scripts/verify_reports_contract.sh`
-- `BASE_URL=https://expense.yemenfrappe.com ORIGIN=http://localhost:8082 bash hisabi_backend/scripts/verify_sync_conflict_resolution.sh`
+- `BASE_URL=https://hisabi.yemenfrappe.com ORIGIN=http://localhost:8082 bash hisabi_backend/scripts/verify_reports_contract.sh`
+- `BASE_URL=https://hisabi.yemenfrappe.com ORIGIN=http://localhost:8082 bash hisabi_backend/scripts/verify_sync_conflict_resolution.sh`
 
 Last success line:
 - `Reports contract verification OK.`
@@ -62,7 +62,7 @@ Why:
 - Sprint 03 requires diag consistency with runtime release version and commit hash.
 
 Verification command:
-- `curl -sS -o /tmp/hisabi_diag_body.json -w '%{http_code}' https://expense.yemenfrappe.com/api/method/hisabi_backend.api.v1.health.diag`
+- `curl -sS -o /tmp/hisabi_diag_body.json -w '%{http_code}' https://hisabi.yemenfrappe.com/api/method/hisabi_backend.api.v1.health.diag`
 - `jq . /tmp/hisabi_diag_body.json`
 
 Last success line:
@@ -73,7 +73,7 @@ Last success line:
 ## Sprint 03 Backend Gates (Executed)
 
 Environment:
-- `BASE_URL=https://expense.yemenfrappe.com`
+- `BASE_URL=https://hisabi.yemenfrappe.com`
 - `ORIGIN=http://localhost:8082`
 
 Commands and terminal outcome:
@@ -87,7 +87,7 @@ Commands and terminal outcome:
   - `Conflict resolution contract OK.`
 - `bash hisabi_backend/scripts/verify_reports_contract.sh`
   - `Reports contract verification OK.`
-- `curl https://expense.yemenfrappe.com/api/method/hisabi_backend.api.v1.health.diag`
+- `curl https://hisabi.yemenfrappe.com/api/method/hisabi_backend.api.v1.health.diag`
   - HTTP `200`, app version `v1.0.0-rc.2`, commit `cdf7799`
 
 Raw gate logs captured at:

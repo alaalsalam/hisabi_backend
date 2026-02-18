@@ -1,6 +1,6 @@
 # Backend Release Checklist (RC1)
 
-Purpose: fast release validation checklist for `expense.yemenfrappe.com`.
+Purpose: fast release validation checklist for `hisabi.yemenfrappe.com`.
 When to use: immediately before and after backend deploy.
 Safety: run only documented verification scripts and read-only checks; avoid ad-hoc debug writes.
 
@@ -20,28 +20,28 @@ Run from backend app repo root (`/home/frappe/frappe-bench/apps/hisabi_backend/h
 
 - Auth smoke:
 ```bash
-BASE_URL=https://expense.yemenfrappe.com \
+BASE_URL=https://hisabi.yemenfrappe.com \
 ORIGIN=http://localhost:8082 \
 bash hisabi_backend/scripts/verify_auth_smoke.sh
 ```
 
 - Sync pull:
 ```bash
-BASE_URL=https://expense.yemenfrappe.com \
+BASE_URL=https://hisabi.yemenfrappe.com \
 ORIGIN=http://localhost:8082 \
 bash hisabi_backend/scripts/verify_sync_pull.sh
 ```
 
 - Sync push e2e:
 ```bash
-BASE_URL=https://expense.yemenfrappe.com \
+BASE_URL=https://hisabi.yemenfrappe.com \
 ORIGIN=http://localhost:8082 \
 bash hisabi_backend/scripts/verify_sync_push_e2e.sh
 ```
 
 - Sync pull pagination:
 ```bash
-BASE_URL=https://expense.yemenfrappe.com \
+BASE_URL=https://hisabi.yemenfrappe.com \
 ORIGIN=http://localhost:8082 \
 bash hisabi_backend/scripts/verify_sync_pull_pagination.sh
 ```

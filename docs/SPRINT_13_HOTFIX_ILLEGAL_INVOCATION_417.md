@@ -15,15 +15,15 @@
 
 ## Commands executed
 ```bash
-bench --site expense.yemenfrappe.com migrate
-bench --site expense.yemenfrappe.com serve --port 18000
+bench --site hisabi.yemenfrappe.com migrate
+bench --site hisabi.yemenfrappe.com serve --port 18000
 BASE_URL=http://127.0.0.1:18000 ORIGIN=http://localhost:8082 bash apps/hisabi_backend/hisabi_backend/hisabi_backend/scripts/verify_local_gate_suite.sh
-bench --site expense.yemenfrappe.com run-tests --app hisabi_backend --module hisabi_backend.tests.test_auth_expect_header
+bench --site hisabi.yemenfrappe.com run-tests --app hisabi_backend --module hisabi_backend.tests.test_auth_expect_header
 ```
 
 ## PASS evidence snippets
 ```text
-Migrating expense.yemenfrappe.com
+Migrating hisabi.yemenfrappe.com
 ...
 Executing hisabi_backend.patches.v1_0.fix_customizations_in_dashboards ...
 ```

@@ -19,9 +19,9 @@ Branch: `main`
 
 ## Commands Executed
 ```bash
-bench --site expense.yemenfrappe.com migrate
-bench --site expense.yemenfrappe.com run-tests --module hisabi_backend.tests.test_review_issues_contract
-bench --site expense.yemenfrappe.com run-tests --module hisabi_backend.tests.test_review_apply_fix_idempotent
+bench --site hisabi.yemenfrappe.com migrate
+bench --site hisabi.yemenfrappe.com run-tests --module hisabi_backend.tests.test_review_issues_contract
+bench --site hisabi.yemenfrappe.com run-tests --module hisabi_backend.tests.test_review_apply_fix_idempotent
 BASE_URL=http://127.0.0.1:18000 ORIGIN=http://localhost:8082 bash /home/frappe/frappe-bench/apps/hisabi_backend/hisabi_backend/hisabi_backend/scripts/verify_review_center.sh
 ```
 

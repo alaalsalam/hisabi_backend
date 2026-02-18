@@ -13,8 +13,8 @@ Release: `v1.0.0-rc.1`
 ## Required Verification Commands
 ```bash
 cd /home/frappe/frappe-bench/apps/hisabi_backend/hisabi_backend/hisabi_backend/scripts
-BASE_URL=https://expense.yemenfrappe.com ORIGIN=http://localhost:8082 bash verify_auth_smoke.sh
-BASE_URL=https://expense.yemenfrappe.com ORIGIN=http://localhost:8082 bash verify_sync_pull.sh
-BASE_URL=https://expense.yemenfrappe.com ORIGIN=http://localhost:8082 bash verify_sync_push_e2e.sh
-curl -sS https://expense.yemenfrappe.com/api/method/hisabi_backend.api.v1.health.diag | jq .
+BASE_URL=https://hisabi.yemenfrappe.com ORIGIN=http://localhost:8082 bash verify_auth_smoke.sh
+BASE_URL=https://hisabi.yemenfrappe.com ORIGIN=http://localhost:8082 bash verify_sync_pull.sh
+BASE_URL=https://hisabi.yemenfrappe.com ORIGIN=http://localhost:8082 bash verify_sync_push_e2e.sh
+curl -sS https://hisabi.yemenfrappe.com/api/method/hisabi_backend.api.v1.health.diag | jq .
 ```

@@ -27,7 +27,7 @@
 Run with:
 
 ```bash
-export BASE_URL=https://expense.yemenfrappe.com
+export BASE_URL=https://hisabi.yemenfrappe.com
 export ORIGIN=http://localhost:8082
 ```
 
@@ -44,14 +44,14 @@ bash hisabi_backend/scripts/verify_reports_contract.sh
 Targeted tests:
 
 ```bash
-bench --site expense.yemenfrappe.com run-tests --app hisabi_backend --module hisabi_backend.tests.test_transaction_balance_determinism
-bench --site expense.yemenfrappe.com run-tests --app hisabi_backend --module hisabi_backend.tests.test_reports_contract_v2
+bench --site hisabi.yemenfrappe.com run-tests --app hisabi_backend --module hisabi_backend.tests.test_transaction_balance_determinism
+bench --site hisabi.yemenfrappe.com run-tests --app hisabi_backend --module hisabi_backend.tests.test_reports_contract_v2
 ```
 
 Diag expectation:
 
 ```bash
-curl -sS https://expense.yemenfrappe.com/api/method/hisabi_backend.api.v1.health.diag | jq .
+curl -sS https://hisabi.yemenfrappe.com/api/method/hisabi_backend.api.v1.health.diag | jq .
 ```
 
 Expected keys:

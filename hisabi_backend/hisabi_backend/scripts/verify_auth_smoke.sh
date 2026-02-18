@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BASE_URL=${BASE_URL:-"https://expense.yemenfrappe.com"}
+BASE_URL=${BASE_URL:-"https://hisabi.yemenfrappe.com"}
 ORIGIN=${ORIGIN:-"http://localhost:8082"}
 UNIQUE_SUFFIX=${UNIQUE_SUFFIX:-"$(date +%s)-$RANDOM"}
 PASSWORD=${PASSWORD:-"Test1234!"}

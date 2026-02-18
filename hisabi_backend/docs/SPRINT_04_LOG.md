@@ -26,15 +26,15 @@ Date: 2026-02-09
 - `96649fc` `feat(reports): add wallet-scoped bucket finance reports and verification`
 
 ## Gates Run (Recorded)
-1. `bench --site expense.yemenfrappe.com migrate`
+1. `bench --site hisabi.yemenfrappe.com migrate`
    - Last success lines:
    - `Executing \`after_migrate\` hooks...`
-   - `Queued rebuilding of search index for expense.yemenfrappe.com`
-2. `bench --site expense.yemenfrappe.com run-tests --app hisabi_backend --module hisabi_backend.tests.test_bucket_breakdown_report`
+   - `Queued rebuilding of search index for hisabi.yemenfrappe.com`
+2. `bench --site hisabi.yemenfrappe.com run-tests --app hisabi_backend --module hisabi_backend.tests.test_bucket_breakdown_report`
    - Last success lines:
    - `Ran 5 tests in 6.336s`
    - `OK`
-3. `bench --site expense.yemenfrappe.com run-tests --app hisabi_backend --module hisabi_backend.tests.test_bucket_cashflow_report`
+3. `bench --site hisabi.yemenfrappe.com run-tests --app hisabi_backend --module hisabi_backend.tests.test_bucket_cashflow_report`
    - Last success lines:
    - `Ran 5 tests in 4.828s`
    - `OK`
@@ -66,28 +66,28 @@ Repo state:
   - `upstream https://github.com/alaalsalam/hisabi_backend.git`
 
 Commands and outputs (production target):
-1. `BASE_URL=https://expense.yemenfrappe.com ORIGIN=http://localhost:8082 bash verify_auth_smoke.sh`
+1. `BASE_URL=https://hisabi.yemenfrappe.com ORIGIN=http://localhost:8082 bash verify_auth_smoke.sh`
    - Output: `==> Preflight OPTIONS` then exit `code 6`.
 
-2. `BASE_URL=https://expense.yemenfrappe.com ORIGIN=http://localhost:8082 bash verify_sync_pull.sh`
+2. `BASE_URL=https://hisabi.yemenfrappe.com ORIGIN=http://localhost:8082 bash verify_sync_pull.sh`
    - Output: `==> Register user` then exit `code 6`.
 
-3. `BASE_URL=https://expense.yemenfrappe.com ORIGIN=http://localhost:8082 bash verify_sync_push_e2e.sh`
+3. `BASE_URL=https://hisabi.yemenfrappe.com ORIGIN=http://localhost:8082 bash verify_sync_push_e2e.sh`
    - Output:
    - `HTTP 000`
    - `Missing token in register response`
 
-4. `BASE_URL=https://expense.yemenfrappe.com ORIGIN=http://localhost:8082 bash verify_bucket_reports.sh`
+4. `BASE_URL=https://hisabi.yemenfrappe.com ORIGIN=http://localhost:8082 bash verify_bucket_reports.sh`
    - Output: `==> Register user` then exit `code 6`.
 
-5. `BASE_URL=https://expense.yemenfrappe.com ORIGIN=http://localhost:8082 bash verify_sync_conflict_resolution.sh`
+5. `BASE_URL=https://hisabi.yemenfrappe.com ORIGIN=http://localhost:8082 bash verify_sync_conflict_resolution.sh`
    - Output: `==> Register user` then exit `code 6`.
 
-6. `curl -sS https://expense.yemenfrappe.com/api/method/hisabi_backend.api.v1.health.diag | jq .`
-   - Output: `curl: (6) Could not resolve host: expense.yemenfrappe.com`
+6. `curl -sS https://hisabi.yemenfrappe.com/api/method/hisabi_backend.api.v1.health.diag | jq .`
+   - Output: `curl: (6) Could not resolve host: hisabi.yemenfrappe.com`
 
 Blocking condition:
-- DNS/network egress to `expense.yemenfrappe.com` is unavailable in this execution environment, so production-targeted backend gates could not complete here.
+- DNS/network egress to `hisabi.yemenfrappe.com` is unavailable in this execution environment, so production-targeted backend gates could not complete here.
 
 ## Local Gate Closure (DNS-restricted runner) (2026-02-10T10:48:56+03:00)
 

@@ -41,17 +41,17 @@ Recurring Transactions v1 backend deliverables on `main`:
   - Included in `verify_local_gate_suite.sh`
 
 ## Commands Run + Results
-1. `bench --site expense.yemenfrappe.com migrate`
+1. `bench --site hisabi.yemenfrappe.com migrate`
    - PASS
-2. `bench --site expense.yemenfrappe.com run-tests --module hisabi_backend.tests.test_sync_recurring_rule`
+2. `bench --site hisabi.yemenfrappe.com run-tests --module hisabi_backend.tests.test_sync_recurring_rule`
    - PASS (`Ran 1 test ... OK`)
-3. `bench --site expense.yemenfrappe.com run-tests --module hisabi_backend.tests.test_sync_recurring_instance`
+3. `bench --site hisabi.yemenfrappe.com run-tests --module hisabi_backend.tests.test_sync_recurring_instance`
    - PASS (`Ran 1 test ... OK`)
-4. `bench --site expense.yemenfrappe.com run-tests --module hisabi_backend.tests.test_recurring_generate_api`
+4. `bench --site hisabi.yemenfrappe.com run-tests --module hisabi_backend.tests.test_recurring_generate_api`
    - PASS (`Ran 2 tests ... OK`)
-5. `bench --site expense.yemenfrappe.com run-tests --module hisabi_backend.tests.test_unique_instance_per_date`
+5. `bench --site hisabi.yemenfrappe.com run-tests --module hisabi_backend.tests.test_unique_instance_per_date`
    - PASS (`Ran 1 test ... OK`)
-6. `BASE_URL=http://expense.yemenfrappe.com:18000 bash hisabi_backend/hisabi_backend/scripts/verify_recurring.sh`
+6. `BASE_URL=http://hisabi.yemenfrappe.com:18000 bash hisabi_backend/hisabi_backend/scripts/verify_recurring.sh`
    - PASS (`PASS: verify_recurring`)
 
 ## Gate Evidence

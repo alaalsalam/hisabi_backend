@@ -24,13 +24,13 @@ Sprint 06 Buckets v2 backend deliverables on `main`:
   - `hisabi_backend/hisabi_backend/hisabi_backend/scripts/verify_bucket_effectiveness.sh`
 
 ## Commands Run
-1. `bench --site expense.yemenfrappe.com migrate`
+1. `bench --site hisabi.yemenfrappe.com migrate`
    - Result: PASS
-2. `bench --site expense.yemenfrappe.com run-tests --module hisabi_backend.tests.test_bucket_expenses_api`
+2. `bench --site hisabi.yemenfrappe.com run-tests --module hisabi_backend.tests.test_bucket_expenses_api`
    - Result: PASS (`Ran 3 tests ... OK`)
-3. `bench --site expense.yemenfrappe.com run-tests --module hisabi_backend.tests.test_sync_transaction_bucket_expense`
+3. `bench --site hisabi.yemenfrappe.com run-tests --module hisabi_backend.tests.test_sync_transaction_bucket_expense`
    - Result: PASS (`Ran 1 test ... OK`)
-4. `bench --site expense.yemenfrappe.com run-tests --module hisabi_backend.tests.test_bucket_effectiveness_report`
+4. `bench --site hisabi.yemenfrappe.com run-tests --module hisabi_backend.tests.test_bucket_effectiveness_report`
    - Result: PASS (`Ran 1 test ... OK`)
 5. `BASE_URL=http://127.0.0.1:18000 ORIGIN=http://localhost:8082 bash hisabi_backend/hisabi_backend/hisabi_backend/scripts/verify_auth_smoke.sh`
    - Result: PASS (`Smoke test OK`)

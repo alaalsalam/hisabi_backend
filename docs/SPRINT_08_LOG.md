@@ -19,16 +19,16 @@ Branch: `main`
 
 ## Commands Executed
 ```bash
-bench --site expense.yemenfrappe.com migrate
-bench --site expense.yemenfrappe.com run-tests --module hisabi_backend.tests.test_recurring_rule_edit_policy
-bench --site expense.yemenfrappe.com run-tests --module hisabi_backend.tests.test_recurring_instance_skip
-bench --site expense.yemenfrappe.com run-tests --module hisabi_backend.tests.test_recurring_preview_api
+bench --site hisabi.yemenfrappe.com migrate
+bench --site hisabi.yemenfrappe.com run-tests --module hisabi_backend.tests.test_recurring_rule_edit_policy
+bench --site hisabi.yemenfrappe.com run-tests --module hisabi_backend.tests.test_recurring_instance_skip
+bench --site hisabi.yemenfrappe.com run-tests --module hisabi_backend.tests.test_recurring_preview_api
 BASE_URL=http://127.0.0.1:18000 ORIGIN=http://localhost:8082 bash hisabi_backend/hisabi_backend/scripts/verify_recurring.sh
 python -m compileall hisabi_backend/hisabi_backend/api/v1/recurring.py hisabi_backend/hisabi_backend/api/v1/reports_finance.py hisabi_backend/hisabi_backend/api/v1/__init__.py hisabi_backend/hisabi_backend/doctype/hisabi_recurring_rule/hisabi_recurring_rule.py hisabi_backend/hisabi_backend/tests/test_recurring_rule_edit_policy.py hisabi_backend/hisabi_backend/tests/test_recurring_instance_skip.py hisabi_backend/hisabi_backend/tests/test_recurring_preview_api.py
 ```
 
 ## Evidence (Pass)
-- Migrate: PASS (`expense.yemenfrappe.com`).
+- Migrate: PASS (`hisabi.yemenfrappe.com`).
 - Tests: 3/3 modules PASS.
 - Verify recurring gate: PASS (`PASS: verify_recurring`).
 - Compileall: PASS (exit 0).

@@ -31,7 +31,7 @@
   - `hisabi_backend/hisabi_backend/api/v1/health.py`
   - `hisabi_backend/hisabi_backend/tests/test_health_diag.py`
 - Verification:
-  - `curl -s https://expense.yemenfrappe.com/api/method/hisabi_backend.api.v1.health.diag` -> PASS (`app.version = v1.0.0-rc.1`)
+  - `curl -s https://hisabi.yemenfrappe.com/api/method/hisabi_backend.api.v1.health.diag` -> PASS (`app.version = v1.0.0-rc.1`)
   - `python3 -m compileall hisabi_backend/api/v1/health.py hisabi_backend/tests/test_health_diag.py` -> PASS
 
 ### Commit `814cd23`

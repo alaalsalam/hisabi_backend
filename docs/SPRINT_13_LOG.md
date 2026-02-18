@@ -10,12 +10,12 @@ Branch: `main`
 
 ## Gates Executed
 ```bash
-bench --site expense.yemenfrappe.com migrate
+bench --site hisabi.yemenfrappe.com migrate
 BASE_URL=http://127.0.0.1:18000 ORIGIN=http://localhost:8082 bash apps/hisabi_backend/hisabi_backend/hisabi_backend/scripts/verify_local_gate_suite.sh
 ```
 
 ## PASS Evidence
-- `bench --site expense.yemenfrappe.com migrate`: PASS
+- `bench --site hisabi.yemenfrappe.com migrate`: PASS
   - completed DocType updates and `after_migrate` hooks
   - queued search index rebuild
 - local gate suite: PASS

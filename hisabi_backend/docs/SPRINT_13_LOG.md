@@ -18,5 +18,5 @@ Date: 2026-02-11
 
 ## Evidence
 
-- `bench --site expense.yemenfrappe.com migrate`: NOT RUN (local verification pending).
+- `bench --site hisabi.yemenfrappe.com migrate`: NOT RUN (local verification pending).
 - `verify_auth_smoke.sh`: NOT RUN (local verification pending).

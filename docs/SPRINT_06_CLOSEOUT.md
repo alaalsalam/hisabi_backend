@@ -17,7 +17,7 @@ Repo: hisabi_backend
 - `git tag -n | tail -n 20`
 - `rg -n "transaction_bucket_expense|Hisabi Transaction Bucket Expense|hisabi_transaction_bucket_expense" hisabi_backend/hisabi_backend`
 - `python -m compileall hisabi_backend/hisabi_backend`
-- `bench --site expense.yemenfrappe.com migrate`
+- `bench --site hisabi.yemenfrappe.com migrate`
 - `BASE_URL=http://127.0.0.1:18000 ORIGIN=http://localhost:8082 bash hisabi_backend/hisabi_backend/scripts/verify_auth_smoke.sh`
 - `BASE_URL=http://127.0.0.1:18000 ORIGIN=http://localhost:8082 bash hisabi_backend/hisabi_backend/scripts/verify_sync_push_e2e.sh`
 - `BASE_URL=http://127.0.0.1:18000 ORIGIN=http://localhost:8082 bash hisabi_backend/hisabi_backend/scripts/verify_bucket_reports.sh`

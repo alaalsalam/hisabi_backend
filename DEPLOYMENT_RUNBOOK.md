@@ -1,25 +1,25 @@
 # Hisabi Backend Deployment Runbook (RC1)
 
-Purpose: operator runbook for `expense.yemenfrappe.com` deploy and post-deploy verification.
+Purpose: operator runbook for `hisabi.yemenfrappe.com` deploy and post-deploy verification.
 When to use: during release windows and incident-driven redeploys.
 Safety: commands below are operational only (migrate/restart/cache clear/HTTP checks), not data-debug mutations.
 
 ## Apply Code Changes Safely
 1. Update code on server (git pull or deploy pipeline).
 1. Clear caches (safe, non-destructive):
-   1. `bench --site expense.yemenfrappe.com clear-cache`
+   1. `bench --site hisabi.yemenfrappe.com clear-cache`
 1. Restart services to load new Python code:
    1. `sudo /usr/local/bin/bench restart`
 1. Confirm processes updated (pick one):
    1. `bench doctor` (if available)
-   1. `bench --site expense.yemenfrappe.com status` (if available)
+   1. `bench --site hisabi.yemenfrappe.com status` (if available)
 1. Validate auth endpoints:
-   1. `BASE_URL=https://expense.yemenfrappe.com ORIGIN=http://localhost:8082 bash /home/frappe/frappe-bench/apps/hisabi_backend/hisabi_backend/hisabi_backend/scripts/verify_auth_smoke.sh | tee /tmp/auth_smoke.out`
+   1. `BASE_URL=https://hisabi.yemenfrappe.com ORIGIN=http://localhost:8082 bash /home/frappe/frappe-bench/apps/hisabi_backend/hisabi_backend/hisabi_backend/scripts/verify_auth_smoke.sh | tee /tmp/auth_smoke.out`
 
 Notes:
 - Python code changes do not load until Frappe/worker processes restart.
 - If you changed DocType JSON or patches, run:
-  - `bench --site expense.yemenfrappe.com migrate`
+  - `bench --site hisabi.yemenfrappe.com migrate`
   - Then `sudo /usr/local/bin/bench restart`
 
 ## Sudoers Hardening (frappe user)
@@ -61,25 +61,25 @@ Run these before each deploy window:
 Run from repo root (`/home/frappe/frappe-bench/apps/hisabi_backend`):
 
 ```bash
-BASE_URL=https://expense.yemenfrappe.com \
+BASE_URL=https://hisabi.yemenfrappe.com \
 ORIGIN=http://localhost:8082 \
 bash hisabi_backend/hisabi_backend/scripts/verify_auth_smoke.sh
 ```
 
 ```bash
-BASE_URL=https://expense.yemenfrappe.com \
+BASE_URL=https://hisabi.yemenfrappe.com \
 ORIGIN=http://localhost:8082 \
 bash hisabi_backend/hisabi_backend/scripts/verify_sync_pull.sh
 ```
 
 ```bash
-BASE_URL=https://expense.yemenfrappe.com \
+BASE_URL=https://hisabi.yemenfrappe.com \
 ORIGIN=http://localhost:8082 \
 bash hisabi_backend/hisabi_backend/scripts/verify_sync_push_e2e.sh
 ```
 
 ```bash
-BASE_URL=https://expense.yemenfrappe.com \
+BASE_URL=https://hisabi.yemenfrappe.com \
 ORIGIN=http://localhost:8082 \
 bash hisabi_backend/hisabi_backend/scripts/verify_sync_pull_pagination.sh
 ```
@@ -102,9 +102,9 @@ Run from `/home/frappe/frappe-bench`.
 
 1. Deploy code to `main` for backend and frontend.
 1. Run migration:
-   1. `bench --site expense.yemenfrappe.com migrate`
+   1. `bench --site hisabi.yemenfrappe.com migrate`
 1. Clear site cache:
-   1. `bench --site expense.yemenfrappe.com clear-cache`
+   1. `bench --site hisabi.yemenfrappe.com clear-cache`
 1. Restart services:
    1. `sudo /usr/local/bin/bench restart`
 1. Run localhost gate suite:
@@ -116,4 +116,4 @@ Run from `/home/frappe/frappe-bench`.
    1. `cd /home/frappe/frappe-bench/apps/hisabi_backend/hisabi-your-smart-wallet`
    1. `eval "$(BASE_URL=http://127.0.0.1:18000 bash ../hisabi_backend/hisabi_backend/scripts/mint_device_token.sh)" && HISABI_BASE_URL=http://127.0.0.1:18000 HISABI_TOKEN="$HISABI_TOKEN" node --import tsx src/dev/verifyReportsContract.ts`
 1. Optional production diagnostics:
-   1. `curl -sS https://expense.yemenfrappe.com/api/method/hisabi_backend.api.v1.health.diag`
+   1. `curl -sS https://hisabi.yemenfrappe.com/api/method/hisabi_backend.api.v1.health.diag`
