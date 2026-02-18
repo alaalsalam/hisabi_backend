@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 
 import frappe
+from cryptography.fernet import Fernet
+from frappe.utils import encode
 
 ALL_DEPARTMENTS = "All Departments"
 
@@ -41,9 +43,33 @@ def ensure_all_departments() -> None:
 	)
 
 
+def _is_valid_fernet_key(key: str | None) -> bool:
+	if not key:
+		return False
+
+	try:
+		Fernet(encode(key))
+		return True
+	except Exception:
+		return False
+
+
+def ensure_test_encryption_key() -> None:
+	"""Patch invalid encryption key in-memory only during tests."""
+	if not _is_test_context():
+		return
+
+	current_key = frappe.local.conf.get("encryption_key")
+	if _is_valid_fernet_key(current_key):
+		return
+
+	frappe.local.conf.encryption_key = Fernet.generate_key().decode()
+
+
 def run_test_bootstrap() -> None:
 	"""Run bootstrap tasks required only while tests are running."""
 	if not _is_test_context():
 		return
 
+	ensure_test_encryption_key()
 	ensure_all_departments()
