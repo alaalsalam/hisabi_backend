@@ -40,7 +40,8 @@
    "fieldtype": "Link",
    "label": "Wallet",
    "options": "Hisabi Wallet",
-   "reqd": 1
+   "reqd": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "client_id",
@@ -61,14 +62,16 @@
    "in_list_view": 1,
    "label": "Account Type",
    "options": "cash\nbank\nwallet\ncredit",
-   "reqd": 1
+   "reqd": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "currency",
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Currency",
-   "reqd": 1
+   "reqd": 1,
+   "in_standard_filter": 1
   },
   {
    "default": "0",
@@ -121,7 +124,8 @@
    "fieldname": "archived",
    "fieldtype": "Check",
    "in_list_view": 1,
-   "label": "Archived"
+   "label": "Archived",
+   "in_standard_filter": 1
   },
   {
    "default": "0",
@@ -160,7 +164,7 @@
    "fieldname": "deleted_at",
    "fieldtype": "Datetime",
    "label": "Deleted At"
- }
+  }
  ],
  "indexes": [
   {
@@ -213,7 +217,7 @@
    "role": "System Manager",
    "share": 1,
    "write": 1
- }
+  }
  ],
  "search_fields": "account_name,account_type,currency,base_currency,group_id,client_id",
  "sort_field": "sort_order",

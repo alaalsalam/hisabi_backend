@@ -32,7 +32,8 @@
    "fieldtype": "Link",
    "label": "Wallet",
    "options": "Hisabi Wallet",
-   "reqd": 1
+   "reqd": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "client_id",
@@ -44,31 +45,39 @@
    "fieldname": "rule_name",
    "fieldtype": "Data",
    "label": "Rule Name",
-   "reqd": 1
+   "reqd": 1,
+   "in_list_view": 1
   },
   {
    "default": "0",
    "fieldname": "is_default",
    "fieldtype": "Check",
-   "label": "Is Default"
+   "label": "Is Default",
+   "in_list_view": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "scope_type",
    "fieldtype": "Select",
    "label": "Scope Type",
    "options": "global\nby_income_category\nby_account",
-   "reqd": 1
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "scope_ref",
    "fieldtype": "Data",
-   "label": "Scope Ref"
+   "label": "Scope Ref",
+   "in_list_view": 1
   },
   {
    "default": "1",
    "fieldname": "active",
    "fieldtype": "Check",
-   "label": "Active"
+   "label": "Active",
+   "in_list_view": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "client_created_ms",
@@ -145,5 +154,7 @@
   }
  ],
  "sort_field": "modified",
- "sort_order": "DESC"
+ "sort_order": "DESC",
+ "title_field": "rule_name",
+ "search_fields": "rule_name,scope_type,scope_ref,client_id"
 }

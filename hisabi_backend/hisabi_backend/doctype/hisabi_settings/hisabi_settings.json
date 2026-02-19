@@ -29,14 +29,17 @@
    "fieldtype": "Link",
    "label": "User",
    "options": "User",
-   "reqd": 1
+   "reqd": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "wallet_id",
    "fieldtype": "Link",
    "label": "Wallet",
    "options": "Hisabi Wallet",
-   "reqd": 1
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "client_id",
@@ -54,7 +57,8 @@
    "fieldname": "base_currency",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "Base Currency"
+   "label": "Base Currency",
+   "in_standard_filter": 1
   },
   {
    "fieldname": "enabled_currencies",
@@ -65,7 +69,8 @@
    "fieldname": "locale",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "Locale"
+   "label": "Locale",
+   "in_standard_filter": 1
   },
   {
    "fieldname": "phone_number",
@@ -88,7 +93,8 @@
    "default": "6",
    "fieldname": "week_start_day",
    "fieldtype": "Int",
-   "label": "Week Start Day"
+   "label": "Week Start Day",
+   "in_list_view": 1
   },
   {
    "default": "0",
@@ -127,7 +133,7 @@
    "fieldname": "deleted_at",
    "fieldtype": "Datetime",
    "label": "Deleted At"
- }
+  }
  ],
  "indexes": [
   {

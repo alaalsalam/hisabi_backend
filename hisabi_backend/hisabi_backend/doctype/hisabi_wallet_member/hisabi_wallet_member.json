@@ -24,21 +24,27 @@
    "fieldtype": "Link",
    "label": "Wallet",
    "options": "Hisabi Wallet",
-   "reqd": 1
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "user",
    "fieldtype": "Link",
    "label": "User",
    "options": "User",
-   "reqd": 1
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "role",
    "fieldtype": "Select",
    "label": "Role",
    "options": "owner\nadmin\nmember\nviewer",
-   "reqd": 1
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "status",
@@ -46,12 +52,15 @@
    "label": "Status",
    "options": "active\npending\nremoved",
    "default": "pending",
-   "reqd": 1
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "joined_at",
    "fieldtype": "Datetime",
-   "label": "Joined At"
+   "label": "Joined At",
+   "in_list_view": 1
   },
   {
    "fieldname": "removed_at",
@@ -125,6 +134,7 @@
   }
  ],
  "sort_field": "modified",
- "sort_order": "DESC"
+ "sort_order": "DESC",
+ "title_field": "user",
+ "search_fields": "wallet,user,role,status"
 }
-

@@ -1,164 +1,173 @@
 {
- "actions": [],
- "allow_rename": 1,
- "doctype": "DocType",
- "engine": "InnoDB",
- "field_order": [
-  "user",
-  "wallet_id",
-  "client_id",
-  "rule_id",
-  "occurrence_date",
-  "transaction_id",
-  "status",
-  "generated_at",
-  "skip_reason",
-  "client_created_ms",
-  "client_modified_ms",
-  "doc_version",
-  "server_modified",
-  "is_deleted",
-  "deleted_at"
- ],
- "fields": [
-  {
-   "fieldname": "user",
-   "fieldtype": "Link",
-   "label": "User",
-   "options": "User",
-   "reqd": 1
-  },
-  {
-   "fieldname": "wallet_id",
-   "fieldtype": "Link",
-   "label": "Wallet",
-   "options": "Hisabi Wallet",
-   "reqd": 1
-  },
-  {
-   "fieldname": "client_id",
-   "fieldtype": "Data",
-   "label": "Client ID",
-   "reqd": 1
-  },
-  {
-   "fieldname": "rule_id",
-   "fieldtype": "Link",
-   "label": "Rule",
-   "options": "Hisabi Recurring Rule",
-   "reqd": 1
-  },
-  {
-   "fieldname": "occurrence_date",
-   "fieldtype": "Date",
-   "label": "Occurrence Date",
-   "reqd": 1
-  },
-  {
-   "fieldname": "transaction_id",
-   "fieldtype": "Data",
-   "label": "Transaction ID"
-  },
-  {
-   "default": "generated",
-   "fieldname": "status",
-   "fieldtype": "Select",
-   "label": "Status",
-   "options": "scheduled\ngenerated\nskipped",
-   "reqd": 1
-  },
-  {
-   "fieldname": "generated_at",
-   "fieldtype": "Datetime",
-   "label": "Generated At"
-  },
-  {
-   "fieldname": "skip_reason",
-   "fieldtype": "Data",
-   "label": "Skip Reason"
-  },
-  {
-   "fieldname": "client_created_ms",
-   "fieldtype": "Int",
-   "label": "Client Created (ms)"
-  },
-  {
-   "fieldname": "client_modified_ms",
-   "fieldtype": "Int",
-   "label": "Client Modified (ms)"
-  },
-  {
-   "default": "0",
-   "fieldname": "doc_version",
-   "fieldtype": "Int",
-   "label": "Doc Version"
-  },
-  {
-   "fieldname": "server_modified",
-   "fieldtype": "Datetime",
-   "label": "Server Modified"
-  },
-  {
-   "default": "0",
-   "fieldname": "is_deleted",
-   "fieldtype": "Check",
-   "label": "Is Deleted"
-  },
-  {
-   "fieldname": "deleted_at",
-   "fieldtype": "Datetime",
-   "label": "Deleted At"
-  }
- ],
- "indexes": [
-  {
-   "fields": [
+  "actions": [],
+  "allow_rename": 1,
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "user",
     "wallet_id",
-    "client_id"
-   ],
-   "unique": 1
-  },
-  {
-   "fields": [
-    "wallet_id",
+    "client_id",
     "rule_id",
-    "occurrence_date"
-   ]
-  },
-  {
-   "fields": [
-    "wallet_id",
-    "transaction_id"
-   ]
-  }
- ],
- "module": "Hisabi Backend",
- "name": "Hisabi Recurring Instance",
- "permissions": [
-  {
-   "create": 1,
-   "read": 1,
-   "role": "Hisabi User",
-   "if_owner": 1,
-   "write": 1
-  },
-  {
-   "read": 1,
-   "role": "Hisabi Admin"
-  },
-  {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "System Manager",
-   "share": 1,
-   "write": 1
-  }
- ],
- "sort_field": "modified",
- "sort_order": "DESC"
+    "occurrence_date",
+    "transaction_id",
+    "status",
+    "generated_at",
+    "skip_reason",
+    "client_created_ms",
+    "client_modified_ms",
+    "doc_version",
+    "server_modified",
+    "is_deleted",
+    "deleted_at"
+  ],
+  "fields": [
+    {
+      "fieldname": "user",
+      "fieldtype": "Link",
+      "label": "User",
+      "options": "User",
+      "reqd": 1
+    },
+    {
+      "fieldname": "wallet_id",
+      "fieldtype": "Link",
+      "label": "Wallet",
+      "options": "Hisabi Wallet",
+      "reqd": 1,
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "client_id",
+      "fieldtype": "Data",
+      "label": "Client ID",
+      "reqd": 1
+    },
+    {
+      "fieldname": "rule_id",
+      "fieldtype": "Link",
+      "label": "Rule",
+      "options": "Hisabi Recurring Rule",
+      "reqd": 1,
+      "in_list_view": 1,
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "occurrence_date",
+      "fieldtype": "Date",
+      "label": "Occurrence Date",
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "transaction_id",
+      "fieldtype": "Data",
+      "label": "Transaction ID",
+      "in_list_view": 1
+    },
+    {
+      "default": "generated",
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "label": "Status",
+      "options": "scheduled\ngenerated\nskipped",
+      "reqd": 1,
+      "in_list_view": 1,
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "generated_at",
+      "fieldtype": "Datetime",
+      "label": "Generated At"
+    },
+    {
+      "fieldname": "skip_reason",
+      "fieldtype": "Data",
+      "label": "Skip Reason"
+    },
+    {
+      "fieldname": "client_created_ms",
+      "fieldtype": "Int",
+      "label": "Client Created (ms)"
+    },
+    {
+      "fieldname": "client_modified_ms",
+      "fieldtype": "Int",
+      "label": "Client Modified (ms)"
+    },
+    {
+      "default": "0",
+      "fieldname": "doc_version",
+      "fieldtype": "Int",
+      "label": "Doc Version"
+    },
+    {
+      "fieldname": "server_modified",
+      "fieldtype": "Datetime",
+      "label": "Server Modified"
+    },
+    {
+      "default": "0",
+      "fieldname": "is_deleted",
+      "fieldtype": "Check",
+      "label": "Is Deleted"
+    },
+    {
+      "fieldname": "deleted_at",
+      "fieldtype": "Datetime",
+      "label": "Deleted At"
+    }
+  ],
+  "indexes": [
+    {
+      "fields": [
+        "wallet_id",
+        "client_id"
+      ],
+      "unique": 1
+    },
+    {
+      "fields": [
+        "wallet_id",
+        "rule_id",
+        "occurrence_date"
+      ]
+    },
+    {
+      "fields": [
+        "wallet_id",
+        "transaction_id"
+      ]
+    }
+  ],
+  "module": "Hisabi Backend",
+  "name": "Hisabi Recurring Instance",
+  "permissions": [
+    {
+      "create": 1,
+      "read": 1,
+      "role": "Hisabi User",
+      "if_owner": 1,
+      "write": 1
+    },
+    {
+      "read": 1,
+      "role": "Hisabi Admin"
+    },
+    {
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager",
+      "share": 1,
+      "write": 1
+    }
+  ],
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "title_field": "rule_id",
+  "search_fields": "client_id,rule_id,status,transaction_id,occurrence_date"
 }

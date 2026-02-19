@@ -31,14 +31,18 @@
    "fieldtype": "Link",
    "label": "Wallet",
    "options": "Hisabi Wallet",
-   "reqd": 1
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "invited_by",
    "fieldtype": "Link",
    "label": "Invited By",
    "options": "User",
-   "reqd": 1
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "invite_code",
@@ -46,7 +50,8 @@
    "label": "Invite Code",
    "reqd": 1,
    "unique": 1,
-   "length": 12
+   "length": 12,
+   "in_list_view": 1
   },
   {
    "fieldname": "invite_link_token",
@@ -70,7 +75,9 @@
    "label": "Role To Grant",
    "options": "admin\nmember\nviewer",
    "default": "member",
-   "reqd": 1
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "status",
@@ -78,12 +85,15 @@
    "label": "Status",
    "options": "active\naccepted\nrevoked\nexpired",
    "default": "active",
-   "reqd": 1
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "expires_at",
    "fieldtype": "Datetime",
-   "label": "Expires At"
+   "label": "Expires At",
+   "in_list_view": 1
   },
   {
    "fieldname": "accepted_by",
@@ -136,6 +146,7 @@
   }
  ],
  "sort_field": "modified",
- "sort_order": "DESC"
+ "sort_order": "DESC",
+ "title_field": "invite_code",
+ "search_fields": "invite_code,wallet,invited_by,target_phone,target_email,status,role_to_grant"
 }
-

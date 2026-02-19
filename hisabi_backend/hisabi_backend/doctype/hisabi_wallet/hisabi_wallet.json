@@ -23,7 +23,8 @@
    "fieldtype": "Data",
    "label": "Client ID",
    "reqd": 1,
-   "unique": 1
+   "unique": 1,
+   "in_list_view": 1
   },
   {
    "fieldname": "wallet_name",
@@ -39,7 +40,8 @@
    "label": "Status",
    "options": "active\narchived",
    "default": "active",
-   "reqd": 1
+   "reqd": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "owner_user",
@@ -47,7 +49,8 @@
    "in_list_view": 1,
    "label": "Owner User",
    "options": "User",
-   "reqd": 1
+   "reqd": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "created_from_device",
@@ -85,7 +88,7 @@
    "fieldname": "deleted_at",
    "fieldtype": "Datetime",
    "label": "Deleted At"
- }
+  }
  ],
  "indexes": [
   {

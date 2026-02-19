@@ -35,7 +35,8 @@
    "fieldtype": "Link",
    "label": "Wallet",
    "options": "Hisabi Wallet",
-   "reqd": 1
+   "reqd": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "client_id",
@@ -56,7 +57,8 @@
    "in_list_view": 1,
    "label": "Kind",
    "options": "expense\nincome",
-   "reqd": 1
+   "reqd": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "parent_category",
@@ -68,7 +70,8 @@
   {
    "fieldname": "color",
    "fieldtype": "Data",
-   "label": "Color"
+   "label": "Color",
+   "in_list_view": 1
   },
   {
    "fieldname": "icon",
@@ -80,7 +83,8 @@
    "fieldname": "archived",
    "fieldtype": "Check",
    "in_list_view": 1,
-   "label": "Archived"
+   "label": "Archived",
+   "in_standard_filter": 1
   },
   {
    "default": "0",
@@ -126,7 +130,7 @@
    "fieldname": "deleted_at",
    "fieldtype": "Datetime",
    "label": "Deleted At"
- }
+  }
  ],
  "indexes": [
   {

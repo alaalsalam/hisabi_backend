@@ -40,7 +40,8 @@
    "fieldtype": "Link",
    "label": "Wallet",
    "options": "Hisabi Wallet",
-   "reqd": 1
+   "reqd": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "client_id",
@@ -61,13 +62,16 @@
    "in_list_view": 1,
    "label": "Goal Type",
    "options": "save\npay_debt",
-   "reqd": 1
+   "reqd": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "currency",
    "fieldtype": "Data",
    "label": "Currency",
-   "reqd": 1
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "target_amount",
@@ -119,7 +123,8 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Status",
-   "options": "active\ncompleted\ncancelled"
+   "options": "active\ncompleted\ncancelled",
+   "in_standard_filter": 1
   },
   {
    "fieldname": "color",
@@ -157,7 +162,7 @@
    "fieldname": "deleted_at",
    "fieldtype": "Datetime",
    "label": "Deleted At"
- }
+  }
  ],
  "indexes": [
   {

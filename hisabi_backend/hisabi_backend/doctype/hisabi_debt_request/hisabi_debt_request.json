@@ -1,145 +1,152 @@
 {
- "actions": [],
- "allow_rename": 1,
- "doctype": "DocType",
- "engine": "InnoDB",
- "field_order": [
-  "user",
-  "wallet_id",
-  "client_id",
-  "from_phone",
-  "to_phone",
-  "debt_payload",
-  "debt_payload_json",
-  "status",
-  "client_created_ms",
-  "client_modified_ms",
-  "doc_version",
-  "server_modified",
-  "is_deleted",
-  "deleted_at"
- ],
- "fields": [
-  {
-   "fieldname": "user",
-   "fieldtype": "Link",
-   "label": "User",
-   "options": "User",
-   "reqd": 1
-  },
-  {
-   "fieldname": "wallet_id",
-   "fieldtype": "Link",
-   "label": "Wallet",
-   "options": "Hisabi Wallet",
-   "reqd": 1
-  },
-  {
-   "fieldname": "client_id",
-   "fieldtype": "Data",
-   "label": "Client ID",
-   "reqd": 1
-  },
-  {
-   "fieldname": "from_phone",
-   "fieldtype": "Data",
-   "label": "From Phone"
-  },
-  {
-   "fieldname": "to_phone",
-   "fieldtype": "Data",
-   "label": "To Phone"
-  },
-  {
-   "fieldname": "debt_payload",
-   "fieldtype": "JSON",
-   "label": "Debt Payload"
-  },
-  {
-   "fieldname": "debt_payload_json",
-   "fieldtype": "JSON",
-   "label": "Debt Payload JSON"
-  },
-  {
-   "fieldname": "status",
-   "fieldtype": "Select",
-   "label": "Status",
-   "options": "pending\naccepted\nrejected"
-  },
-  {
-   "fieldname": "client_created_ms",
-   "fieldtype": "Int",
-   "label": "Client Created (ms)"
-  },
-  {
-   "fieldname": "client_modified_ms",
-   "fieldtype": "Int",
-   "label": "Client Modified (ms)"
-  },
-  {
-   "default": "0",
-   "fieldname": "doc_version",
-   "fieldtype": "Int",
-   "label": "Doc Version"
-  },
-  {
-   "fieldname": "server_modified",
-   "fieldtype": "Datetime",
-   "label": "Server Modified"
-  },
-  {
-   "default": "0",
-   "fieldname": "is_deleted",
-   "fieldtype": "Check",
-   "label": "Is Deleted"
-  },
-  {
-   "fieldname": "deleted_at",
-   "fieldtype": "Datetime",
-   "label": "Deleted At"
-  }
- ],
- "indexes": [
-  {
-   "fields": [
+  "actions": [],
+  "allow_rename": 1,
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
     "user",
-    "client_id"
-   ],
-   "unique": 1
-  },
-  {
-   "fields": [
-    "wallet_id"
-   ]
-  }
- ],
- "module": "Hisabi Backend",
- "name": "Hisabi Debt Request",
- "permissions": [
-  {
-   "create": 1,
-   "read": 1,
-   "role": "Hisabi User",
-   "if_owner": 1,
-   "write": 1
-  },
-  {
-   "read": 1,
-   "role": "Hisabi Admin"
-  },
-  {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "System Manager",
-   "share": 1,
-   "write": 1
-  }
- ],
- "sort_field": "modified",
- "sort_order": "DESC"
+    "wallet_id",
+    "client_id",
+    "from_phone",
+    "to_phone",
+    "debt_payload",
+    "debt_payload_json",
+    "status",
+    "client_created_ms",
+    "client_modified_ms",
+    "doc_version",
+    "server_modified",
+    "is_deleted",
+    "deleted_at"
+  ],
+  "fields": [
+    {
+      "fieldname": "user",
+      "fieldtype": "Link",
+      "label": "User",
+      "options": "User",
+      "reqd": 1
+    },
+    {
+      "fieldname": "wallet_id",
+      "fieldtype": "Link",
+      "label": "Wallet",
+      "options": "Hisabi Wallet",
+      "reqd": 1,
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "client_id",
+      "fieldtype": "Data",
+      "label": "Client ID",
+      "reqd": 1
+    },
+    {
+      "fieldname": "from_phone",
+      "fieldtype": "Data",
+      "label": "From Phone",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "to_phone",
+      "fieldtype": "Data",
+      "label": "To Phone",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "debt_payload",
+      "fieldtype": "JSON",
+      "label": "Debt Payload"
+    },
+    {
+      "fieldname": "debt_payload_json",
+      "fieldtype": "JSON",
+      "label": "Debt Payload JSON"
+    },
+    {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "label": "Status",
+      "options": "pending\naccepted\nrejected",
+      "in_list_view": 1,
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "client_created_ms",
+      "fieldtype": "Int",
+      "label": "Client Created (ms)"
+    },
+    {
+      "fieldname": "client_modified_ms",
+      "fieldtype": "Int",
+      "label": "Client Modified (ms)"
+    },
+    {
+      "default": "0",
+      "fieldname": "doc_version",
+      "fieldtype": "Int",
+      "label": "Doc Version"
+    },
+    {
+      "fieldname": "server_modified",
+      "fieldtype": "Datetime",
+      "label": "Server Modified"
+    },
+    {
+      "default": "0",
+      "fieldname": "is_deleted",
+      "fieldtype": "Check",
+      "label": "Is Deleted"
+    },
+    {
+      "fieldname": "deleted_at",
+      "fieldtype": "Datetime",
+      "label": "Deleted At"
+    }
+  ],
+  "indexes": [
+    {
+      "fields": [
+        "user",
+        "client_id"
+      ],
+      "unique": 1
+    },
+    {
+      "fields": [
+        "wallet_id"
+      ]
+    }
+  ],
+  "module": "Hisabi Backend",
+  "name": "Hisabi Debt Request",
+  "permissions": [
+    {
+      "create": 1,
+      "read": 1,
+      "role": "Hisabi User",
+      "if_owner": 1,
+      "write": 1
+    },
+    {
+      "read": 1,
+      "role": "Hisabi Admin"
+    },
+    {
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager",
+      "share": 1,
+      "write": 1
+    }
+  ],
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "title_field": "to_phone",
+  "search_fields": "client_id,from_phone,to_phone,status"
 }

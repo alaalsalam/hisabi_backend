@@ -39,7 +39,8 @@
    "fieldtype": "Link",
    "label": "Wallet",
    "options": "Hisabi Wallet",
-   "reqd": 1
+   "reqd": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "client_id",
@@ -60,14 +61,16 @@
    "in_list_view": 1,
    "label": "Period",
    "options": "weekly\nmonthly\nquarterly\nyearly\ncustom",
-   "reqd": 1
+   "reqd": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "scope_type",
    "fieldtype": "Select",
    "label": "Scope Type",
    "options": "total\ncategory",
-   "reqd": 1
+   "reqd": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "category",
@@ -79,7 +82,9 @@
    "fieldname": "currency",
    "fieldtype": "Data",
    "label": "Currency",
-   "reqd": 1
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "amount",
@@ -120,7 +125,8 @@
    "fieldname": "archived",
    "fieldtype": "Check",
    "in_list_view": 1,
-   "label": "Archived"
+   "label": "Archived",
+   "in_standard_filter": 1
   },
   {
    "fieldname": "client_created_ms",
@@ -153,7 +159,7 @@
    "fieldname": "deleted_at",
    "fieldtype": "Datetime",
    "label": "Deleted At"
- }
+  }
  ],
  "indexes": [
   {

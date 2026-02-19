@@ -31,17 +31,21 @@
    "fieldtype": "Link",
    "label": "Wallet",
    "options": "Hisabi Wallet",
-   "reqd": 1
+   "reqd": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "event_type",
    "fieldtype": "Data",
-   "label": "Event Type"
+   "label": "Event Type",
+   "in_list_view": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "device_id",
    "fieldtype": "Data",
-   "label": "Device ID"
+   "label": "Device ID",
+   "in_list_view": 1
   },
   {
    "fieldname": "ip",
@@ -56,12 +60,14 @@
   {
    "fieldname": "related_entity_type",
    "fieldtype": "Data",
-   "label": "Related Entity Type"
+   "label": "Related Entity Type",
+   "in_list_view": 1
   },
   {
    "fieldname": "related_entity_id",
    "fieldtype": "Data",
-   "label": "Related Entity ID"
+   "label": "Related Entity ID",
+   "in_list_view": 1
   },
   {
    "fieldname": "op_id",
@@ -71,7 +77,8 @@
   {
    "fieldname": "entity_type",
    "fieldtype": "Data",
-   "label": "Entity Type"
+   "label": "Entity Type",
+   "in_standard_filter": 1
   },
   {
    "fieldname": "entity_client_id",
@@ -82,7 +89,9 @@
    "fieldname": "status",
    "fieldtype": "Select",
    "label": "Status",
-   "options": "accepted\nconflict\nerror\nduplicate\nsecurity_event"
+   "options": "accepted\nconflict\nerror\nduplicate\nsecurity_event",
+   "in_list_view": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "payload_json",
@@ -139,5 +148,7 @@
   }
  ],
  "sort_field": "modified",
- "sort_order": "DESC"
+ "sort_order": "DESC",
+ "title_field": "event_type",
+ "search_fields": "event_type,related_entity_type,related_entity_id,status,op_id"
 }

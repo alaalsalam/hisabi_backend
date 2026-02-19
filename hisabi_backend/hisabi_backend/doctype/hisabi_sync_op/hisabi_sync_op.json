@@ -19,24 +19,30 @@
    "fieldtype": "Link",
    "label": "User",
    "options": "User",
-   "reqd": 1
+   "reqd": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "device_id",
    "fieldtype": "Data",
    "label": "Device ID",
-   "reqd": 1
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "op_id",
    "fieldtype": "Data",
    "label": "Op ID",
-   "reqd": 1
+   "reqd": 1,
+   "in_list_view": 1
   },
   {
    "fieldname": "entity_type",
    "fieldtype": "Data",
-   "label": "Entity Type"
+   "label": "Entity Type",
+   "in_list_view": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "client_id",
@@ -47,7 +53,9 @@
    "fieldname": "status",
    "fieldtype": "Select",
    "label": "Status",
-   "options": "accepted\nconflict\nerror\nduplicate"
+   "options": "accepted\nconflict\nerror\nduplicate",
+   "in_list_view": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "result_json",
@@ -57,7 +65,8 @@
   {
    "fieldname": "server_modified",
    "fieldtype": "Datetime",
-   "label": "Server Modified"
+   "label": "Server Modified",
+   "in_list_view": 1
   }
  ],
  "indexes": [
@@ -98,5 +107,7 @@
   }
  ],
  "sort_field": "modified",
- "sort_order": "DESC"
+ "sort_order": "DESC",
+ "title_field": "op_id",
+ "search_fields": "op_id,entity_type,client_id,status,device_id"
 }

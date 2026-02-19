@@ -1,141 +1,148 @@
 {
- "actions": [],
- "allow_rename": 1,
- "doctype": "DocType",
- "engine": "InnoDB",
- "field_order": [
-  "user",
-  "wallet_id",
-  "client_id",
-  "transaction_id",
-  "bucket_id",
-  "client_created_ms",
-  "client_modified_ms",
-  "doc_version",
-  "server_modified",
-  "is_deleted",
-  "deleted_at"
- ],
- "fields": [
-  {
-   "fieldname": "user",
-   "fieldtype": "Link",
-   "label": "User",
-   "options": "User",
-   "reqd": 1
-  },
-  {
-   "fieldname": "wallet_id",
-   "fieldtype": "Link",
-   "label": "Wallet",
-   "options": "Hisabi Wallet",
-   "reqd": 1
-  },
-  {
-   "fieldname": "client_id",
-   "fieldtype": "Data",
-   "label": "Client ID",
-   "reqd": 1
-  },
-  {
-   "fieldname": "transaction_id",
-   "fieldtype": "Link",
-   "label": "Transaction",
-   "options": "Hisabi Transaction",
-   "reqd": 1
-  },
-  {
-   "fieldname": "bucket_id",
-   "fieldtype": "Link",
-   "label": "Bucket",
-   "options": "Hisabi Bucket",
-   "reqd": 1
-  },
-  {
-   "fieldname": "client_created_ms",
-   "fieldtype": "Int",
-   "label": "Client Created (ms)"
-  },
-  {
-   "fieldname": "client_modified_ms",
-   "fieldtype": "Int",
-   "label": "Client Modified (ms)"
-  },
-  {
-   "default": "0",
-   "fieldname": "doc_version",
-   "fieldtype": "Int",
-   "label": "Doc Version"
-  },
-  {
-   "fieldname": "server_modified",
-   "fieldtype": "Datetime",
-   "label": "Server Modified"
-  },
-  {
-   "default": "0",
-   "fieldname": "is_deleted",
-   "fieldtype": "Check",
-   "label": "Is Deleted"
-  },
-  {
-   "fieldname": "deleted_at",
-   "fieldtype": "Datetime",
-   "label": "Deleted At"
-  }
- ],
- "indexes": [
-  {
-   "fields": [
+  "actions": [],
+  "allow_rename": 1,
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
     "user",
-    "client_id"
-   ],
-   "unique": 1
-  },
-  {
-   "fields": [
-    "wallet_id"
-   ]
-  },
-  {
-   "fields": [
-    "transaction_id"
-   ]
-  },
-  {
-   "fields": [
-    "user",
-    "transaction_id"
-   ]
-  }
- ],
- "module": "Hisabi Backend",
- "name": "Hisabi Transaction Bucket Expense",
- "permissions": [
-  {
-   "create": 1,
-   "read": 1,
-   "role": "Hisabi User",
-   "if_owner": 1,
-   "write": 1
-  },
-  {
-   "read": 1,
-   "role": "Hisabi Admin"
-  },
-  {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "System Manager",
-   "share": 1,
-   "write": 1
-  }
- ],
- "sort_field": "modified",
- "sort_order": "DESC"
+    "wallet_id",
+    "client_id",
+    "transaction_id",
+    "bucket_id",
+    "client_created_ms",
+    "client_modified_ms",
+    "doc_version",
+    "server_modified",
+    "is_deleted",
+    "deleted_at"
+  ],
+  "fields": [
+    {
+      "fieldname": "user",
+      "fieldtype": "Link",
+      "label": "User",
+      "options": "User",
+      "reqd": 1
+    },
+    {
+      "fieldname": "wallet_id",
+      "fieldtype": "Link",
+      "label": "Wallet",
+      "options": "Hisabi Wallet",
+      "reqd": 1,
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "client_id",
+      "fieldtype": "Data",
+      "label": "Client ID",
+      "reqd": 1
+    },
+    {
+      "fieldname": "transaction_id",
+      "fieldtype": "Link",
+      "label": "Transaction",
+      "options": "Hisabi Transaction",
+      "reqd": 1,
+      "in_list_view": 1,
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "bucket_id",
+      "fieldtype": "Link",
+      "label": "Bucket",
+      "options": "Hisabi Bucket",
+      "reqd": 1,
+      "in_list_view": 1,
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "client_created_ms",
+      "fieldtype": "Int",
+      "label": "Client Created (ms)"
+    },
+    {
+      "fieldname": "client_modified_ms",
+      "fieldtype": "Int",
+      "label": "Client Modified (ms)"
+    },
+    {
+      "default": "0",
+      "fieldname": "doc_version",
+      "fieldtype": "Int",
+      "label": "Doc Version"
+    },
+    {
+      "fieldname": "server_modified",
+      "fieldtype": "Datetime",
+      "label": "Server Modified"
+    },
+    {
+      "default": "0",
+      "fieldname": "is_deleted",
+      "fieldtype": "Check",
+      "label": "Is Deleted"
+    },
+    {
+      "fieldname": "deleted_at",
+      "fieldtype": "Datetime",
+      "label": "Deleted At"
+    }
+  ],
+  "indexes": [
+    {
+      "fields": [
+        "user",
+        "client_id"
+      ],
+      "unique": 1
+    },
+    {
+      "fields": [
+        "wallet_id"
+      ]
+    },
+    {
+      "fields": [
+        "transaction_id"
+      ]
+    },
+    {
+      "fields": [
+        "user",
+        "transaction_id"
+      ]
+    }
+  ],
+  "module": "Hisabi Backend",
+  "name": "Hisabi Transaction Bucket Expense",
+  "permissions": [
+    {
+      "create": 1,
+      "read": 1,
+      "role": "Hisabi User",
+      "if_owner": 1,
+      "write": 1
+    },
+    {
+      "read": 1,
+      "role": "Hisabi Admin"
+    },
+    {
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager",
+      "share": 1,
+      "write": 1
+    }
+  ],
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "title_field": "transaction_id",
+  "search_fields": "client_id,transaction_id,bucket_id"
 }

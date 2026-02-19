@@ -47,7 +47,8 @@
    "fieldtype": "Link",
    "label": "Wallet",
    "options": "Hisabi Wallet",
-   "reqd": 1
+   "reqd": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "client_id",
@@ -59,20 +60,25 @@
    "default": "1",
    "fieldname": "is_active",
    "fieldtype": "Check",
-   "label": "Is Active"
+   "label": "Is Active",
+   "in_list_view": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "title",
    "fieldtype": "Data",
    "label": "Title",
-   "reqd": 1
+   "reqd": 1,
+   "in_list_view": 1
   },
   {
    "fieldname": "transaction_type",
    "fieldtype": "Select",
    "label": "Transaction Type",
    "options": "income\nexpense\ntransfer",
-   "reqd": 1
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "amount",
@@ -107,7 +113,8 @@
    "fieldname": "start_date",
    "fieldtype": "Date",
    "label": "Start Date",
-   "reqd": 1
+   "reqd": 1,
+   "in_list_view": 1
   },
   {
    "default": "Asia/Aden",
@@ -120,14 +127,17 @@
    "fieldtype": "Select",
    "label": "Rule Type",
    "options": "daily\nweekly\nmonthly",
-   "reqd": 1
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
   },
   {
    "default": "1",
    "fieldname": "interval",
    "fieldtype": "Int",
    "label": "Interval",
-   "reqd": 1
+   "reqd": 1,
+   "in_list_view": 1
   },
   {
    "fieldname": "byweekday",
@@ -248,5 +258,7 @@
   }
  ],
  "sort_field": "modified",
- "sort_order": "DESC"
+ "sort_order": "DESC",
+ "title_field": "title",
+ "search_fields": "title,transaction_type,rrule_type,currency,client_id"
 }

@@ -1,187 +1,198 @@
 {
- "actions": [],
- "allow_rename": 1,
- "doctype": "DocType",
- "engine": "InnoDB",
- "field_order": [
-  "user",
-  "wallet_id",
-  "client_id",
-  "transaction",
-  "bucket",
-  "percent",
-  "amount",
-  "currency",
-  "amount_base",
-  "rule_used",
-  "is_manual_override",
-  "client_created_ms",
-  "client_modified_ms",
-  "doc_version",
-  "server_modified",
-  "is_deleted",
-  "deleted_at"
- ],
- "fields": [
-  {
-   "fieldname": "user",
-   "fieldtype": "Link",
-   "label": "User",
-   "options": "User",
-   "reqd": 1
-  },
-  {
-   "fieldname": "wallet_id",
-   "fieldtype": "Link",
-   "label": "Wallet",
-   "options": "Hisabi Wallet",
-   "reqd": 1
-  },
-  {
-   "fieldname": "client_id",
-   "fieldtype": "Data",
-   "label": "Client ID",
-   "reqd": 1
-  },
-  {
-   "fieldname": "transaction",
-   "fieldtype": "Link",
-   "label": "Transaction",
-   "options": "Hisabi Transaction",
-   "reqd": 1
-  },
-  {
-   "fieldname": "bucket",
-   "fieldtype": "Link",
-   "label": "Bucket",
-   "options": "Hisabi Bucket",
-   "reqd": 1
-  },
-  {
-   "default": "0",
-   "fieldname": "percent",
-   "fieldtype": "Int",
-   "label": "Percent"
-  },
-  {
-   "fieldname": "amount",
-   "fieldtype": "Currency",
-   "label": "Amount"
-  },
-  {
-   "fieldname": "currency",
-   "fieldtype": "Data",
-   "label": "Currency"
-  },
-  {
-   "fieldname": "amount_base",
-   "fieldtype": "Currency",
-   "label": "Amount Base"
-  },
-  {
-   "fieldname": "rule_used",
-   "fieldtype": "Link",
-   "label": "Rule Used",
-   "options": "Hisabi Allocation Rule"
-  },
-  {
-   "default": "0",
-   "fieldname": "is_manual_override",
-   "fieldtype": "Check",
-   "label": "Is Manual Override"
-  },
-  {
-   "fieldname": "client_created_ms",
-   "fieldtype": "Int",
-   "label": "Client Created (ms)"
-  },
-  {
-   "fieldname": "client_modified_ms",
-   "fieldtype": "Int",
-   "label": "Client Modified (ms)"
-  },
-  {
-   "default": "0",
-   "fieldname": "doc_version",
-   "fieldtype": "Int",
-   "label": "Doc Version"
-  },
-  {
-   "fieldname": "server_modified",
-   "fieldtype": "Datetime",
-   "label": "Server Modified"
-  },
-  {
-   "default": "0",
-   "fieldname": "is_deleted",
-   "fieldtype": "Check",
-   "label": "Is Deleted"
-  },
-  {
-   "fieldname": "deleted_at",
-   "fieldtype": "Datetime",
-   "label": "Deleted At"
-  }
- ],
- "indexes": [
-  {
-   "fields": [
+  "actions": [],
+  "allow_rename": 1,
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
     "user",
-    "client_id"
-   ],
-   "unique": 1
-  },
-  {
-   "fields": [
-    "user",
-    "transaction"
-   ]
-  },
-  {
-   "fields": [
-    "user",
-    "bucket"
-   ]
-  },
-  {
-   "fields": [
+    "wallet_id",
+    "client_id",
     "transaction",
-    "bucket"
-   ]
-  },
-  {
-   "fields": [
-    "wallet_id"
-   ]
-  }
- ],
- "module": "Hisabi Backend",
- "name": "Hisabi Transaction Allocation",
- "permissions": [
-  {
-   "create": 1,
-   "read": 1,
-   "role": "Hisabi User",
-   "if_owner": 1,
-   "write": 1
-  },
-  {
-   "read": 1,
-   "role": "Hisabi Admin"
-  },
-  {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "System Manager",
-   "share": 1,
-   "write": 1
-  }
- ],
- "sort_field": "modified",
- "sort_order": "DESC"
+    "bucket",
+    "percent",
+    "amount",
+    "currency",
+    "amount_base",
+    "rule_used",
+    "is_manual_override",
+    "client_created_ms",
+    "client_modified_ms",
+    "doc_version",
+    "server_modified",
+    "is_deleted",
+    "deleted_at"
+  ],
+  "fields": [
+    {
+      "fieldname": "user",
+      "fieldtype": "Link",
+      "label": "User",
+      "options": "User",
+      "reqd": 1
+    },
+    {
+      "fieldname": "wallet_id",
+      "fieldtype": "Link",
+      "label": "Wallet",
+      "options": "Hisabi Wallet",
+      "reqd": 1,
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "client_id",
+      "fieldtype": "Data",
+      "label": "Client ID",
+      "reqd": 1
+    },
+    {
+      "fieldname": "transaction",
+      "fieldtype": "Link",
+      "label": "Transaction",
+      "options": "Hisabi Transaction",
+      "reqd": 1,
+      "in_list_view": 1,
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "bucket",
+      "fieldtype": "Link",
+      "label": "Bucket",
+      "options": "Hisabi Bucket",
+      "reqd": 1,
+      "in_list_view": 1,
+      "in_standard_filter": 1
+    },
+    {
+      "default": "0",
+      "fieldname": "percent",
+      "fieldtype": "Int",
+      "label": "Percent",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "amount",
+      "fieldtype": "Currency",
+      "label": "Amount",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "currency",
+      "fieldtype": "Data",
+      "label": "Currency",
+      "in_list_view": 1,
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "amount_base",
+      "fieldtype": "Currency",
+      "label": "Amount Base"
+    },
+    {
+      "fieldname": "rule_used",
+      "fieldtype": "Link",
+      "label": "Rule Used",
+      "options": "Hisabi Allocation Rule"
+    },
+    {
+      "default": "0",
+      "fieldname": "is_manual_override",
+      "fieldtype": "Check",
+      "label": "Is Manual Override"
+    },
+    {
+      "fieldname": "client_created_ms",
+      "fieldtype": "Int",
+      "label": "Client Created (ms)"
+    },
+    {
+      "fieldname": "client_modified_ms",
+      "fieldtype": "Int",
+      "label": "Client Modified (ms)"
+    },
+    {
+      "default": "0",
+      "fieldname": "doc_version",
+      "fieldtype": "Int",
+      "label": "Doc Version"
+    },
+    {
+      "fieldname": "server_modified",
+      "fieldtype": "Datetime",
+      "label": "Server Modified"
+    },
+    {
+      "default": "0",
+      "fieldname": "is_deleted",
+      "fieldtype": "Check",
+      "label": "Is Deleted"
+    },
+    {
+      "fieldname": "deleted_at",
+      "fieldtype": "Datetime",
+      "label": "Deleted At"
+    }
+  ],
+  "indexes": [
+    {
+      "fields": [
+        "user",
+        "client_id"
+      ],
+      "unique": 1
+    },
+    {
+      "fields": [
+        "user",
+        "transaction"
+      ]
+    },
+    {
+      "fields": [
+        "user",
+        "bucket"
+      ]
+    },
+    {
+      "fields": [
+        "transaction",
+        "bucket"
+      ]
+    },
+    {
+      "fields": [
+        "wallet_id"
+      ]
+    }
+  ],
+  "module": "Hisabi Backend",
+  "name": "Hisabi Transaction Allocation",
+  "permissions": [
+    {
+      "create": 1,
+      "read": 1,
+      "role": "Hisabi User",
+      "if_owner": 1,
+      "write": 1
+    },
+    {
+      "read": 1,
+      "role": "Hisabi Admin"
+    },
+    {
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager",
+      "share": 1,
+      "write": 1
+    }
+  ],
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "title_field": "transaction",
+  "search_fields": "client_id,transaction,bucket,currency,rule_used"
 }

@@ -39,7 +39,8 @@
    "fieldtype": "Link",
    "label": "Wallet",
    "options": "Hisabi Wallet",
-   "reqd": 1
+   "reqd": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "client_id",
@@ -51,19 +52,24 @@
    "fieldname": "debt_name",
    "fieldtype": "Data",
    "label": "Debt Name",
-   "reqd": 1
+   "reqd": 1,
+   "in_list_view": 1
   },
   {
    "fieldname": "direction",
    "fieldtype": "Select",
    "label": "Direction",
    "options": "owe\nowed_to_me",
-   "reqd": 1
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "currency",
    "fieldtype": "Data",
-   "label": "Currency"
+   "label": "Currency",
+   "in_list_view": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "principal_amount",
@@ -74,13 +80,16 @@
   {
    "fieldname": "remaining_amount",
    "fieldtype": "Currency",
-   "label": "Remaining Amount"
+   "label": "Remaining Amount",
+   "in_list_view": 1
   },
   {
    "fieldname": "status",
    "fieldtype": "Select",
    "label": "Status",
-   "options": "active\nclosed\npending"
+   "options": "active\nclosed\npending",
+   "in_list_view": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "counterparty_name",
@@ -112,7 +121,8 @@
   {
    "fieldname": "due_date",
    "fieldtype": "Datetime",
-   "label": "Due Date"
+   "label": "Due Date",
+   "in_list_view": 1
   },
   {
    "fieldname": "client_created_ms",
@@ -189,5 +199,7 @@
   }
  ],
  "sort_field": "modified",
- "sort_order": "DESC"
+ "sort_order": "DESC",
+ "title_field": "debt_name",
+ "search_fields": "debt_name,direction,status,currency,counterparty_name,client_id"
 }

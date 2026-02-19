@@ -39,21 +39,24 @@
    "fieldtype": "Link",
    "label": "User",
    "options": "User",
-   "reqd": 1
+   "reqd": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "wallet_id",
    "fieldtype": "Link",
    "label": "Wallet",
    "options": "Hisabi Wallet",
-   "reqd": 1
+   "reqd": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "device_id",
    "fieldtype": "Data",
    "label": "Device ID",
    "reqd": 1,
-   "unique": 1
+   "unique": 1,
+   "in_list_view": 1
   },
   {
    "fieldname": "client_id",
@@ -64,21 +67,26 @@
   {
    "fieldname": "device_name",
    "fieldtype": "Data",
-   "label": "Device Name"
+   "label": "Device Name",
+   "in_list_view": 1
   },
   {
    "fieldname": "platform",
    "fieldtype": "Select",
    "label": "Platform",
    "options": "android\nios\nweb",
-   "reqd": 1
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
   },
   {
    "default": "active",
    "fieldname": "status",
    "fieldtype": "Select",
    "label": "Status",
-   "options": "active\nrevoked\nblocked"
+   "options": "active\nrevoked\nblocked",
+   "in_list_view": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "device_token_hash",
@@ -108,7 +116,8 @@
   {
    "fieldname": "last_seen_at",
    "fieldtype": "Datetime",
-   "label": "Last Seen At"
+   "label": "Last Seen At",
+   "in_list_view": 1
   },
   {
    "fieldname": "last_seen_ip",
@@ -240,5 +249,7 @@
  "rows_threshold_for_grid_search": 20,
  "sort_field": "modified",
  "sort_order": "DESC",
- "states": []
+ "states": [],
+ "title_field": "device_id",
+ "search_fields": "device_id,device_name,platform,status,user"
 }
