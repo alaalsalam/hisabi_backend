@@ -6,6 +6,10 @@
  "field_order": [
   "user",
   "default_wallet",
+  "account_status",
+  "frozen_at",
+  "frozen_by",
+  "freeze_reason",
   "phone_verified",
   "locale",
   "name_ar"
@@ -23,6 +27,33 @@
    "fieldtype": "Link",
    "label": "Default Wallet",
    "options": "Hisabi Wallet"
+  },
+  {
+   "default": "Active",
+   "fieldname": "account_status",
+   "fieldtype": "Select",
+   "label": "Account Status",
+   "options": "Active\nFrozen",
+   "reqd": 1
+  },
+  {
+   "fieldname": "frozen_at",
+   "fieldtype": "Datetime",
+   "label": "Frozen At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "frozen_by",
+   "fieldtype": "Link",
+   "label": "Frozen By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "freeze_reason",
+   "fieldtype": "Small Text",
+   "label": "Freeze Reason",
+   "read_only": 1
   },
   {
    "default": "0",
@@ -61,6 +92,7 @@
   },
   {
    "read": 1,
+   "write": 1,
    "role": "Hisabi Admin"
   },
   {

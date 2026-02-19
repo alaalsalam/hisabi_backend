@@ -13,6 +13,7 @@ from frappe.utils.password import get_decrypted_password, passlibctx, set_encryp
 from hisabi_backend.utils.request_context import get_request_ip, get_user_agent
 from hisabi_backend.utils.audit_security import audit_security_event
 from hisabi_backend.utils.api_errors import error_response
+from hisabi_backend.utils.user_lifecycle import is_user_frozen
 
 
 def _truncate_for_doc_field(
@@ -326,6 +327,14 @@ def require_device_token_auth(*, expected_device_id: str | None = None) -> tuple
     user = device.user
     if not user:
         frappe.throw("Device user not found", frappe.AuthenticationError)
+    if is_user_frozen(user):
+        audit_security_event(
+            "account_frozen_blocked",
+            user=user,
+            device_id=device.device_id,
+            payload={"reason": "frozen_or_disabled"},
+        )
+        frappe.throw("account_frozen", frappe.AuthenticationError)
 
     frappe.set_user(user)
     return user, device

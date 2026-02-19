@@ -35,6 +35,7 @@ from hisabi_backend.utils.auth_lockout import on_login_failed, on_login_success,
 from hisabi_backend.utils.request_context import get_request_ip
 from hisabi_backend.utils.audit_security import audit_security_event
 from hisabi_backend.utils.request_headers import strip_expect_header
+from hisabi_backend.utils.user_lifecycle import is_user_frozen
 
 
 def _force_sessionless_json_request() -> None:
@@ -90,6 +91,11 @@ def _serialize_user(user: str) -> Dict[str, Any]:
         "email": u.email,
         "phone": getattr(u, "phone", None) or getattr(u, "mobile_no", None) or getattr(u, "phone", None),
     }
+
+
+def _raise_if_account_frozen(user: str) -> None:
+    if is_user_frozen(user):
+        frappe.throw(_("Account is frozen"), frappe.PermissionError)
 
 
 def _ensure_user_email(email: Optional[str], *, phone_digits: Optional[str]) -> str:
@@ -262,6 +268,7 @@ def login(
             on_login_failed(identifier, user=None, device_id=(device or {}).get("device_id"))
             raise
 
+        _raise_if_account_frozen(user)
         raise_if_locked(user)
 
         # Validate password using LoginManager to respect Frappe authentication backends.
