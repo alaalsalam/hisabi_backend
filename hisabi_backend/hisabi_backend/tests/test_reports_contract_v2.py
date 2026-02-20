@@ -215,6 +215,54 @@ class TestReportsContractV2(FrappeTestCase):
         self.assertEqual((rows[0].get("source") or "").lower(), "custom")
         self.assertAlmostEqual(float(rows[0].get("rate") or 0), 4.2, places=4)
 
+    def test_sync_push_fx_update_ignores_pull_only_metadata_fields(self):
+        upsert = fx_rates_upsert(
+            wallet_id=self.wallet_id,
+            base_currency="USD",
+            quote_currency="SAR",
+            rate=3.75,
+            source="custom",
+            effective_date=now_datetime().isoformat(),
+            device_id=self.device_id,
+        )
+        row = upsert.get("rate") or {}
+        entity_id = row.get("client_id")
+        base_version = int(row.get("doc_version") or 1)
+
+        response = self._push(
+            [
+                {
+                    "op_id": f"op-r2-fx-meta-{frappe.generate_hash(length=8)}",
+                    "entity_type": "Hisabi FX Rate",
+                    "entity_id": entity_id,
+                    "operation": "update",
+                    "base_version": base_version,
+                    "payload": {
+                        "client_id": entity_id,
+                        "base_currency": "USD",
+                        "quote_currency": "SAR",
+                        "rate": 3.8,
+                        "effective_date": now_datetime().isoformat(),
+                        "source": "custom",
+                        "doc_version": 999,
+                        "server_modified": "2099-01-01 00:00:00.000000",
+                    },
+                }
+            ]
+        )
+        result = (response.get("results") or [{}])[0]
+        self.assertEqual(result.get("status"), "accepted")
+
+        updated = frappe.get_all(
+            "Hisabi FX Rate",
+            filters={"wallet_id": self.wallet_id, "client_id": entity_id, "is_deleted": 0},
+            fields=["rate"],
+            order_by="effective_date desc, server_modified desc, name desc",
+            limit_page_length=1,
+        )
+        self.assertEqual(len(updated), 1)
+        self.assertAlmostEqual(float(updated[0].get("rate") or 0), 3.8, places=4)
+
     def test_report_filters_and_trends_contract(self):
         self._ensure_wallet_base_currency("SAR")
 

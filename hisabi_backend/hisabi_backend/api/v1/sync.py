@@ -650,6 +650,16 @@ SYNC_PULL_SYSTEM_FIELDS = {
     "_liked_by",
 }
 
+# Clients may accidentally include pull-only/system fields when reusing cached rows.
+# We drop these defensively before validation/write to prevent false invalid_field failures.
+SYNC_CLIENT_IGNORED_FIELDS = SYNC_PULL_SYSTEM_FIELDS | {
+    "name",
+    "doc_version",
+    "server_modified",
+    "docVersion",
+    "serverModified",
+}
+
 FIELD_MAP = {
     "Hisabi Settings": {
         "default_currency": "base_currency",
@@ -834,6 +844,15 @@ def _strip_server_auth_fields(doctype: str, payload: Dict[str, Any]) -> Dict[str
         return {}
     payload = dict(payload)
     for field in SERVER_AUTH_FIELDS.get(doctype, set()):
+        payload.pop(field, None)
+    return payload
+
+
+def _strip_client_ignored_fields(payload: Dict[str, Any]) -> Dict[str, Any]:
+    if not payload:
+        return {}
+    payload = dict(payload)
+    for field in SYNC_CLIENT_IGNORED_FIELDS:
         payload.pop(field, None)
     return payload
 
@@ -1770,6 +1789,7 @@ def _validate_sync_push_item(item: Dict[str, Any], wallet_id: str) -> Optional[D
         )
 
     normalized = _apply_field_map(entity_type, payload)
+    normalized = _strip_client_ignored_fields(normalized)
     unknown_fields = _unknown_payload_fields(entity_type, normalized)
     if unknown_fields:
         return _build_item_error(
@@ -1871,6 +1891,7 @@ def _prepare_doc_for_write(
         doc = _rename_doc_to_client_id(doc, client_id)
 
     payload = _apply_field_map(doctype, payload)
+    payload = _strip_client_ignored_fields(payload)
     payload = _strip_server_auth_fields(doctype, payload)
     if doctype == "Hisabi Bucket Template":
         payload = _normalize_bucket_template_payload(payload)
