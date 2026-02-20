@@ -11,6 +11,8 @@
   "base_currency",
   "enabled_currencies",
   "locale",
+  "app_language",
+  "theme_mode",
   "phone_number",
   "notifications_preferences",
   "enforce_fx",
@@ -70,6 +72,23 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Locale",
+   "in_standard_filter": 1
+  },
+  {
+   "default": "ar",
+   "fieldname": "app_language",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "App Language",
+   "in_standard_filter": 1
+  },
+  {
+   "default": "system",
+   "fieldname": "theme_mode",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Theme Mode",
+   "options": "system\nlight\ndark",
    "in_standard_filter": 1
   },
   {
@@ -176,7 +195,7 @@
    "write": 1
   }
  ],
- "search_fields": "user_name,user,wallet_id,base_currency,locale,client_id",
+ "search_fields": "user_name,user,wallet_id,base_currency,locale,app_language,theme_mode,phone_number,client_id",
  "sort_field": "server_modified",
  "sort_order": "DESC",
  "title_field": "user_name"
