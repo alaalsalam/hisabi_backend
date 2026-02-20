@@ -13,7 +13,7 @@ from werkzeug.wrappers import Response
 
 from hisabi_backend.utils.request_params import get_request_param
 from hisabi_backend.utils.security import require_device_token_auth
-from hisabi_backend.utils.fx_defaults import parse_enabled_currencies, seed_wallet_default_fx_rates
+from hisabi_backend.utils.fx_defaults import DEFAULT_FX_RATES, resolve_default_fx_rate
 from hisabi_backend.utils.sync_common import apply_common_sync_fields
 from hisabi_backend.utils.validators import validate_client_id
 from hisabi_backend.utils.wallet_acl import require_wallet_member
@@ -130,21 +130,6 @@ def _resolve_wallet_base_currency(wallet_id: str, user: str) -> str:
     return _normalize_currency(currency) or "USD"
 
 
-def _resolve_wallet_enabled_currencies(wallet_id: str, user: str) -> list[str]:
-    enabled = frappe.get_value(
-        "Hisabi Settings",
-        {"wallet_id": wallet_id, "is_deleted": 0},
-        "enabled_currencies",
-    )
-    if not enabled:
-        enabled = frappe.get_value(
-            "Hisabi Settings",
-            {"user": user, "is_deleted": 0},
-            "enabled_currencies",
-        )
-    return parse_enabled_currencies(enabled)
-
-
 def _parse_date(value: Any) -> datetime.date:
     dt = get_datetime(value) or now_datetime()
     return dt.date()
@@ -217,8 +202,44 @@ def _resolve_fx_rate(
             cache[cache_key] = 1.0 / reverse_rate
             return cache[cache_key]
 
-    cache[cache_key] = None
+    default_rate = resolve_default_fx_rate(src, dst)
+    cache[cache_key] = flt(default_rate, 8) if default_rate and flt(default_rate) > 0 else None
     return None
+
+
+def _default_fx_rows(
+    *,
+    base_currency: Optional[str] = None,
+    quote_currency: Optional[str] = None,
+) -> list[Dict[str, Any]]:
+    base_filter = _normalize_currency(base_currency)
+    quote_filter = _normalize_currency(quote_currency)
+    rows: list[Dict[str, Any]] = []
+    for key, value in DEFAULT_FX_RATES.items():
+        if "_" not in key:
+            continue
+        base, quote = key.split("_", 1)
+        base = _normalize_currency(base)
+        quote = _normalize_currency(quote)
+        if not base or not quote:
+            continue
+        if base_filter and base != base_filter:
+            continue
+        if quote_filter and quote != quote_filter:
+            continue
+        rate = flt(value or 0)
+        if rate <= 0:
+            continue
+        rows.append(
+            {
+                "client_id": f"default:{base}:{quote}",
+                "base_currency": base,
+                "quote_currency": quote,
+                "rate": rate,
+                "source": "default_catalog",
+            }
+        )
+    return sorted(rows, key=lambda row: (row["base_currency"], row["quote_currency"]))
 
 
 def _append_fx_warning(
@@ -1638,8 +1659,6 @@ def fx_rates_list(
     quote_currency: Optional[str] = None,
     effective_from: Optional[str] = None,
     effective_to: Optional[str] = None,
-    ensure_defaults: Optional[int] = 0,
-    enabled_currencies: Optional[str] = None,
     device_id: Optional[str] = None,
 ) -> Dict[str, Any] | Response:
     user, _device = require_device_token_auth()
@@ -1648,18 +1667,6 @@ def fx_rates_list(
         return wallet_id_resolved
     wallet_id = wallet_id_resolved
     require_wallet_member(wallet_id, user, min_role="viewer")
-    seeded_defaults: Dict[str, Any] | None = None
-
-    if int(ensure_defaults or 0) == 1:
-        base_for_seed = _normalize_currency(base_currency) or _resolve_wallet_base_currency(wallet_id, user)
-        enabled_for_seed = parse_enabled_currencies(enabled_currencies) or _resolve_wallet_enabled_currencies(wallet_id, user)
-        seeded_defaults = seed_wallet_default_fx_rates(
-            wallet_id=wallet_id,
-            user=user,
-            base_currency=base_for_seed,
-            enabled_currencies=enabled_for_seed,
-            overwrite_defaults=False,
-        )
 
     filters: Dict[str, Any] = {
         "wallet_id": wallet_id,
@@ -1697,7 +1704,7 @@ def fx_rates_list(
     return {
         "rates": rows,
         "count": len(rows),
-        "seeded_defaults": seeded_defaults,
+        "default_rates": _default_fx_rows(base_currency=base_currency, quote_currency=quote_currency),
         "server_time": now_datetime().isoformat(),
         "warnings": [],
     }
@@ -1791,38 +1798,6 @@ def fx_rates_upsert(
             "doc_version": doc.doc_version,
             "server_modified": doc.server_modified,
         },
-        "server_time": now_datetime().isoformat(),
-        "warnings": [],
-    }
-
-
-@frappe.whitelist(allow_guest=False)
-def fx_rates_seed_defaults(
-    wallet_id: Optional[str] = None,
-    base_currency: Optional[str] = None,
-    enabled_currencies: Optional[str] = None,
-    overwrite_defaults: Optional[int] = 0,
-    device_id: Optional[str] = None,
-) -> Dict[str, Any] | Response:
-    user, _device = require_device_token_auth()
-    wallet_id_resolved = _resolve_wallet_id_param(wallet_id)
-    if isinstance(wallet_id_resolved, Response):
-        return wallet_id_resolved
-    wallet_id = wallet_id_resolved
-    require_wallet_member(wallet_id, user, min_role="member")
-
-    base_for_seed = _normalize_currency(base_currency) or _resolve_wallet_base_currency(wallet_id, user)
-    enabled_for_seed = parse_enabled_currencies(enabled_currencies) or _resolve_wallet_enabled_currencies(wallet_id, user)
-    summary = seed_wallet_default_fx_rates(
-        wallet_id=wallet_id,
-        user=user,
-        base_currency=base_for_seed,
-        enabled_currencies=enabled_for_seed,
-        overwrite_defaults=overwrite_defaults,
-    )
-
-    return {
-        "seed": summary,
         "server_time": now_datetime().isoformat(),
         "warnings": [],
     }

@@ -7,10 +7,6 @@ from frappe import _
 from frappe.utils import flt, now_datetime
 from frappe.model.document import Document
 
-from hisabi_backend.utils.fx_defaults import parse_enabled_currencies, seed_wallet_default_fx_rates
-from hisabi_backend.utils.validators import validate_client_id
-from hisabi_backend.utils.wallet_acl import require_wallet_member
-
 
 class HisabiFXRate(Document):
     def validate(self):
@@ -34,32 +30,3 @@ class HisabiFXRate(Document):
     def before_insert(self):
         if not self.user:
             self.user = frappe.session.user
-
-
-@frappe.whitelist()
-def seed_default_rates_for_wallet(
-    wallet_id: str,
-    base_currency: str | None = None,
-    enabled_currencies: str | None = None,
-    overwrite_defaults: int = 0,
-) -> dict:
-    """Desk helper: seed default FX matrix for a wallet into Hisabi FX Rate rows."""
-    user = frappe.session.user
-    if not user or user == "Guest":
-        frappe.throw(_("Authentication required"), frappe.PermissionError)
-
-    wallet_id = validate_client_id(wallet_id)
-    roles = set(frappe.get_roles(user) or [])
-    if not ({"System Manager", "Hisabi Admin"} & roles):
-        require_wallet_member(wallet_id, user, min_role="member")
-
-    base = str(base_currency or "").strip().upper() if base_currency else None
-    enabled = parse_enabled_currencies(enabled_currencies)
-    summary = seed_wallet_default_fx_rates(
-        wallet_id=wallet_id,
-        user=user,
-        base_currency=base,
-        enabled_currencies=enabled,
-        overwrite_defaults=overwrite_defaults,
-    )
-    return {"ok": True, "wallet_id": wallet_id, "seed": summary}
