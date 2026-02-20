@@ -13,7 +13,7 @@ from werkzeug.wrappers import Response
 
 from hisabi_backend.utils.request_params import get_request_param
 from hisabi_backend.utils.security import require_device_token_auth
-from hisabi_backend.utils.fx_defaults import DEFAULT_FX_RATES, resolve_default_fx_rate
+from hisabi_backend.utils.fx_defaults import build_default_fx_matrix, resolve_default_fx_rate
 from hisabi_backend.utils.sync_common import apply_common_sync_fields
 from hisabi_backend.utils.validators import validate_client_id
 from hisabi_backend.utils.wallet_acl import require_wallet_member
@@ -212,34 +212,7 @@ def _default_fx_rows(
     base_currency: Optional[str] = None,
     quote_currency: Optional[str] = None,
 ) -> list[Dict[str, Any]]:
-    base_filter = _normalize_currency(base_currency)
-    quote_filter = _normalize_currency(quote_currency)
-    rows: list[Dict[str, Any]] = []
-    for key, value in DEFAULT_FX_RATES.items():
-        if "_" not in key:
-            continue
-        base, quote = key.split("_", 1)
-        base = _normalize_currency(base)
-        quote = _normalize_currency(quote)
-        if not base or not quote:
-            continue
-        if base_filter and base != base_filter:
-            continue
-        if quote_filter and quote != quote_filter:
-            continue
-        rate = flt(value or 0)
-        if rate <= 0:
-            continue
-        rows.append(
-            {
-                "client_id": f"default:{base}:{quote}",
-                "base_currency": base,
-                "quote_currency": quote,
-                "rate": rate,
-                "source": "default_catalog",
-            }
-        )
-    return sorted(rows, key=lambda row: (row["base_currency"], row["quote_currency"]))
+    return build_default_fx_matrix(base_currency=base_currency, quote_currency=quote_currency)
 
 
 def _append_fx_warning(

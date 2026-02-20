@@ -55,6 +55,10 @@ def _pair_key(base_currency: str, quote_currency: str) -> str:
     return f"{_normalize_currency(base_currency)}_{_normalize_currency(quote_currency)}"
 
 
+def default_currency_codes() -> List[str]:
+    return sorted({code for pair in DEFAULT_FX_RATES.keys() for code in pair.split("_") if _normalize_currency(code)})
+
+
 def _boolish(value: Any) -> bool:
     if isinstance(value, bool):
         return value
@@ -141,6 +145,39 @@ def resolve_default_fx_rate(base_currency: str, quote_currency: str) -> Optional
         bridged = flt(base_to_sar * sar_to_quote, 8)
         return bridged if bridged > 0 else None
     return None
+
+
+def build_default_fx_matrix(
+    *,
+    base_currency: Optional[str] = None,
+    quote_currency: Optional[str] = None,
+    currencies: Optional[Sequence[str]] = None,
+) -> List[Dict[str, Any]]:
+    base_filter = _normalize_currency(base_currency) if base_currency else ""
+    quote_filter = _normalize_currency(quote_currency) if quote_currency else ""
+    universe = _dedupe_currencies(currencies or default_currency_codes())
+    rows: List[Dict[str, Any]] = []
+    for base in universe:
+        for quote in universe:
+            if base == quote:
+                continue
+            if base_filter and base != base_filter:
+                continue
+            if quote_filter and quote != quote_filter:
+                continue
+            rate = resolve_default_fx_rate(base, quote)
+            if not rate or flt(rate) <= 0:
+                continue
+            rows.append(
+                {
+                    "client_id": f"default:{base}:{quote}",
+                    "base_currency": base,
+                    "quote_currency": quote,
+                    "rate": flt(rate, 8),
+                    "source": "default_catalog",
+                }
+            )
+    return sorted(rows, key=lambda row: (row["base_currency"], row["quote_currency"]))
 
 
 def _build_currency_pool(base_currency: Optional[str], enabled_currencies: Any) -> List[str]:
