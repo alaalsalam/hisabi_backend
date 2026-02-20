@@ -19,6 +19,7 @@ from hisabi_backend.domain.recalc_engine import (
     recalc_jameyas,
 )
 from hisabi_backend.utils.security import require_device_auth
+from hisabi_backend.utils.fx_defaults import seed_wallet_default_fx_rates
 from hisabi_backend.utils.sync_common import apply_common_sync_fields
 from hisabi_backend.utils.wallet_acl import require_wallet_member
 from hisabi_backend.utils.validators import (
@@ -2505,6 +2506,20 @@ def sync_push(
                 if not doc.deleted_at:
                     doc.deleted_at = now_datetime()
             doc.save(ignore_permissions=True)
+            settings_fx_seed_summary: Optional[Dict[str, Any]] = None
+            if entity_type == "Hisabi Settings" and not mark_deleted:
+                # Seed wallet-scoped default FX rows once settings declare wallet currencies.
+                # Custom/API rows are never overwritten by this helper.
+                try:
+                    settings_fx_seed_summary = seed_wallet_default_fx_rates(
+                        wallet_id=wallet_id,
+                        user=user,
+                        base_currency=getattr(doc, "base_currency", None),
+                        enabled_currencies=getattr(doc, "enabled_currencies", None),
+                        overwrite_defaults=False,
+                    )
+                except Exception:
+                    frappe.log_error(frappe.get_traceback(), "hisabi_backend.sync_seed_fx_defaults")
             if entity_type == "Hisabi Account" and doc.name != doc.client_id:
                 doc = _rename_doc_to_client_id(doc, doc.client_id)
             if entity_type == "Hisabi Account" and operation == "delete":
@@ -2593,6 +2608,11 @@ def sync_push(
             }
             if fx_sanity_warnings:
                 result["warnings"] = fx_sanity_warnings
+            if settings_fx_seed_summary and (
+                cint(settings_fx_seed_summary.get("inserted") or 0) > 0
+                or cint(settings_fx_seed_summary.get("updated") or 0) > 0
+            ):
+                result["fx_seed"] = settings_fx_seed_summary
             results.append(result)
 
             _store_op_id(

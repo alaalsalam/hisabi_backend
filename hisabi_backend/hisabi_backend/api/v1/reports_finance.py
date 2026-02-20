@@ -13,6 +13,7 @@ from werkzeug.wrappers import Response
 
 from hisabi_backend.utils.request_params import get_request_param
 from hisabi_backend.utils.security import require_device_token_auth
+from hisabi_backend.utils.fx_defaults import parse_enabled_currencies, seed_wallet_default_fx_rates
 from hisabi_backend.utils.sync_common import apply_common_sync_fields
 from hisabi_backend.utils.validators import validate_client_id
 from hisabi_backend.utils.wallet_acl import require_wallet_member
@@ -127,6 +128,21 @@ def _resolve_wallet_base_currency(wallet_id: str, user: str) -> str:
     if not currency:
         currency = frappe.db.get_single_value("System Settings", "currency")
     return _normalize_currency(currency) or "USD"
+
+
+def _resolve_wallet_enabled_currencies(wallet_id: str, user: str) -> list[str]:
+    enabled = frappe.get_value(
+        "Hisabi Settings",
+        {"wallet_id": wallet_id, "is_deleted": 0},
+        "enabled_currencies",
+    )
+    if not enabled:
+        enabled = frappe.get_value(
+            "Hisabi Settings",
+            {"user": user, "is_deleted": 0},
+            "enabled_currencies",
+        )
+    return parse_enabled_currencies(enabled)
 
 
 def _parse_date(value: Any) -> datetime.date:
@@ -1622,6 +1638,8 @@ def fx_rates_list(
     quote_currency: Optional[str] = None,
     effective_from: Optional[str] = None,
     effective_to: Optional[str] = None,
+    ensure_defaults: Optional[int] = 0,
+    enabled_currencies: Optional[str] = None,
     device_id: Optional[str] = None,
 ) -> Dict[str, Any] | Response:
     user, _device = require_device_token_auth()
@@ -1630,6 +1648,18 @@ def fx_rates_list(
         return wallet_id_resolved
     wallet_id = wallet_id_resolved
     require_wallet_member(wallet_id, user, min_role="viewer")
+    seeded_defaults: Dict[str, Any] | None = None
+
+    if int(ensure_defaults or 0) == 1:
+        base_for_seed = _normalize_currency(base_currency) or _resolve_wallet_base_currency(wallet_id, user)
+        enabled_for_seed = parse_enabled_currencies(enabled_currencies) or _resolve_wallet_enabled_currencies(wallet_id, user)
+        seeded_defaults = seed_wallet_default_fx_rates(
+            wallet_id=wallet_id,
+            user=user,
+            base_currency=base_for_seed,
+            enabled_currencies=enabled_for_seed,
+            overwrite_defaults=False,
+        )
 
     filters: Dict[str, Any] = {
         "wallet_id": wallet_id,
@@ -1667,6 +1697,7 @@ def fx_rates_list(
     return {
         "rates": rows,
         "count": len(rows),
+        "seeded_defaults": seeded_defaults,
         "server_time": now_datetime().isoformat(),
         "warnings": [],
     }
@@ -1760,6 +1791,38 @@ def fx_rates_upsert(
             "doc_version": doc.doc_version,
             "server_modified": doc.server_modified,
         },
+        "server_time": now_datetime().isoformat(),
+        "warnings": [],
+    }
+
+
+@frappe.whitelist(allow_guest=False)
+def fx_rates_seed_defaults(
+    wallet_id: Optional[str] = None,
+    base_currency: Optional[str] = None,
+    enabled_currencies: Optional[str] = None,
+    overwrite_defaults: Optional[int] = 0,
+    device_id: Optional[str] = None,
+) -> Dict[str, Any] | Response:
+    user, _device = require_device_token_auth()
+    wallet_id_resolved = _resolve_wallet_id_param(wallet_id)
+    if isinstance(wallet_id_resolved, Response):
+        return wallet_id_resolved
+    wallet_id = wallet_id_resolved
+    require_wallet_member(wallet_id, user, min_role="member")
+
+    base_for_seed = _normalize_currency(base_currency) or _resolve_wallet_base_currency(wallet_id, user)
+    enabled_for_seed = parse_enabled_currencies(enabled_currencies) or _resolve_wallet_enabled_currencies(wallet_id, user)
+    summary = seed_wallet_default_fx_rates(
+        wallet_id=wallet_id,
+        user=user,
+        base_currency=base_for_seed,
+        enabled_currencies=enabled_for_seed,
+        overwrite_defaults=overwrite_defaults,
+    )
+
+    return {
+        "seed": summary,
         "server_time": now_datetime().isoformat(),
         "warnings": [],
     }

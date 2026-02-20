@@ -7,6 +7,7 @@ from frappe.utils.password import update_password
 
 from hisabi_backend.api.v1.reports_finance import (
     fx_rates_list,
+    fx_rates_seed_defaults,
     fx_rates_upsert,
     report_cashflow,
     report_category_breakdown,
@@ -98,10 +99,9 @@ class TestReportsContractV2(FrappeTestCase):
         self.assertEqual(getattr(trends, "status_code", None), 422)
 
     def test_fx_upsert_list_and_report_conversion_warning(self):
-        self._ensure_wallet_base_currency("SAR")
-        initial_summary = report_summary(wallet_id=self.wallet_id, device_id=self.device_id)
-        base_currency = ((initial_summary.get("totals") or {}).get("base_currency") or "SAR").upper()
-        tx_currency = "USD" if base_currency != "USD" else "EUR"
+        self._ensure_wallet_base_currency("EUR")
+        base_currency = "EUR"
+        tx_currency = "USD"
 
         self._push(
             [
@@ -134,7 +134,6 @@ class TestReportsContractV2(FrappeTestCase):
                 },
             ]
         )
-
         summary_without_rate = report_summary(wallet_id=self.wallet_id, device_id=self.device_id)
         self.assertEqual((summary_without_rate.get("totals") or {}).get("income"), 0)
         warnings = summary_without_rate.get("warnings") or []
@@ -161,6 +160,60 @@ class TestReportsContractV2(FrappeTestCase):
 
         summary_with_rate = report_summary(wallet_id=self.wallet_id, device_id=self.device_id)
         self.assertAlmostEqual((summary_with_rate.get("totals") or {}).get("income") or 0, 37.5, places=2)
+
+    def test_fx_seed_defaults_creates_wallet_scoped_default_rows(self):
+        self._ensure_wallet_base_currency("SAR")
+        seeded = fx_rates_seed_defaults(
+            wallet_id=self.wallet_id,
+            base_currency="SAR",
+            enabled_currencies='["SAR","USD","YER"]',
+            device_id=self.device_id,
+        )
+        seed_meta = seeded.get("seed") or {}
+        self.assertGreaterEqual(int(seed_meta.get("seeded") or 0), 1)
+
+        listed = fx_rates_list(wallet_id=self.wallet_id, device_id=self.device_id)
+        rows = listed.get("rates") or []
+        self.assertTrue(any((row.get("source") == "default") for row in rows))
+        self.assertTrue(all((row.get("wallet_id") == self.wallet_id) for row in rows))
+
+    def test_fx_seed_defaults_does_not_override_custom_rate(self):
+        self._ensure_wallet_base_currency("SAR")
+        upsert = fx_rates_upsert(
+            wallet_id=self.wallet_id,
+            base_currency="USD",
+            quote_currency="SAR",
+            rate=4.2,
+            source="custom",
+            effective_date=now_datetime().isoformat(),
+            device_id=self.device_id,
+        )
+        self.assertIn("rate", upsert)
+
+        seeded = fx_rates_seed_defaults(
+            wallet_id=self.wallet_id,
+            base_currency="SAR",
+            enabled_currencies="SAR,USD",
+            overwrite_defaults=1,
+            device_id=self.device_id,
+        )
+        self.assertIn("seed", seeded)
+
+        rows = frappe.get_all(
+            "Hisabi FX Rate",
+            filters={
+                "wallet_id": self.wallet_id,
+                "base_currency": "USD",
+                "quote_currency": "SAR",
+                "is_deleted": 0,
+            },
+            fields=["name", "rate", "source"],
+            order_by="effective_date desc, server_modified desc, name desc",
+            limit_page_length=1,
+        )
+        self.assertEqual(len(rows), 1)
+        self.assertEqual((rows[0].get("source") or "").lower(), "custom")
+        self.assertAlmostEqual(float(rows[0].get("rate") or 0), 4.2, places=4)
 
     def test_report_filters_and_trends_contract(self):
         self._ensure_wallet_base_currency("SAR")
