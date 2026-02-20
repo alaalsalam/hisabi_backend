@@ -49,7 +49,8 @@ def seed_default_rates_for_wallet(
         frappe.throw(_("Authentication required"), frappe.PermissionError)
 
     wallet_id = validate_client_id(wallet_id)
-    if not (frappe.has_role("System Manager") or frappe.has_role("Hisabi Admin")):
+    roles = set(frappe.get_roles(user) or [])
+    if not ({"System Manager", "Hisabi Admin"} & roles):
         require_wallet_member(wallet_id, user, min_role="member")
 
     base = str(base_currency or "").strip().upper() if base_currency else None
