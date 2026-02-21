@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import frappe
 from frappe import _
 from frappe.utils import cint, flt, get_datetime, now_datetime
+from frappe.utils.file_manager import save_file
 from werkzeug.wrappers import Response
 from hisabi_backend.domain.recalc_engine import (
     recalc_account_balance,
@@ -886,9 +887,22 @@ def _normalize_client_ms_fields(payload: Dict[str, Any]) -> Dict[str, Any]:
     if not payload:
         return {}
     normalized = dict(payload)
-    for fieldname in ("client_created_ms", "client_modified_ms"):
-        if fieldname in normalized:
-            normalized[fieldname] = _normalize_client_ms_value(normalized.get(fieldname))
+    pairs = (
+        ("client_created_ms", "clientCreatedMs"),
+        ("client_modified_ms", "clientModifiedMs"),
+    )
+    for snake_field, camel_field in pairs:
+        raw = None
+        if snake_field in normalized:
+            raw = normalized.get(snake_field)
+        elif camel_field in normalized:
+            raw = normalized.get(camel_field)
+        if raw in (None, ""):
+            continue
+        coerced = _normalize_client_ms_value(raw)
+        normalized[snake_field] = coerced
+        if camel_field in normalized:
+            normalized[camel_field] = coerced
     return normalized
 
 
@@ -1936,6 +1950,7 @@ def _prepare_doc_for_write(
         doc = _rename_doc_to_client_id(doc, client_id)
 
     payload = _apply_field_map(doctype, payload)
+    payload = _normalize_client_ms_fields(payload)
     payload = _strip_client_ignored_fields(payload)
     payload = _strip_server_auth_fields(doctype, payload)
     if doctype == "Hisabi Bucket Template":
@@ -2912,6 +2927,79 @@ def sync_event_status(
                 "server_time": status_payload.get("server_time") or now_datetime().isoformat(),
                 "entity_types": status_payload.get("entity_types") or [],
                 "accepted_count": cint(status_payload.get("accepted_count") or 0),
+            }
+        },
+        status_code=200,
+    )
+
+
+@frappe.whitelist(allow_guest=False)
+def sync_upload_file(
+    device_id: Optional[str] = None,
+    wallet_id: Optional[str] = None,
+    folder: Optional[str] = None,
+    is_private: Optional[int] = 1,
+    **kwargs: Any,
+) -> Response:
+    form_dict = getattr(frappe, "form_dict", {}) or {}
+    if device_id is None:
+        device_id = form_dict.get("device_id")
+    if wallet_id is None:
+        wallet_id = form_dict.get("wallet_id")
+    if folder is None:
+        folder = form_dict.get("folder")
+    if is_private is None:
+        is_private = form_dict.get("is_private")
+
+    if not device_id:
+        return _build_sync_error("device_id_required", "device_id is required", status_code=417)
+    if not wallet_id:
+        return _build_sync_error("wallet_id_required", "wallet_id is required", status_code=417)
+
+    try:
+        user, _device = _require_device_auth(device_id)
+        wallet_id = validate_client_id(wallet_id)
+        require_wallet_member(wallet_id, user, min_role="viewer")
+    except Exception as exc:
+        frappe.clear_last_message()
+        return _build_sync_error(
+            "auth_failed",
+            str(exc) or "sync auth failed",
+            status_code=_sync_status_for_exception(exc),
+        )
+
+    request = getattr(frappe.local, "request", None)
+    incoming_file = None
+    if request and getattr(request, "files", None):
+        incoming_file = request.files.get("file")
+    if not incoming_file:
+        return _build_sync_error("file_required", "file is required", status_code=417)
+
+    filename = (getattr(incoming_file, "filename", None) or "").strip() or f"hisabi-upload-{uuid.uuid4().hex[:8]}"
+    try:
+        content = incoming_file.read()
+        saved = save_file(
+            filename,
+            content,
+            dt=None,
+            dn=None,
+            folder=folder or "Home/Hisabi",
+            is_private=cint(is_private or 1),
+        )
+    except Exception as exc:
+        frappe.clear_last_message()
+        return _build_sync_error(
+            "upload_failed",
+            str(exc) or "upload failed",
+            status_code=_sync_status_for_exception(exc),
+        )
+
+    return _build_sync_response(
+        {
+            "message": {
+                "name": getattr(saved, "name", None),
+                "file_url": getattr(saved, "file_url", None),
+                "file_name": getattr(saved, "file_name", None) or filename,
             }
         },
         status_code=200,
