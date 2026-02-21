@@ -625,6 +625,8 @@ RATE_LIMIT_MAX = 60
 RATE_LIMIT_WINDOW_SEC = 600
 MAX_PUSH_ITEMS = 200
 MAX_PAYLOAD_BYTES = 100 * 1024
+SYNC_EVENT_CACHE_TTL_SEC = 7 * 24 * 60 * 60
+SYNC_EVENT_NAME = "hisabi_sync_wallet_event"
 
 SERVER_AUTH_FIELDS = {
     "Hisabi Account": {"current_balance"},
@@ -2111,6 +2113,75 @@ def _check_rate_limit(device_id: str) -> None:
     cache.set_value(key, current + 1, expires_in_sec=window_sec)
 
 
+def _sync_event_cache_key(wallet_id: str) -> str:
+    return f"hisabi_sync_event:{wallet_id}"
+
+
+def _read_wallet_sync_event(wallet_id: str) -> Dict[str, Any]:
+    if not wallet_id:
+        return {"wallet_id": wallet_id, "latest_seq_ms": 0, "server_time": None}
+    raw = frappe.cache().get_value(_sync_event_cache_key(wallet_id))
+    if not raw:
+        return {"wallet_id": wallet_id, "latest_seq_ms": 0, "server_time": None}
+    try:
+        parsed = json.loads(raw) if isinstance(raw, str) else dict(raw)
+    except Exception:
+        parsed = {}
+    latest_seq_ms = cint(parsed.get("latest_seq_ms") or 0)
+    return {
+        "wallet_id": wallet_id,
+        "latest_seq_ms": latest_seq_ms,
+        "server_time": parsed.get("server_time"),
+        "accepted_count": cint(parsed.get("accepted_count") or 0),
+        "entity_types": parsed.get("entity_types") if isinstance(parsed.get("entity_types"), list) else [],
+    }
+
+
+def _emit_wallet_sync_event(wallet_id: str, actor_user: str, accepted_results: List[Dict[str, Any]]) -> None:
+    if not wallet_id or not accepted_results:
+        return
+    seq_ms = min(int(now_datetime().timestamp() * 1000), 2147483647)
+    entity_types = sorted(
+        {
+            str(row.get("entity_type") or "").strip()
+            for row in accepted_results
+            if str(row.get("entity_type") or "").strip()
+        }
+    )
+    payload = {
+        "wallet_id": wallet_id,
+        "latest_seq_ms": seq_ms,
+        "server_time": now_datetime().isoformat(),
+        "accepted_count": len(accepted_results),
+        "entity_types": entity_types,
+    }
+    try:
+        frappe.cache().set_value(
+            _sync_event_cache_key(wallet_id),
+            json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
+            expires_in_sec=SYNC_EVENT_CACHE_TTL_SEC,
+        )
+        recipients = frappe.get_all(
+            "Hisabi Wallet Member",
+            filters={"wallet": wallet_id, "status": ["!=", "removed"]},
+            fields=["user"],
+        )
+        recipient_users = {actor_user}
+        for row in recipients:
+            user = str(row.get("user") or "").strip()
+            if user:
+                recipient_users.add(user)
+        for user in recipient_users:
+            frappe.publish_realtime(
+                event=SYNC_EVENT_NAME,
+                message=payload,
+                user=user,
+                after_commit=True,
+            )
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "hisabi_backend.sync_emit_wallet_event")
+
+
 @frappe.whitelist(allow_guest=False)
 def sync_push(
     device_id: Optional[str] = None,
@@ -2207,6 +2278,7 @@ def sync_push(
         )
 
     results: List[Dict[str, Any]] = []
+    accepted_for_event: List[Dict[str, Any]] = []
     affected_accounts = set()
     affected_multi_parents = set()
     affected_budgets = set()
@@ -2627,6 +2699,16 @@ def sync_push(
             if fx_sanity_warnings:
                 result["warnings"] = fx_sanity_warnings
             results.append(result)
+            accepted_for_event.append(
+                {
+                    "entity_type": entity_type,
+                    "entity_id": doc.name,
+                    "client_id": doc.client_id,
+                    "operation": operation,
+                    "doc_version": doc.doc_version,
+                    "server_modified": _to_iso(doc.server_modified),
+                }
+            )
 
             _store_op_id(
                 user=user,
@@ -2726,9 +2808,80 @@ def sync_push(
     device.last_sync_at = now_datetime()
     device.last_sync_ms = min(int(device.last_sync_at.timestamp() * 1000), 2147483647)
     device.save(ignore_permissions=True)
+    _emit_wallet_sync_event(wallet_id=wallet_id, actor_user=user, accepted_results=accepted_for_event)
 
     return _build_sync_response(
         {"message": {"results": results, "server_time": now_datetime().isoformat()}},
+        status_code=200,
+    )
+
+
+@frappe.whitelist(allow_guest=False)
+def sync_event_status(
+    device_id: Optional[str] = None,
+    wallet_id: Optional[str] = None,
+    since_ms: Optional[int | str] = None,
+    **kwargs,
+) -> Dict[str, Any]:
+    """Lightweight wallet change signal for near realtime sync scheduling."""
+    request = getattr(frappe, "request", None)
+    form_dict = getattr(frappe, "form_dict", {}) or {}
+    json_body = None
+
+    if request:
+        try:
+            json_body = request.get_json(silent=True)
+        except Exception:
+            json_body = None
+
+    if device_id is None:
+        device_id = form_dict.get("device_id")
+    if wallet_id is None:
+        wallet_id = form_dict.get("wallet_id")
+    if since_ms is None:
+        since_ms = form_dict.get("since_ms")
+
+    if request and json_body:
+        if device_id is None:
+            device_id = json_body.get("device_id")
+        if wallet_id is None:
+            wallet_id = json_body.get("wallet_id")
+        if since_ms is None:
+            since_ms = json_body.get("since_ms")
+
+    if not device_id:
+        return _build_sync_error("device_id_required", "device_id is required", status_code=417)
+    if not wallet_id:
+        return _build_sync_error("wallet_id_required", "wallet_id is required", status_code=417)
+
+    try:
+        user, _device = _require_device_auth(device_id)
+        wallet_id = validate_client_id(wallet_id)
+        require_wallet_member(wallet_id, user, min_role="viewer")
+    except Exception as exc:
+        frappe.clear_last_message()
+        return _build_sync_error(
+            "auth_failed",
+            str(exc) or "sync auth failed",
+            status_code=_sync_status_for_exception(exc),
+        )
+
+    since_seq_ms = cint(since_ms or 0)
+    status_payload = _read_wallet_sync_event(wallet_id)
+    latest_seq_ms = cint(status_payload.get("latest_seq_ms") or 0)
+    changed = latest_seq_ms > since_seq_ms if since_seq_ms > 0 else latest_seq_ms > 0
+
+    return _build_sync_response(
+        {
+            "message": {
+                "wallet_id": wallet_id,
+                "changed": bool(changed),
+                "latest_seq_ms": latest_seq_ms,
+                "server_time": status_payload.get("server_time") or now_datetime().isoformat(),
+                "entity_types": status_payload.get("entity_types") or [],
+                "accepted_count": cint(status_payload.get("accepted_count") or 0),
+            }
+        },
         status_code=200,
     )
 
