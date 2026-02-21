@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+import hashlib
 import json
 import uuid
 from typing import Any, Dict, List, Optional, Tuple
@@ -627,6 +628,7 @@ MAX_PUSH_ITEMS = 200
 MAX_PAYLOAD_BYTES = 100 * 1024
 SYNC_EVENT_CACHE_TTL_SEC = 7 * 24 * 60 * 60
 SYNC_EVENT_NAME = "hisabi_sync_wallet_event"
+INT32_MAX = 2_147_483_647
 
 SERVER_AUTH_FIELDS = {
     "Hisabi Account": {"current_balance"},
@@ -865,6 +867,29 @@ def _strip_client_ignored_fields(payload: Dict[str, Any]) -> Dict[str, Any]:
     for field in SYNC_CLIENT_IGNORED_FIELDS:
         payload.pop(field, None)
     return payload
+
+
+def _normalize_client_ms_value(value: Any) -> Any:
+    if value in (None, ""):
+        return value
+    try:
+        parsed = int(float(value))
+    except Exception:
+        return value
+    if parsed <= INT32_MAX:
+        return parsed
+    # Some clients still send milliseconds while backend fields are int32-compatible seconds.
+    return int(parsed / 1000)
+
+
+def _normalize_client_ms_fields(payload: Dict[str, Any]) -> Dict[str, Any]:
+    if not payload:
+        return {}
+    normalized = dict(payload)
+    for fieldname in ("client_created_ms", "client_modified_ms"):
+        if fieldname in normalized:
+            normalized[fieldname] = _normalize_client_ms_value(normalized.get(fieldname))
+    return normalized
 
 
 def _apply_field_map(doctype: str, payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -1536,7 +1561,13 @@ def _store_op_id(
 
 def _ledger_op_id(wallet_id: str, op_id: str) -> str:
     # Reliability: retries must be safe; op_id provides idempotency.
-    return f"{wallet_id}:{op_id}"
+    raw = f"{wallet_id}:{op_id}"
+    if len(raw) <= 140:
+        return raw
+    digest = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:12]
+    prefix = f"{wallet_id}:h:{digest}:"
+    remaining = max(16, 140 - len(prefix))
+    return f"{prefix}{op_id[-remaining:]}"
 
 
 def _check_duplicate_op(user: str, device_id: str, wallet_id: str, op_id: str) -> bool:
@@ -1888,6 +1919,7 @@ def _prepare_doc_for_write(
 ) -> frappe.model.document.Document:
     doc = existing or frappe.new_doc(doctype)
     _set_owner(doc, user)
+    payload = _normalize_client_ms_fields(payload)
 
     client_id = payload.get("client_id")
     if not client_id:
