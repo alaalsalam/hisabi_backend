@@ -1571,6 +1571,49 @@ def _store_op_id(
     if result.get("server_modified"):
         sync_op.server_modified = result.get("server_modified")
     sync_op.save(ignore_permissions=True)
+    _prune_sync_op_noise(
+        user=user,
+        device_id=device_id,
+        entity_type=entity_type,
+        client_id=entity_client_id,
+        status=status,
+    )
+
+
+def _prune_sync_op_noise(
+    *,
+    user: str,
+    device_id: str,
+    entity_type: str,
+    client_id: str,
+    status: str,
+) -> None:
+    noisy_entities = {"Hisabi Settings", "Hisabi FX Rate"}
+    noisy_statuses = {"accepted", "error", "duplicate"}
+    if entity_type not in noisy_entities or status not in noisy_statuses:
+        return
+    try:
+        keep_limit = 12
+        rows = frappe.get_all(
+            "Hisabi Sync Op",
+            filters={
+                "user": user,
+                "device_id": device_id,
+                "entity_type": entity_type,
+                "client_id": client_id,
+                "status": status,
+            },
+            fields=["name"],
+            order_by="modified desc",
+            limit_page_length=200,
+        )
+        stale_rows = rows[keep_limit:]
+        if not stale_rows:
+            return
+        for row in stale_rows:
+            frappe.delete_doc("Hisabi Sync Op", row.get("name"), ignore_permissions=True, force=1)
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "hisabi_backend.sync_prune_sync_op_noise")
 
 
 def _ledger_op_id(wallet_id: str, op_id: str) -> str:
