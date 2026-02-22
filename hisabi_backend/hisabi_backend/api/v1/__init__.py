@@ -23,6 +23,20 @@ def _serialize_user(user: str) -> Dict[str, Any]:
     }
 
 
+def _safe_request_json() -> Dict[str, Any]:
+    request = getattr(frappe, "request", None)
+    if not request:
+        return {}
+    get_json = getattr(request, "get_json", None)
+    if not callable(get_json):
+        return {}
+    try:
+        payload = get_json(silent=True)
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
 @frappe.whitelist(allow_guest=True)
 def register_user(
     email: str | None = None,
@@ -160,8 +174,7 @@ def wallet_create(
 ) -> Dict[str, Any]:
     from .wallets import wallet_create as _impl
 
-    request_json = frappe.request.get_json(silent=True) if getattr(frappe, "request", None) else {}
-    request_json = request_json or {}
+    request_json = _safe_request_json()
     if client_id is None:
         client_id = frappe.form_dict.get("client_id") or request_json.get("client_id")
     if wallet_name is None:
@@ -180,8 +193,7 @@ def wallet_update(
 ) -> Dict[str, Any]:
     from .wallets import wallet_update as _impl
 
-    request_json = frappe.request.get_json(silent=True) if getattr(frappe, "request", None) else {}
-    request_json = request_json or {}
+    request_json = _safe_request_json()
     if wallet_id is None:
         wallet_id = frappe.form_dict.get("wallet_id") or request_json.get("wallet_id")
     if wallet_name is None:
