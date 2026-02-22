@@ -22,6 +22,11 @@ def _ensure_user_is_deletable(user: str) -> None:
         frappe.throw(_("User not found"), frappe.DoesNotExistError)
 
 
+def _is_unknown_column_error(exc: Exception, column_name: str) -> bool:
+    message = str(exc or "").lower()
+    return "unknown column" in message and column_name.lower() in message
+
+
 def _count_rows(doctype: str, filters: dict) -> int:
     try:
         return int(frappe.db.count(doctype, filters))
@@ -57,7 +62,12 @@ def is_user_frozen(user: str) -> bool:
     hisabi_name = frappe.db.get_value("Hisabi User", {"user": user})
     if not hisabi_name:
         return False
-    status = (frappe.db.get_value("Hisabi User", hisabi_name, "account_status") or "").strip().lower()
+    try:
+        status = (frappe.db.get_value("Hisabi User", hisabi_name, "account_status") or "").strip().lower()
+    except Exception as exc:
+        if _is_unknown_column_error(exc, "account_status"):
+            return False
+        raise
     return status == "frozen"
 
 
@@ -228,4 +238,3 @@ def delete_user_account_and_data(
         "member_wallets": member_wallet_ids,
         "deleted_counts": deleted_counts,
     }
-
