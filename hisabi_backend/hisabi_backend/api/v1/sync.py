@@ -2595,7 +2595,7 @@ def sync_push(
                     if payload.get("target_amount") is None and payload.get("target_amount_base") is not None:
                         payload["target_amount"] = payload.get("target_amount_base")
 
-            if entity_type == "Hisabi Account":
+            if entity_type == "Hisabi Account" and operation != "delete":
                 payload = dict(payload)
                 payload["currency"] = _normalize_account_currency(payload.get("currency"))
                 payload["base_currency"] = _normalize_account_currency(payload.get("base_currency"))
@@ -2620,7 +2620,7 @@ def sync_push(
                 elif not payload.get("base_currency") and payload.get("currency"):
                     payload["base_currency"] = payload.get("currency")
 
-            if entity_type == "Hisabi Transaction":
+            if entity_type == "Hisabi Transaction" and operation != "delete":
                 payload = dict(payload)
                 payload["currency"] = _normalize_account_currency(payload.get("currency"))
                 payload, routed_parents = _resolve_multi_currency_transaction_accounts(

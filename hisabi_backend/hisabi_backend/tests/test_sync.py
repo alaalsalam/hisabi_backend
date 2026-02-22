@@ -1107,8 +1107,10 @@ class TestSyncV1(FrappeTestCase):
         self.assertTrue(any(item.get("entity_type") == "Hisabi Account" for item in pull.get("items", [])))
         cursor = pull["next_cursor"]
         self.assertIsInstance(cursor, str)
+        account_doc = frappe.get_doc("Hisabi Account", "acc-3")
+        account_doc_version = int(account_doc.doc_version or 0)
 
-        sync_push(
+        delete_response = sync_push(
             device_id=self.device_id,
             wallet_id=self.wallet_id,
             items=[
@@ -1117,7 +1119,7 @@ class TestSyncV1(FrappeTestCase):
                     "entity_type": "Hisabi Account",
                     "entity_id": "acc-3",
                     "operation": "delete",
-                    "base_version": 1,
+                    "base_version": account_doc_version,
                     "payload": {
                         "client_id": "acc-3",
                         "client_modified_ms": 1700000000003,
@@ -1125,6 +1127,7 @@ class TestSyncV1(FrappeTestCase):
                 }
             ],
         )
+        self.assertEqual(delete_response["results"][0]["status"], "accepted")
 
         pull_after = self._pull_message(sync_pull(device_id=self.device_id, wallet_id=self.wallet_id, cursor=cursor))
         account_changes = [
@@ -1175,8 +1178,12 @@ class TestSyncV1(FrappeTestCase):
 
         pull_before = self._pull_message(sync_pull(device_id=self.device_id, wallet_id=self.wallet_id))
         cursor = pull_before["next_cursor"]
+        tx_doc_name = frappe.get_value("Hisabi Transaction", {"client_id": "tx-del", "wallet_id": self.wallet_id})
+        self.assertTrue(tx_doc_name)
+        tx_doc = frappe.get_doc("Hisabi Transaction", tx_doc_name)
+        tx_doc_version = int(tx_doc.doc_version or 0)
 
-        sync_push(
+        delete_response = sync_push(
             device_id=self.device_id,
             wallet_id=self.wallet_id,
             items=[
@@ -1185,7 +1192,7 @@ class TestSyncV1(FrappeTestCase):
                     "entity_type": "Hisabi Transaction",
                     "entity_id": "tx-del",
                     "operation": "delete",
-                    "base_version": 1,
+                    "base_version": tx_doc_version,
                     "payload": {
                         "client_id": "tx-del",
                         "client_modified_ms": 1700000004000,
@@ -1193,6 +1200,7 @@ class TestSyncV1(FrappeTestCase):
                 }
             ],
         )
+        self.assertEqual(delete_response["results"][0]["status"], "accepted")
 
         acc.reload()
         self.assertEqual(acc.current_balance, 100)
