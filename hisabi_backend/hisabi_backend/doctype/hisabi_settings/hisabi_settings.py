@@ -8,6 +8,12 @@ import frappe
 from frappe.utils import cint, now_datetime
 from frappe.model.document import Document
 
+INT32_MAX = 2147483647
+
+
+def _normalize_client_sync_ms(value: int) -> int:
+    return value if value <= INT32_MAX else int(value / 1000)
+
 
 class HisabiSettings(Document):
     def before_insert(self):
@@ -83,10 +89,11 @@ class HisabiSettings(Document):
             self.client_id = f"settings-{self.wallet_id}"
 
         now_dt = now_datetime()
+        normalized_client_now = _normalize_client_sync_ms(int(now_dt.timestamp() * 1000))
         if not self.client_created_ms:
-            self.client_created_ms = int(now_dt.timestamp() * 1000)
+            self.client_created_ms = normalized_client_now
         if not self.client_modified_ms:
-            self.client_modified_ms = int(now_dt.timestamp() * 1000)
+            self.client_modified_ms = normalized_client_now
         if not self.doc_version:
             self.doc_version = 1
         if not self.server_modified:
