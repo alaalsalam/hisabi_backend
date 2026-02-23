@@ -2272,6 +2272,92 @@ def _emit_wallet_sync_event(wallet_id: str, actor_user: str, accepted_results: L
         frappe.log_error(frappe.get_traceback(), "hisabi_backend.sync_emit_wallet_event")
 
 
+def _category_item_identity_keys(item: Dict[str, Any]) -> List[str]:
+    payload = item.get("payload") or {}
+    keys: List[str] = []
+    for raw in (
+        payload.get("client_id"),
+        item.get("entity_id"),
+    ):
+        value = str(raw or "").strip()
+        if value and value not in keys:
+            keys.append(value)
+    return keys
+
+
+def _category_item_parent_ref(item: Dict[str, Any]) -> str:
+    payload = item.get("payload") or {}
+    for key in ("parent_category", "parentCategory", "parent_id", "parentId"):
+        value = str(payload.get(key) or "").strip()
+        if value:
+            return value
+    return ""
+
+
+def _order_sync_items_for_dependencies(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Ensure parent category creates are processed before subcategory creates.
+
+    This prevents child category creates from failing when a client pushes
+    parent and child in the same sync batch but in reverse order.
+    """
+    category_positions: List[int] = []
+    category_items: List[Tuple[int, Dict[str, Any]]] = []
+    for index, item in enumerate(items):
+        if (
+            str(item.get("entity_type") or "") == "Hisabi Category"
+            and str(item.get("operation") or "") == "create"
+        ):
+            category_positions.append(index)
+            category_items.append((index, item))
+
+    if len(category_items) < 2:
+        return items
+
+    id_to_node: Dict[str, int] = {}
+    for node_idx, (_, item) in enumerate(category_items):
+        for key in _category_item_identity_keys(item):
+            id_to_node.setdefault(key, node_idx)
+
+    adjacency: List[set[int]] = [set() for _ in category_items]
+    indegree = [0] * len(category_items)
+
+    for child_idx, (_, item) in enumerate(category_items):
+        parent_ref = _category_item_parent_ref(item)
+        if not parent_ref:
+            continue
+        parent_idx = id_to_node.get(parent_ref)
+        if parent_idx is None or parent_idx == child_idx:
+            continue
+        if child_idx not in adjacency[parent_idx]:
+            adjacency[parent_idx].add(child_idx)
+            indegree[child_idx] += 1
+
+    ready = [idx for idx, degree in enumerate(indegree) if degree == 0]
+    ready.sort(key=lambda idx: category_items[idx][0])
+    ordered_nodes: List[int] = []
+
+    while ready:
+        node_idx = ready.pop(0)
+        ordered_nodes.append(node_idx)
+        for child_idx in sorted(adjacency[node_idx], key=lambda idx: category_items[idx][0]):
+            indegree[child_idx] -= 1
+            if indegree[child_idx] == 0:
+                ready.append(child_idx)
+        ready.sort(key=lambda idx: category_items[idx][0])
+
+    if len(ordered_nodes) < len(category_items):
+        ordered_set = set(ordered_nodes)
+        remaining = [idx for idx in range(len(category_items)) if idx not in ordered_set]
+        remaining.sort(key=lambda idx: category_items[idx][0])
+        ordered_nodes.extend(remaining)
+
+    reordered_categories = [category_items[idx][1] for idx in ordered_nodes]
+    reordered = list(items)
+    for position, reordered_item in zip(category_positions, reordered_categories):
+        reordered[position] = reordered_item
+    return reordered
+
+
 @frappe.whitelist(allow_guest=False)
 def sync_push(
     device_id: Optional[str] = None,
@@ -2360,6 +2446,8 @@ def sync_push(
 
     if not isinstance(items, list):
         return _build_sync_error("items_invalid", "items must be a list", status_code=417)
+
+    items = _order_sync_items_for_dependencies(items)
 
     if len(items) > MAX_PUSH_ITEMS:
         return _build_sync_response(

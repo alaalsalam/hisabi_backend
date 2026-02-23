@@ -264,6 +264,47 @@ class TestSyncV1(FrappeTestCase):
         tx = frappe.get_doc("Hisabi Transaction", tx_name)
         self.assertEqual(tx.category, "cat-1")
 
+    def test_sync_push_accepts_subcategory_when_child_sent_before_parent(self):
+        response = sync_push(
+            device_id=self.device_id,
+            wallet_id=self.wallet_id,
+            items=[
+                {
+                    "op_id": "op-cat-child-first",
+                    "entity_type": "Hisabi Category",
+                    "entity_id": "cat-child-first",
+                    "operation": "create",
+                    "payload": {
+                        "client_id": "cat-child-first",
+                        "category_name": "Child Category",
+                        "kind": "expense",
+                        "parent_category": "cat-parent-first",
+                    },
+                },
+                {
+                    "op_id": "op-cat-parent-second",
+                    "entity_type": "Hisabi Category",
+                    "entity_id": "cat-parent-first",
+                    "operation": "create",
+                    "payload": {
+                        "client_id": "cat-parent-first",
+                        "category_name": "Parent Category",
+                        "kind": "expense",
+                    },
+                },
+            ],
+        )
+
+        by_client = {item.get("client_id"): item for item in response.get("results", [])}
+        self.assertEqual(by_client["cat-parent-first"]["status"], "accepted")
+        self.assertEqual(by_client["cat-child-first"]["status"], "accepted")
+
+        parent = frappe.get_doc("Hisabi Category", "cat-parent-first")
+        child = frappe.get_doc("Hisabi Category", "cat-child-first")
+        self.assertEqual(parent.wallet_id, self.wallet_id)
+        self.assertEqual(child.wallet_id, self.wallet_id)
+        self.assertEqual(child.parent_category, parent.name)
+
     def test_category_pull_payload_has_stable_name_and_client_id(self):
         sync_push(
             device_id=self.device_id,
