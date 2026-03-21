@@ -1752,6 +1752,7 @@ ERROR_MESSAGE_MAP = {
     "wallet_id_must_equal_client_id": "wallet_id must equal client_id",
     "wallet_access_denied": "wallet access denied",
     "rejected": "request rejected",
+    "base_version_conflict": "تعارض نسخة المستند على الخادم (base_version_conflict)",
 }
 
 
@@ -1793,6 +1794,33 @@ def _build_item_rejected(
     payload["status"] = "rejected"
     if op_id:
         payload["op_id"] = op_id
+    return payload
+
+
+def _is_modified_after_open_error(exc: Exception) -> bool:
+    signal = str(exc or "").strip().lower()
+    return "document has been modified after you have opened it" in signal
+
+
+def _build_item_accepted(
+    *,
+    op_id: Optional[str],
+    entity_type: Optional[str],
+    doc: frappe.model.document.Document,
+    already_applied: bool = False,
+) -> Dict[str, Any]:
+    payload: Dict[str, Any] = {
+        "status": "accepted",
+        "entity_type": entity_type,
+        "entity_id": doc.name,
+        "client_id": doc.client_id,
+        "doc_version": doc.doc_version,
+        "server_modified": _to_iso(doc.server_modified),
+    }
+    if op_id:
+        payload["op_id"] = op_id
+    if already_applied:
+        payload["already_applied"] = True
     return payload
 
 
@@ -2125,6 +2153,33 @@ def _get_op_result(user: str, device_id: str, wallet_id: str, op_id: str) -> Opt
         return json.loads(result_json)
     except json.JSONDecodeError:
         return None
+
+
+def _build_sync_op_status_result(
+    *,
+    user: str,
+    device_id: str,
+    wallet_id: str,
+    op_id: str,
+) -> Dict[str, Any]:
+    stored = _get_op_result(user, device_id, wallet_id, op_id)
+    if stored:
+        payload = dict(stored)
+        payload["op_id"] = payload.get("op_id") or op_id
+        payload["found"] = True
+        return payload
+    status = _get_op_status(user, device_id, wallet_id, op_id)
+    if status:
+        return {
+            "op_id": op_id,
+            "status": status,
+            "found": True,
+        }
+    return {
+        "op_id": op_id,
+        "status": "missing",
+        "found": False,
+    }
 
 
 def _write_audit_log(
@@ -2787,7 +2842,7 @@ def sync_push(
                 doc.is_deleted = 1
                 if not doc.deleted_at:
                     doc.deleted_at = now_datetime()
-            doc.save(ignore_permissions=True)
+            doc.save(ignore_permissions=True, ignore_version=True)
             if entity_type == "Hisabi Account" and doc.name != doc.client_id:
                 doc = _rename_doc_to_client_id(doc, doc.client_id)
             if entity_type == "Hisabi Account" and operation == "delete":
@@ -2909,6 +2964,72 @@ def sync_push(
                 payload=item,
             )
         except Exception as exc:
+            if _is_modified_after_open_error(exc) and existing:
+                latest = _get_doc_by_client_id(entity_type, user, client_id, wallet_id=wallet_id) or existing
+                latest.reload()
+
+                if operation == "delete" and int(getattr(latest, "is_deleted", 0) or 0) == 1:
+                    already_deleted = _build_item_accepted(
+                        op_id=op_id if isinstance(op_id, str) else None,
+                        entity_type=entity_type if isinstance(entity_type, str) else None,
+                        doc=latest,
+                        already_applied=True,
+                    )
+                    results.append(already_deleted)
+                    _store_op_id(
+                        user=user,
+                        device_id=device_id,
+                        wallet_id=wallet_id,
+                        op_id=op_id or "",
+                        entity_type=entity_type,
+                        entity_client_id=client_id,
+                        status="accepted",
+                        payload=item,
+                        result=already_deleted,
+                    )
+                    _write_audit_log(
+                        user=user,
+                        device_id=device_id,
+                        op_id=op_id or "",
+                        entity_type=entity_type,
+                        entity_client_id=client_id,
+                        status="accepted",
+                        payload=item,
+                    )
+                    continue
+
+                if base_version is not None:
+                    conflict = _conflict_response(
+                        entity_type,
+                        latest,
+                        op_id=op_id or "",
+                        client_base_version=int(base_version),
+                    )
+                    conflict["error_code"] = "base_version_conflict"
+                    conflict["error_message"] = ERROR_MESSAGE_MAP.get("base_version_conflict")
+                    conflict["detail"] = str(exc) or exc.__class__.__name__
+                    results.append(conflict)
+                    _store_op_id(
+                        user=user,
+                        device_id=device_id,
+                        wallet_id=wallet_id,
+                        op_id=op_id or "",
+                        entity_type=entity_type,
+                        entity_client_id=client_id,
+                        status="conflict",
+                        payload=item,
+                        result=conflict,
+                    )
+                    _write_audit_log(
+                        user=user,
+                        device_id=device_id,
+                        op_id=op_id or "",
+                        entity_type=entity_type,
+                        entity_client_id=client_id,
+                        status="conflict",
+                        payload=item,
+                    )
+                    continue
             # Reliability: never crash the whole batch for one bad mutation; return structured rejection.
             frappe.log_error(frappe.get_traceback(), "hisabi_backend.sync_push_item")
             rejected = _build_item_rejected(
@@ -2987,6 +3108,83 @@ def sync_push(
     device.last_sync_ms = min(int(device.last_sync_at.timestamp() * 1000), 2147483647)
     device.save(ignore_permissions=True)
     _emit_wallet_sync_event(wallet_id=wallet_id, actor_user=user, accepted_results=accepted_for_event)
+
+    return _build_sync_response(
+        {"message": {"results": results, "server_time": now_datetime().isoformat()}},
+        status_code=200,
+    )
+
+
+@frappe.whitelist(allow_guest=False)
+def sync_op_status(
+    device_id: Optional[str] = None,
+    wallet_id: Optional[str] = None,
+    op_ids: Optional[List[str] | str] = None,
+    **kwargs,
+) -> Dict[str, Any]:
+    """Return authoritative server status for previously submitted sync ops."""
+    request = getattr(frappe, "request", None)
+    form_dict = getattr(frappe, "form_dict", {}) or {}
+    json_body = None
+
+    if request:
+        try:
+            json_body = request.get_json(silent=True)
+        except Exception:
+            json_body = None
+
+    if device_id is None:
+        device_id = form_dict.get("device_id")
+    if wallet_id is None:
+        wallet_id = form_dict.get("wallet_id")
+    if op_ids is None:
+        op_ids = form_dict.get("op_ids")
+
+    if request and json_body:
+        if device_id is None:
+            device_id = json_body.get("device_id")
+        if wallet_id is None:
+            wallet_id = json_body.get("wallet_id")
+        if op_ids is None:
+            op_ids = json_body.get("op_ids")
+
+    if isinstance(op_ids, str):
+        try:
+            op_ids = json.loads(op_ids)
+        except json.JSONDecodeError:
+            op_ids = [op_ids]
+
+    if not device_id:
+        return _build_sync_error("device_id_required", "device_id is required", status_code=417)
+    if not wallet_id:
+        return _build_sync_error("wallet_id_required", "wallet_id is required", status_code=417)
+    if op_ids is None:
+        return _build_sync_error("op_ids_required", "op_ids is required", status_code=417)
+    if not isinstance(op_ids, list):
+        return _build_sync_error("op_ids_invalid", "op_ids must be a list", status_code=417)
+
+    try:
+        user, _device = _require_device_auth(device_id)
+        wallet_id = validate_client_id(wallet_id)
+        require_wallet_member(wallet_id, user, min_role="viewer")
+    except Exception as exc:
+        frappe.clear_last_message()
+        return _build_sync_error(
+            "auth_failed",
+            str(exc) or "sync auth failed",
+            status_code=_sync_status_for_exception(exc),
+        )
+
+    results = [
+        _build_sync_op_status_result(
+            user=user,
+            device_id=device_id,
+            wallet_id=wallet_id,
+            op_id=str(op_id or "").strip(),
+        )
+        for op_id in op_ids
+        if str(op_id or "").strip()
+    ]
 
     return _build_sync_response(
         {"message": {"results": results, "server_time": now_datetime().isoformat()}},

@@ -1,5 +1,6 @@
 import json
 from datetime import datetime, timezone
+from unittest.mock import patch
 
 import frappe
 from frappe.custom.doctype.custom_field.custom_field import create_custom_field
@@ -9,7 +10,7 @@ from frappe.utils.password import update_password
 
 from hisabi_backend.api.v1.auth import register_device
 from hisabi_backend.api.v1 import wallet_create
-from hisabi_backend.api.v1.sync import _cursor_dt, sync_pull, sync_push as _sync_push
+from hisabi_backend.api.v1.sync import _cursor_dt, sync_op_status, sync_pull, sync_push as _sync_push
 from hisabi_backend.install import ensure_roles
 
 
@@ -1389,6 +1390,139 @@ class TestSyncV1(FrappeTestCase):
         self.assertEqual(second_result.get("doc_version"), first_result.get("doc_version"))
         self.assertEqual(second_result.get("server_modified"), first_result.get("server_modified"))
         self.assertTrue(second_result.get("already_applied"))
+
+    def test_sync_op_status_returns_stored_result_for_accepted_op(self):
+        response = sync_push(
+            device_id=self.device_id,
+            wallet_id=self.wallet_id,
+            items=[
+                {
+                    "op_id": "op-status-1",
+                    "entity_type": "Hisabi Account",
+                    "entity_id": "acc-status",
+                    "operation": "create",
+                    "payload": {
+                        "client_id": "acc-status",
+                        "account_name": "Status",
+                        "account_type": "cash",
+                        "currency": "SAR",
+                        "opening_balance": 5,
+                    },
+                }
+            ],
+        )
+        first_result = response["results"][0]
+
+        op_status = self._pull_message(
+            sync_op_status(
+                device_id=self.device_id,
+                wallet_id=self.wallet_id,
+                op_ids=["op-status-1"],
+            )
+        )
+        status_result = op_status["results"][0]
+        self.assertTrue(status_result.get("found"))
+        self.assertEqual(status_result.get("status"), "accepted")
+        self.assertEqual(status_result.get("op_id"), "op-status-1")
+        self.assertEqual(status_result.get("client_id"), first_result.get("client_id"))
+        self.assertEqual(status_result.get("doc_version"), first_result.get("doc_version"))
+
+    def test_sync_delete_uses_doc_version_not_modified_timestamp(self):
+        sync_push(
+            device_id=self.device_id,
+            wallet_id=self.wallet_id,
+            items=[
+                {
+                    "op_id": "op-conflict-seed-cat",
+                    "entity_type": "Hisabi Category",
+                    "entity_id": "cat-delete-stable",
+                    "operation": "create",
+                    "payload": {
+                        "client_id": "cat-delete-stable",
+                        "category_name": "Delete Stable",
+                        "kind": "expense",
+                    },
+                }
+            ],
+        )
+
+        category = frappe.get_doc("Hisabi Category", "cat-delete-stable")
+        base_version = int(category.doc_version or 0)
+        category.db_set("modified", now_datetime(), update_modified=False)
+        category.reload()
+
+        response = sync_push(
+            device_id=self.device_id,
+            wallet_id=self.wallet_id,
+            items=[
+                {
+                    "op_id": "op-delete-stable-cat",
+                    "entity_type": "Hisabi Category",
+                    "entity_id": "cat-delete-stable",
+                    "operation": "delete",
+                    "base_version": base_version,
+                    "payload": {
+                        "client_id": "cat-delete-stable",
+                    },
+                }
+            ],
+        )
+
+        result = response["results"][0]
+        self.assertEqual(result["status"], "accepted")
+        deleted_category = frappe.get_doc("Hisabi Category", "cat-delete-stable")
+        self.assertEqual(int(deleted_category.is_deleted or 0), 1)
+
+    def test_sync_delete_modified_exception_returns_conflict_with_server_doc(self):
+        sync_push(
+            device_id=self.device_id,
+            wallet_id=self.wallet_id,
+            items=[
+                {
+                    "op_id": "op-conflict-exception-create",
+                    "entity_type": "Hisabi Category",
+                    "entity_id": "cat-delete-conflict",
+                    "operation": "create",
+                    "payload": {
+                        "client_id": "cat-delete-conflict",
+                        "category_name": "Delete Conflict",
+                        "kind": "expense",
+                    },
+                }
+            ],
+        )
+
+        category = frappe.get_doc("Hisabi Category", "cat-delete-conflict")
+        base_version = int(category.doc_version or 0)
+
+        with patch.object(
+            category.__class__,
+            "save",
+            autospec=True,
+            side_effect=Exception("Document has been modified after you have opened it"),
+        ):
+            response = sync_push(
+                device_id=self.device_id,
+                wallet_id=self.wallet_id,
+                items=[
+                    {
+                        "op_id": "op-conflict-exception-delete",
+                        "entity_type": "Hisabi Category",
+                        "entity_id": "cat-delete-conflict",
+                        "operation": "delete",
+                        "base_version": base_version,
+                        "payload": {
+                            "client_id": "cat-delete-conflict",
+                        },
+                    }
+                ],
+            )
+
+        result = response["results"][0]
+        self.assertEqual(result["status"], "conflict")
+        self.assertEqual(result.get("error_code"), "base_version_conflict")
+        self.assertEqual(int(result.get("server_doc_version") or 0), base_version)
+        self.assertEqual(result.get("client_id"), "cat-delete-conflict")
 
     def test_cursor_dt_normalizes_aware_and_naive_for_tuple_compare(self):
         aware = datetime(2026, 2, 8, 12, 30, 45, tzinfo=timezone.utc)
