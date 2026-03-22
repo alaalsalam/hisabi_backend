@@ -5,9 +5,49 @@ app_description = "Backend App for Hisabi app "
 app_email = "alaalsalam101@gmail.com"
 app_license = "mit"
 
-# Export hisabi workspace for consistent deploy
+# Export Hisabi desk assets for consistent deploy
 fixtures = [
-    {"doctype": "Workspace", "filters": [["name", "=", "Hisabi"]]}
+    {
+        "doctype": "Workspace",
+        "filters": [["name", "in", ["Hisabi Finance Hub", "Hisabi Planning Center", "Hisabi Cloud Control"]]],
+    },
+    {
+        "doctype": "Number Card",
+        "filters": [[
+            "name",
+            "in",
+            [
+                "Hisabi Active Goals",
+                "Hisabi Due Jameya Payments",
+                "Hisabi Recurring Rules",
+                "Hisabi Active Accounts",
+                "Hisabi Total Transactions",
+                "Hisabi Open Debts",
+                "Hisabi Wallet Members",
+                "Hisabi Security Events",
+                "Hisabi Active Budgets",
+                "Hisabi Sync Errors",
+                "Hisabi Sync Conflicts",
+                "Hisabi Active Devices",
+            ],
+        ]],
+    },
+    {
+        "doctype": "Dashboard Chart",
+        "filters": [[
+            "name",
+            "in",
+            [
+                "Hisabi Sync Status",
+                "Hisabi Goal Status",
+                "Hisabi Transaction Activity",
+                "Hisabi Audit Events",
+                "Hisabi Device Platforms",
+                "Hisabi Debt Status",
+                "Hisabi Budget Periods",
+            ],
+        ]],
+    },
 ]
 
 # Bearer token auth (Hisabi API)
