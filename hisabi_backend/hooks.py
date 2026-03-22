@@ -9,7 +9,7 @@ app_license = "mit"
 fixtures = [
     {
         "doctype": "Workspace",
-        "filters": [["name", "in", ["Hisabi Finance Hub", "Hisabi Planning Center", "Hisabi Cloud Control"]]],
+        "filters": [["name", "in", ["Hisabi Finance Hub", "Hisabi Planning Center", "Hisabi Cloud Control", "Hisabi Admin Observatory"]]],
     },
     {
         "doctype": "Number Card",
@@ -29,6 +29,9 @@ fixtures = [
                 "Hisabi Sync Errors",
                 "Hisabi Sync Conflicts",
                 "Hisabi Active Devices",
+                "Hisabi New Users Last Month",
+                "Hisabi Transactions Today",
+                "Hisabi App Interactions Last Week",
             ],
         ]],
     },
@@ -45,6 +48,9 @@ fixtures = [
                 "Hisabi Device Platforms",
                 "Hisabi Debt Status",
                 "Hisabi Budget Periods",
+                "Hisabi User Growth",
+                "Hisabi Daily Transactions",
+                "Hisabi Interaction Activity",
             ],
         ]],
     },

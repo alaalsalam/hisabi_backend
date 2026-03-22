@@ -1,0 +1,186 @@
+{
+ "charts": [
+  {
+   "chart_name": "Hisabi User Growth",
+   "label": "نمو المستخدمين"
+  },
+  {
+   "chart_name": "Hisabi Daily Transactions",
+   "label": "العمليات اليومية"
+  },
+  {
+   "chart_name": "Hisabi Interaction Activity",
+   "label": "التفاعل مع التطبيق"
+  }
+ ],
+ "content": "[{\"id\":\"admin-n1\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Hisabi New Users Last Month\",\"col\":3}},{\"id\":\"admin-n2\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Hisabi Transactions Today\",\"col\":3}},{\"id\":\"admin-n3\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Hisabi App Interactions Last Week\",\"col\":3}},{\"id\":\"admin-n4\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Hisabi Active Devices\",\"col\":3}},{\"id\":\"admin-c1\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Hisabi User Growth\",\"col\":4}},{\"id\":\"admin-c2\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Hisabi Daily Transactions\",\"col\":4}},{\"id\":\"admin-c3\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Hisabi Interaction Activity\",\"col\":4}},{\"id\":\"admin-card-1\",\"type\":\"card\",\"data\":{\"card_name\":\"مؤشرات الاستخدام\",\"col\":4}},{\"id\":\"admin-card-2\",\"type\":\"card\",\"data\":{\"card_name\":\"التشغيل والتحليل\",\"col\":4}},{\"id\":\"admin-card-3\",\"type\":\"card\",\"data\":{\"card_name\":\"الوصول إلى المراكز\",\"col\":4}}]",
+ "creation": "2026-03-22 12:00:00.000000",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "dashboard",
+ "indicator_color": "purple",
+ "is_hidden": 0,
+ "label": "Hisabi Admin Observatory",
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "مؤشرات الاستخدام",
+   "link_count": 4,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "مستخدمو Hisabi",
+   "link_count": 0,
+   "link_to": "Hisabi User",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "الأجهزة",
+   "link_count": 0,
+   "link_to": "Hisabi Device",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "سجل التدقيق",
+   "link_count": 0,
+   "link_to": "Hisabi Audit Log",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "عمليات المزامنة",
+   "link_count": 0,
+   "link_to": "Hisabi Sync Op",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "التشغيل والتحليل",
+   "link_count": 3,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "نظرة صحة المزامنة",
+   "link_count": 0,
+   "link_to": "Hisabi Sync Health Overview",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "لقطة المحافظ",
+   "link_count": 0,
+   "link_to": "Hisabi Wallet Operational Snapshot",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "سجل العمليات",
+   "link_count": 0,
+   "link_to": "Hisabi Transaction Register",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "الوصول إلى المراكز",
+   "link_count": 3,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Hisabi Finance Hub",
+   "link_count": 0,
+   "link_to": "Hisabi Finance Hub",
+   "link_type": "Workspace",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Hisabi Planning Center",
+   "link_count": 0,
+   "link_to": "Hisabi Planning Center",
+   "link_type": "Workspace",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Hisabi Cloud Control",
+   "link_count": 0,
+   "link_to": "Hisabi Cloud Control",
+   "link_type": "Workspace",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ],
+ "modified": "2026-03-22 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Hisabi Backend",
+ "name": "Hisabi Admin Observatory",
+ "number_cards": [
+  {
+   "label": "المستخدمون الجدد آخر 30 يوم",
+   "number_card_name": "Hisabi New Users Last Month"
+  },
+  {
+   "label": "عمليات اليوم",
+   "number_card_name": "Hisabi Transactions Today"
+  },
+  {
+   "label": "تفاعل آخر أسبوع",
+   "number_card_name": "Hisabi App Interactions Last Week"
+  },
+  {
+   "label": "الأجهزة النشطة",
+   "number_card_name": "Hisabi Active Devices"
+  }
+ ],
+ "owner": "Administrator",
+ "parent_page": "",
+ "public": 1,
+ "quick_lists": [],
+ "roles": [],
+ "sequence_id": 27.3,
+ "shortcuts": [],
+ "title": "Hisabi Admin Observatory"
+}
