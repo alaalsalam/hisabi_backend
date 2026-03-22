@@ -4,11 +4,17 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "enable_openai",
+  "enable_ai",
+  "preferred_provider",
+  "enable_local_fallback",
+  "providers_section",
   "openai_api_key",
   "openai_base_url",
   "openai_text_model",
   "openai_audio_model",
+  "gemini_api_key",
+  "gemini_base_url",
+  "gemini_text_model",
   "runtime_status_section",
   "last_runtime_sync",
   "runtime_source",
@@ -17,35 +23,73 @@
  "fields": [
   {
    "default": "0",
-   "fieldname": "enable_openai",
+   "fieldname": "enable_ai",
    "fieldtype": "Check",
-   "label": "Enable OpenAI"
+   "label": "Enable AI Providers"
   },
   {
-   "depends_on": "eval:doc.enable_openai==1",
+   "default": "openai",
+   "fieldname": "preferred_provider",
+   "fieldtype": "Select",
+   "label": "Preferred Provider",
+   "options": "openai\ngemini"
+  },
+  {
+   "default": "1",
+   "fieldname": "enable_local_fallback",
+   "fieldtype": "Check",
+   "label": "Enable Local Fallback"
+  },
+  {
+   "fieldname": "providers_section",
+   "fieldtype": "Section Break",
+   "label": "Providers"
+  },
+  {
+   "depends_on": "eval:doc.enable_ai==1",
    "fieldname": "openai_api_key",
    "fieldtype": "Password",
    "label": "OpenAI API Key"
   },
   {
-   "depends_on": "eval:doc.enable_openai==1",
+   "depends_on": "eval:doc.enable_ai==1",
    "fieldname": "openai_base_url",
    "fieldtype": "Data",
    "label": "OpenAI Base URL"
   },
   {
    "default": "gpt-5-mini",
-   "depends_on": "eval:doc.enable_openai==1",
+   "depends_on": "eval:doc.enable_ai==1",
    "fieldname": "openai_text_model",
    "fieldtype": "Data",
    "label": "OpenAI Text Model"
   },
   {
    "default": "gpt-4o-mini-transcribe",
-   "depends_on": "eval:doc.enable_openai==1",
+   "depends_on": "eval:doc.enable_ai==1",
    "fieldname": "openai_audio_model",
    "fieldtype": "Data",
    "label": "OpenAI Audio Model"
+  },
+  {
+   "depends_on": "eval:doc.enable_ai==1",
+   "fieldname": "gemini_api_key",
+   "fieldtype": "Password",
+   "label": "Gemini API Key"
+  },
+  {
+   "default": "https://generativelanguage.googleapis.com",
+   "depends_on": "eval:doc.enable_ai==1",
+   "fieldname": "gemini_base_url",
+   "fieldtype": "Data",
+   "label": "Gemini Base URL"
+  },
+  {
+   "default": "gemini-2.5-flash-lite",
+   "depends_on": "eval:doc.enable_ai==1",
+   "fieldname": "gemini_text_model",
+   "fieldtype": "Data",
+   "label": "Gemini Text Model"
   },
   {
    "fieldname": "runtime_status_section",
@@ -97,6 +141,5 @@
  ],
  "sort_field": "modified",
  "sort_order": "DESC",
- "states": [],
- "title_field": "name"
+ "states": []
 }

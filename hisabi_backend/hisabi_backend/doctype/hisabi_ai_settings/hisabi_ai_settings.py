@@ -30,18 +30,29 @@ def _clean_text(value: str | None, default: str | None = None) -> str | None:
 
 class HisabiAISettings(Document):
     def validate(self):
+        self.preferred_provider = _clean_text(self.preferred_provider, "openai")
         self.openai_base_url = _clean_text(self.openai_base_url)
         self.openai_text_model = _clean_text(self.openai_text_model, "gpt-5-mini")
         self.openai_audio_model = _clean_text(
             self.openai_audio_model, "gpt-4o-mini-transcribe"
         )
+        self.gemini_base_url = _clean_text(
+            self.gemini_base_url, "https://generativelanguage.googleapis.com"
+        )
+        self.gemini_text_model = _clean_text(
+            self.gemini_text_model, "gemini-2.5-flash-lite"
+        )
         self.runtime_source = "frappe-site-settings"
         self.runtime_file_path = str(_runtime_file())
 
-        if int(self.enable_openai or 0):
-            api_key = self.get_password("openai_api_key", raise_exception=False) or ""
-            if not api_key.strip():
-                frappe.throw("OpenAI API Key مطلوب عند تفعيل OpenAI.")
+        if self.preferred_provider not in {"openai", "gemini"}:
+            self.preferred_provider = "openai"
+
+        if int(self.enable_ai or 0):
+            openai_key = self.get_password("openai_api_key", raise_exception=False) or ""
+            gemini_key = self.get_password("gemini_api_key", raise_exception=False) or ""
+            if not openai_key.strip() and not gemini_key.strip():
+                frappe.throw("أدخل مفتاحًا صالحًا لموفر واحد على الأقل عند تفعيل الذكاء الاصطناعي.")
 
     def on_update(self):
         runtime_dir = _runtime_dir()
@@ -52,12 +63,21 @@ class HisabiAISettings(Document):
         payload = {
             "source": "frappe-site-settings",
             "updated_at": now_datetime().isoformat(),
+            "enabled": bool(int(self.enable_ai or 0)),
+            "preferred_provider": self.preferred_provider or "openai",
+            "local_fallback_enabled": bool(int(self.enable_local_fallback or 0)),
             "openai": {
-                "enabled": bool(int(self.enable_openai or 0)),
+                "enabled": bool(int(self.enable_ai or 0)),
                 "api_key": self.get_password("openai_api_key", raise_exception=False) or "",
                 "base_url": self.openai_base_url or "",
                 "text_model": self.openai_text_model or "gpt-5-mini",
                 "audio_model": self.openai_audio_model or "gpt-4o-mini-transcribe",
+            },
+            "gemini": {
+                "enabled": bool(int(self.enable_ai or 0)),
+                "api_key": self.get_password("gemini_api_key", raise_exception=False) or "",
+                "base_url": self.gemini_base_url or "https://generativelanguage.googleapis.com",
+                "text_model": self.gemini_text_model or "gemini-2.5-flash-lite",
             },
         }
 
