@@ -736,6 +736,290 @@ def report_summary(
 
 
 @frappe.whitelist(allow_guest=False)
+def report_workspace_overview(
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    currency: Optional[str] = None,
+    wallet_id: Optional[str] = None,
+    device_id: Optional[str] = None,
+    account_id: Optional[str] = None,
+    category_id: Optional[str] = None,
+    type: Optional[str] = None,
+) -> Dict[str, Any] | Response:
+    user, _device = require_device_token_auth()
+    wallet_id_resolved = _resolve_wallet_id_param(wallet_id)
+    if isinstance(wallet_id_resolved, Response):
+        return wallet_id_resolved
+    wallet_id = wallet_id_resolved
+    member_info = require_wallet_member(wallet_id, user, min_role="viewer")
+
+    summary = report_summary(
+        from_date=from_date,
+        to_date=to_date,
+        date_from=date_from,
+        date_to=date_to,
+        currency=currency,
+        wallet_id=wallet_id,
+        device_id=device_id,
+        account_id=account_id,
+        category_id=category_id,
+        type=type,
+    )
+    if isinstance(summary, Response):
+        return summary
+
+    summary = dict(summary or {})
+    base_currency = _normalize_currency((summary.get("totals") or {}).get("base_currency")) or _resolve_wallet_base_currency(
+        wallet_id, user
+    )
+    wallet_row = frappe.db.get_value(
+        "Hisabi Wallet",
+        wallet_id,
+        ["name", "wallet_name", "status"],
+        as_dict=True,
+    ) or {}
+    member_count = frappe.db.count("Hisabi Wallet Member", filters={"wallet": wallet_id, "status": "active"}) or 0
+
+    transactions_count_30d = frappe.db.sql(
+        """
+        SELECT COUNT(name) AS count
+        FROM `tabHisabi Transaction`
+        WHERE wallet_id=%s
+          AND is_deleted=0
+          AND date_time >= %s
+        """,
+        (wallet_id, now_datetime() - datetime.timedelta(days=30)),
+        as_dict=True,
+    )
+    tx_30d = int((transactions_count_30d[0] or {}).get("count") or 0) if transactions_count_30d else 0
+
+    recent_transactions = frappe.db.sql(
+        """
+        SELECT
+            tx.name AS transaction,
+            tx.transaction_type,
+            tx.amount,
+            tx.currency,
+            tx.account,
+            acc.account_name,
+            tx.category,
+            cat.category_name,
+            tx.date_time,
+            tx.note
+        FROM `tabHisabi Transaction` tx
+        LEFT JOIN `tabHisabi Account` acc ON acc.name = tx.account
+        LEFT JOIN `tabHisabi Category` cat ON cat.name = tx.category
+        WHERE tx.wallet_id=%s
+          AND tx.is_deleted=0
+        ORDER BY tx.date_time DESC, tx.modified DESC
+        LIMIT 8
+        """,
+        (wallet_id,),
+        as_dict=True,
+    )
+
+    budgets_focus = frappe.db.sql(
+        """
+        SELECT
+            name AS id,
+            budget_name AS title,
+            CONCAT(COALESCE(spent_amount, 0), ' / ', COALESCE(amount, 0)) AS subtitle,
+            COALESCE(amount - spent_amount, 0) AS amount,
+            currency,
+            CASE
+                WHEN COALESCE(amount, 0) > 0 THEN ROUND((COALESCE(spent_amount, 0) / amount) * 100, 2)
+                ELSE 0
+            END AS progress_percent,
+            CASE
+                WHEN COALESCE(amount, 0) > 0 AND (COALESCE(spent_amount, 0) / amount) * 100 >= 100 THEN 'critical'
+                WHEN COALESCE(amount, 0) > 0 AND (COALESCE(spent_amount, 0) / amount) * 100 >= COALESCE(alert_threshold, 80) THEN 'warning'
+                ELSE 'healthy'
+            END AS status,
+            end_date AS due_date
+        FROM `tabHisabi Budget`
+        WHERE wallet_id=%s
+          AND is_deleted=0
+          AND archived=0
+        ORDER BY
+            CASE
+                WHEN COALESCE(amount, 0) > 0 THEN (COALESCE(spent_amount, 0) / amount) * 100
+                ELSE 0
+            END DESC,
+            modified DESC
+        LIMIT 5
+        """,
+        (wallet_id,),
+        as_dict=True,
+    )
+
+    goals_focus = frappe.db.sql(
+        """
+        SELECT
+            name AS id,
+            goal_name AS title,
+            goal_type AS subtitle,
+            remaining_amount AS amount,
+            currency,
+            COALESCE(progress_percent, 0) AS progress_percent,
+            status,
+            target_date AS due_date
+        FROM `tabHisabi Goal`
+        WHERE wallet_id=%s
+          AND is_deleted=0
+        ORDER BY COALESCE(progress_percent, 0) ASC, modified DESC
+        LIMIT 5
+        """,
+        (wallet_id,),
+        as_dict=True,
+    )
+
+    debts_focus = frappe.db.sql(
+        """
+        SELECT
+            name AS id,
+            debt_name AS title,
+            direction AS subtitle,
+            remaining_amount AS amount,
+            currency,
+            confirmed AS progress_percent,
+            status,
+            due_date
+        FROM `tabHisabi Debt`
+        WHERE wallet_id=%s
+          AND is_deleted=0
+          AND COALESCE(remaining_amount, 0) > 0
+        ORDER BY
+            CASE WHEN due_date IS NULL THEN 1 ELSE 0 END ASC,
+            due_date ASC,
+            modified DESC
+        LIMIT 5
+        """,
+        (wallet_id,),
+        as_dict=True,
+    )
+
+    sync_rows = frappe.db.sql(
+        """
+        SELECT status, COUNT(name) AS count
+        FROM `tabHisabi Sync Op`
+        WHERE user=%s
+          AND server_modified >= %s
+        GROUP BY status
+        """,
+        (user, now_datetime() - datetime.timedelta(days=1)),
+        as_dict=True,
+    )
+    sync_counts = defaultdict(int)
+    for row in sync_rows:
+        sync_counts[str(row.get("status") or "").strip().lower()] += int(row.get("count") or 0)
+
+    audit_rows = frappe.db.sql(
+        """
+        SELECT status, COUNT(name) AS count
+        FROM `tabHisabi Audit Log`
+        WHERE wallet_id=%s
+          AND modified >= %s
+        GROUP BY status
+        """,
+        (wallet_id, now_datetime() - datetime.timedelta(days=1)),
+        as_dict=True,
+    )
+    audit_counts = defaultdict(int)
+    for row in audit_rows:
+        audit_counts[str(row.get("status") or "").strip().lower()] += int(row.get("count") or 0)
+
+    device_rows = frappe.db.sql(
+        """
+        SELECT COUNT(name) AS active_devices, MAX(last_seen_at) AS last_seen_at
+        FROM `tabHisabi Device`
+        WHERE wallet_id=%s
+          AND status='active'
+          AND is_deleted=0
+        """,
+        (wallet_id,),
+        as_dict=True,
+    )
+    device_row = (device_rows or [{}])[0] or {}
+
+    budgets_over_limit = 0
+    budgets_near_limit = 0
+    for row in budgets_focus:
+        percent = flt(row.get("progress_percent") or 0)
+        if percent >= 100:
+            budgets_over_limit += 1
+        elif percent >= 85:
+            budgets_near_limit += 1
+
+    goals_off_track = len(
+        [row for row in goals_focus if flt(row.get("progress_percent") or 0) < 60 and (row.get("status") or "") != "completed"]
+    )
+    soon_threshold = (now_datetime() + datetime.timedelta(days=7)).date()
+    debts_due_soon = 0
+    for row in debts_focus:
+        due_value = row.get("due_date")
+        if not due_value:
+            continue
+        try:
+            if _parse_date(due_value) <= soon_threshold:
+                debts_due_soon += 1
+        except Exception:
+            continue
+
+    total_balance = sum(flt((row or {}).get("current_balance") or 0) for row in (summary.get("accounts") or []))
+    totals = summary.get("totals") or {}
+    alert_count = budgets_over_limit + budgets_near_limit + goals_off_track + debts_due_soon
+    quick_stats = [
+        {"label": "الحسابات النشطة", "value": len(summary.get("accounts") or []), "tone": "default"},
+        {"label": "المعاملات آخر 30 يوم", "value": tx_30d, "tone": "positive" if tx_30d else "default"},
+        {"label": "الأجهزة النشطة", "value": int(device_row.get("active_devices") or 0), "tone": "default"},
+        {"label": "تنبيهات التشغيل", "value": alert_count, "tone": "warning" if alert_count else "positive"},
+    ]
+
+    payload = {
+        "wallet": {
+            "wallet_id": wallet_id,
+            "wallet_name": wallet_row.get("wallet_name") or wallet_id,
+            "role": member_info.role,
+            "status": wallet_row.get("status") or member_info.status,
+            "member_count": int(member_count),
+            "base_currency": base_currency,
+        },
+        "highlights": {
+            "total_balance": flt(total_balance),
+            "monthly_income": flt(totals.get("income") or 0),
+            "monthly_expense": flt(totals.get("expense") or 0),
+            "net": flt(totals.get("net") or 0),
+            "accounts_count": len(summary.get("accounts") or []),
+            "transactions_count_30d": tx_30d,
+        },
+        "quick_stats": quick_stats,
+        "sync_health": {
+            "accepted_24h": int(sync_counts.get("accepted", 0)),
+            "conflict_24h": int(sync_counts.get("conflict", 0)),
+            "error_24h": int(sync_counts.get("error", 0) + audit_counts.get("error", 0)),
+            "security_events_24h": int(audit_counts.get("security_event", 0)),
+            "active_devices": int(device_row.get("active_devices") or 0),
+            "last_device_seen_at": _as_iso(device_row.get("last_seen_at")),
+        },
+        "operational_alerts": {
+            "budgets_over_limit": budgets_over_limit,
+            "budgets_near_limit": budgets_near_limit,
+            "goals_off_track": goals_off_track,
+            "debts_due_soon": debts_due_soon,
+        },
+        "budgets_focus": budgets_focus,
+        "goals_focus": goals_focus,
+        "debts_focus": debts_focus,
+        "recent_transactions": [{**row, "date_time": _as_iso(row.get("date_time"))} for row in recent_transactions],
+        "server_time": now_datetime().isoformat(),
+    }
+
+    return _with_warnings(payload, list(summary.get("warnings") or []))
+
+
+@frappe.whitelist(allow_guest=False)
 def category_breakdown(
     from_date: Optional[str] = None,
     to_date: Optional[str] = None,

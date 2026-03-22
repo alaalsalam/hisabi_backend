@@ -12,6 +12,7 @@ from hisabi_backend.api.v1.reports_finance import (
     report_category_breakdown,
     report_summary,
     report_trends,
+    report_workspace_overview,
 )
 from hisabi_backend.api.v1.sync import sync_push
 from hisabi_backend.install import ensure_roles
@@ -314,3 +315,62 @@ class TestReportsContractV2(FrappeTestCase):
         self.assertIn("points", trends)
         self.assertIn("totals", trends)
         self.assertIn("warnings", trends)
+
+    def test_workspace_overview_contract(self):
+        self._ensure_wallet_base_currency("SAR")
+        self._push(
+            [
+                {
+                    "op_id": "op-r4-acc-1",
+                    "entity_type": "Hisabi Account",
+                    "entity_id": "acc-r4-1",
+                    "operation": "create",
+                    "payload": {
+                        "client_id": "acc-r4-1",
+                        "account_name": "Ops Wallet",
+                        "account_type": "cash",
+                        "currency": "SAR",
+                        "opening_balance": 100,
+                    },
+                },
+                {
+                    "op_id": "op-r4-cat-1",
+                    "entity_type": "Hisabi Category",
+                    "entity_id": "cat-r4-1",
+                    "operation": "create",
+                    "payload": {
+                        "client_id": "cat-r4-1",
+                        "category_name": "Operations",
+                        "kind": "expense",
+                    },
+                },
+                {
+                    "op_id": "op-r4-tx-1",
+                    "entity_type": "Hisabi Transaction",
+                    "entity_id": "tx-r4-1",
+                    "operation": "create",
+                    "payload": {
+                        "client_id": "tx-r4-1",
+                        "transaction_type": "expense",
+                        "date_time": now_datetime().isoformat(),
+                        "amount": 25,
+                        "currency": "SAR",
+                        "account": "acc-r4-1",
+                        "category": "cat-r4-1",
+                        "note": "Workspace smoke",
+                    },
+                },
+            ]
+        )
+
+        workspace = report_workspace_overview(wallet_id=self.wallet_id, device_id=self.device_id)
+        self.assertEqual((workspace.get("wallet") or {}).get("wallet_id"), self.wallet_id)
+        self.assertIn((workspace.get("wallet") or {}).get("role"), {"owner", "admin", "member", "viewer"})
+        self.assertEqual((workspace.get("wallet") or {}).get("base_currency"), "SAR")
+        self.assertIn("total_balance", workspace.get("highlights") or {})
+        self.assertIn("transactions_count_30d", workspace.get("highlights") or {})
+        self.assertIsInstance(workspace.get("quick_stats"), list)
+        self.assertIsInstance(workspace.get("recent_transactions"), list)
+        self.assertIsInstance(workspace.get("sync_health"), dict)
+        self.assertIsInstance(workspace.get("operational_alerts"), dict)
+        self.assertTrue(any(row.get("note") == "Workspace smoke" for row in workspace.get("recent_transactions") or []))

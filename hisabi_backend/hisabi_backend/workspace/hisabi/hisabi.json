@@ -1,6 +1,6 @@
 {
  "charts": [],
- "content": "[{\"id\":\"ZQGjHKQ1Yf\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Hisabi</span>\",\"col\":12}},{\"id\":\"v9QpJOdDn9\",\"type\":\"card\",\"data\":{\"card_name\":\"\u0627\u0644\u0628\u062f\u0621\",\"col\":4}},{\"id\":\"NRl1O7nsQk\",\"type\":\"card\",\"data\":{\"card_name\":\"\u0627\u0644\u062d\u0633\u0627\u0628\u0627\u062a\",\"col\":4}},{\"id\":\"qMrkLlnhV3\",\"type\":\"card\",\"data\":{\"card_name\":\"\u0627\u0644\u0639\u0645\u0644\u064a\u0627\u062a \u0627\u0644\u064a\u0648\u0645\u064a\u0629\",\"col\":4}},{\"id\":\"zIwDAb6mH_\",\"type\":\"card\",\"data\":{\"card_name\":\"\u0627\u0644\u0645\u0631\u0627\u062c\u0639\u0629 \u0648\u0627\u0644\u0645\u062a\u0627\u0628\u0639\u0629\",\"col\":4}},{\"id\":\"cCEVT9HN0T\",\"type\":\"card\",\"data\":{\"card_name\":\"\u0627\u0644\u062a\u0642\u0627\u0631\u064a\u0631\",\"col\":4}},{\"id\":\"2Tltpm1f4O\",\"type\":\"card\",\"data\":{\"card_name\":\"\u0627\u0644\u0623\u062f\u0648\u0627\u062a \u0648\u0627\u0644\u062c\u0648\u062f\u0629\",\"col\":4}},{\"id\":\"qlilMeW8zZ\",\"type\":\"card\",\"data\":{\"card_name\":\"\u0627\u0644\u0625\u0639\u062f\u0627\u062f\u0627\u062a\",\"col\":4}}]",
+ "content": "[{\"id\":\"hdr-hisabi\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Hisabi Control Workspace</span>\",\"col\":12}},{\"id\":\"card-start\",\"type\":\"card\",\"data\":{\"card_name\":\"البداية والمحافظ\",\"col\":4}},{\"id\":\"card-operations\",\"type\":\"card\",\"data\":{\"card_name\":\"العمليات والسجل\",\"col\":4}},{\"id\":\"card-planning\",\"type\":\"card\",\"data\":{\"card_name\":\"التخطيط والالتزامات\",\"col\":4}},{\"id\":\"card-analytics\",\"type\":\"card\",\"data\":{\"card_name\":\"التحليلات والتقارير\",\"col\":4}},{\"id\":\"card-cloud\",\"type\":\"card\",\"data\":{\"card_name\":\"السحابة والمزامنة\",\"col\":4}},{\"id\":\"card-governance\",\"type\":\"card\",\"data\":{\"card_name\":\"الحوكمة والإعدادات\",\"col\":4}}]",
  "creation": "2026-01-29 20:44:51.449134",
  "custom_blocks": [],
  "docstatus": 0,
@@ -8,356 +8,50 @@
  "for_user": "",
  "hide_custom": 0,
  "icon": "income",
- "idx": 0,
  "indicator_color": "green",
  "is_hidden": 0,
  "label": "Hisabi",
  "links": [
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "\u0627\u0644\u0628\u062f\u0621",
-   "link_count": 3,
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Card Break"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "\u0627\u0644\u0645\u062d\u0627\u0641\u0638",
-   "link_count": 0,
-   "link_to": "Hisabi Wallet",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "\u0623\u0639\u0636\u0627\u0621 \u0627\u0644\u0645\u062d\u0641\u0638\u0629",
-   "link_count": 0,
-   "link_to": "Hisabi Wallet Member",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "\u062f\u0639\u0648\u0627\u062a \u0627\u0644\u0645\u062d\u0641\u0638\u0629",
-   "link_count": 0,
-   "link_to": "Hisabi Wallet Invite",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "\u0627\u0644\u062d\u0633\u0627\u0628\u0627\u062a",
-   "link_count": 4,
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Card Break"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "\u0627\u0644\u062d\u0633\u0627\u0628\u0627\u062a",
-   "link_count": 0,
-   "link_to": "Hisabi Account",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "\u0627\u0644\u0641\u0626\u0627\u062a",
-   "link_count": 0,
-   "link_to": "Hisabi Category",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "\u0642\u0648\u0627\u0644\u0628 \u0627\u0644\u0635\u0646\u0627\u062f\u064a\u0642",
-   "link_count": 0,
-   "link_to": "Hisabi Bucket Template",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "\u0627\u0644\u0635\u0646\u0627\u062f\u064a\u0642",
-   "link_count": 0,
-   "link_to": "Hisabi Bucket",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "\u0627\u0644\u0639\u0645\u0644\u064a\u0627\u062a \u0627\u0644\u064a\u0648\u0645\u064a\u0629",
-   "link_count": 5,
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Card Break"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "\u0627\u0644\u0645\u0639\u0627\u0645\u0644\u0627\u062a",
-   "link_count": 0,
-   "link_to": "Hisabi Transaction",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "\u062a\u062e\u0635\u064a\u0635\u0627\u062a \u0627\u0644\u0645\u0639\u0627\u0645\u0644\u0629",
-   "link_count": 0,
-   "link_to": "Hisabi Transaction Allocation",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "\u062a\u0648\u0632\u064a\u0639 \u0627\u0644\u0635\u0646\u0627\u062f\u064a\u0642",
-   "link_count": 0,
-   "link_to": "Hisabi Transaction Bucket",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "\u0645\u0635\u0631\u0648\u0641\u0627\u062a \u0627\u0644\u0635\u0646\u0627\u062f\u064a\u0642",
-   "link_count": 0,
-   "link_to": "Hisabi Transaction Bucket Expense",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "\u0627\u0644\u0645\u0631\u0641\u0642\u0627\u062a",
-   "link_count": 0,
-   "link_to": "Hisabi Attachment",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "\u0627\u0644\u0645\u0631\u0627\u062c\u0639\u0629 \u0648\u0627\u0644\u0645\u062a\u0627\u0628\u0639\u0629",
-   "link_count": 8,
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Card Break"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "\u0627\u0644\u0645\u064a\u0632\u0627\u0646\u064a\u0627\u062a",
-   "link_count": 0,
-   "link_to": "Hisabi Budget",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "\u0627\u0644\u0623\u0647\u062f\u0627\u0641",
-   "link_count": 0,
-   "link_to": "Hisabi Goal",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "\u0627\u0644\u062f\u064a\u0648\u0646",
-   "link_count": 0,
-   "link_to": "Hisabi Debt",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "\u0637\u0644\u0628\u0627\u062a \u0627\u0644\u062f\u064a\u0648\u0646",
-   "link_count": 0,
-   "link_to": "Hisabi Debt Request",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "\u0623\u0642\u0633\u0627\u0637 \u0627\u0644\u062f\u064a\u0648\u0646",
-   "link_count": 0,
-   "link_to": "Hisabi Debt Installment",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "\u0627\u0644\u062c\u0645\u0639\u064a\u0627\u062a",
-   "link_count": 0,
-   "link_to": "Hisabi Jameya",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "\u062f\u0641\u0639\u0627\u062a \u0627\u0644\u062c\u0645\u0639\u064a\u0629",
-   "link_count": 0,
-   "link_to": "Hisabi Jameya Payment",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "\u0627\u0644\u0639\u0645\u0644\u064a\u0627\u062a \u0627\u0644\u062f\u0648\u0631\u064a\u0629",
-   "link_count": 0,
-   "link_to": "Hisabi Recurring Instance",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "\u0627\u0644\u062a\u0642\u0627\u0631\u064a\u0631",
-   "link_count": 2,
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Card Break"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "\u0633\u062c\u0644 \u0627\u0644\u0645\u0632\u0627\u0645\u0646\u0629",
-   "link_count": 0,
-   "link_to": "Hisabi Sync Op",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "\u0633\u062c\u0644 \u0627\u0644\u062a\u062f\u0642\u064a\u0642",
-   "link_count": 0,
-   "link_to": "Hisabi Audit Log",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "\u0627\u0644\u0623\u062f\u0648\u0627\u062a \u0648\u0627\u0644\u062c\u0648\u062f\u0629",
-   "link_count": 2,
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Card Break"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "\u0627\u0644\u0623\u062c\u0647\u0632\u0629",
-   "link_count": 0,
-   "link_to": "Hisabi Device",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "\u0623\u0646\u0648\u0627\u0639 \u0627\u0644\u0628\u064a\u0627\u0646\u0627\u062a",
-   "link_count": 0,
-   "link_to": "Hisabi Doctype",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "\u0627\u0644\u0625\u0639\u062f\u0627\u062f\u0627\u062a",
-   "link_count": 4,
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Card Break"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "\u0625\u0639\u062f\u0627\u062f\u0627\u062a \u0627\u0644\u062a\u0637\u0628\u064a\u0642",
-   "link_count": 0,
-   "link_to": "Hisabi Settings",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "\u0623\u0633\u0639\u0627\u0631 \u0627\u0644\u0635\u0631\u0641",
-   "link_count": 0,
-   "link_to": "Hisabi FX Rate",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "\u0627\u0644\u0639\u0645\u0644\u0627\u062a \u0627\u0644\u0645\u062e\u0635\u0635\u0629",
-   "link_count": 0,
-   "link_to": "Hisabi Custom Currency",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "\u0645\u0633\u062a\u062e\u062f\u0645\u0648 Hisabi",
-   "link_count": 0,
-   "link_to": "Hisabi User",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  }
+  { "hidden": 0, "is_query_report": 0, "label": "البداية والمحافظ", "link_count": 4, "link_type": "DocType", "onboard": 0, "type": "Card Break" },
+  { "hidden": 0, "is_query_report": 0, "label": "المحافظ", "link_count": 0, "link_to": "Hisabi Wallet", "link_type": "DocType", "onboard": 0, "type": "Link" },
+  { "hidden": 0, "is_query_report": 0, "label": "أعضاء المحفظة", "link_count": 0, "link_to": "Hisabi Wallet Member", "link_type": "DocType", "onboard": 0, "type": "Link" },
+  { "hidden": 0, "is_query_report": 0, "label": "دعوات المحفظة", "link_count": 0, "link_to": "Hisabi Wallet Invite", "link_type": "DocType", "onboard": 0, "type": "Link" },
+  { "hidden": 0, "is_query_report": 0, "label": "الأجهزة", "link_count": 0, "link_to": "Hisabi Device", "link_type": "DocType", "onboard": 0, "type": "Link" },
+
+  { "hidden": 0, "is_query_report": 0, "label": "العمليات والسجل", "link_count": 6, "link_type": "DocType", "onboard": 0, "type": "Card Break" },
+  { "hidden": 0, "is_query_report": 0, "label": "المعاملات", "link_count": 0, "link_to": "Hisabi Transaction", "link_type": "DocType", "onboard": 0, "type": "Link" },
+  { "hidden": 0, "is_query_report": 0, "label": "الحسابات", "link_count": 0, "link_to": "Hisabi Account", "link_type": "DocType", "onboard": 0, "type": "Link" },
+  { "hidden": 0, "is_query_report": 0, "label": "الفئات", "link_count": 0, "link_to": "Hisabi Category", "link_type": "DocType", "onboard": 0, "type": "Link" },
+  { "hidden": 0, "is_query_report": 0, "label": "تخصيصات المعاملة", "link_count": 0, "link_to": "Hisabi Transaction Allocation", "link_type": "DocType", "onboard": 0, "type": "Link" },
+  { "hidden": 0, "is_query_report": 0, "label": "توزيع الصناديق", "link_count": 0, "link_to": "Hisabi Transaction Bucket", "link_type": "DocType", "onboard": 0, "type": "Link" },
+  { "hidden": 0, "is_query_report": 0, "label": "المرفقات", "link_count": 0, "link_to": "Hisabi Attachment", "link_type": "DocType", "onboard": 0, "type": "Link" },
+
+  { "hidden": 0, "is_query_report": 0, "label": "التخطيط والالتزامات", "link_count": 7, "link_type": "DocType", "onboard": 0, "type": "Card Break" },
+  { "hidden": 0, "is_query_report": 0, "label": "الميزانيات", "link_count": 0, "link_to": "Hisabi Budget", "link_type": "DocType", "onboard": 0, "type": "Link" },
+  { "hidden": 0, "is_query_report": 0, "label": "الأهداف", "link_count": 0, "link_to": "Hisabi Goal", "link_type": "DocType", "onboard": 0, "type": "Link" },
+  { "hidden": 0, "is_query_report": 0, "label": "الديون", "link_count": 0, "link_to": "Hisabi Debt", "link_type": "DocType", "onboard": 0, "type": "Link" },
+  { "hidden": 0, "is_query_report": 0, "label": "طلبات الديون", "link_count": 0, "link_to": "Hisabi Debt Request", "link_type": "DocType", "onboard": 0, "type": "Link" },
+  { "hidden": 0, "is_query_report": 0, "label": "أقساط الديون", "link_count": 0, "link_to": "Hisabi Debt Installment", "link_type": "DocType", "onboard": 0, "type": "Link" },
+  { "hidden": 0, "is_query_report": 0, "label": "الجمعيات", "link_count": 0, "link_to": "Hisabi Jameya", "link_type": "DocType", "onboard": 0, "type": "Link" },
+  { "hidden": 0, "is_query_report": 0, "label": "دفعات الجمعية", "link_count": 0, "link_to": "Hisabi Jameya Payment", "link_type": "DocType", "onboard": 0, "type": "Link" },
+
+  { "hidden": 0, "is_query_report": 0, "label": "التحليلات والتقارير", "link_count": 4, "link_type": "DocType", "onboard": 0, "type": "Card Break" },
+  { "hidden": 0, "is_query_report": 0, "label": "الصناديق", "link_count": 0, "link_to": "Hisabi Bucket", "link_type": "DocType", "onboard": 0, "type": "Link" },
+  { "hidden": 0, "is_query_report": 0, "label": "قوالب الصناديق", "link_count": 0, "link_to": "Hisabi Bucket Template", "link_type": "DocType", "onboard": 0, "type": "Link" },
+  { "hidden": 0, "is_query_report": 0, "label": "القواعد الدورية", "link_count": 0, "link_to": "Hisabi Recurring Rule", "link_type": "DocType", "onboard": 0, "type": "Link" },
+  { "hidden": 0, "is_query_report": 0, "label": "العمليات الدورية", "link_count": 0, "link_to": "Hisabi Recurring Instance", "link_type": "DocType", "onboard": 0, "type": "Link" },
+
+  { "hidden": 0, "is_query_report": 0, "label": "السحابة والمزامنة", "link_count": 4, "link_type": "DocType", "onboard": 0, "type": "Card Break" },
+  { "hidden": 0, "is_query_report": 0, "label": "عمليات المزامنة", "link_count": 0, "link_to": "Hisabi Sync Op", "link_type": "DocType", "onboard": 0, "type": "Link" },
+  { "hidden": 0, "is_query_report": 0, "label": "سجل التدقيق", "link_count": 0, "link_to": "Hisabi Audit Log", "link_type": "DocType", "onboard": 0, "type": "Link" },
+  { "hidden": 0, "is_query_report": 0, "label": "أسعار الصرف", "link_count": 0, "link_to": "Hisabi FX Rate", "link_type": "DocType", "onboard": 0, "type": "Link" },
+  { "hidden": 0, "is_query_report": 0, "label": "العملات المخصصة", "link_count": 0, "link_to": "Hisabi Custom Currency", "link_type": "DocType", "onboard": 0, "type": "Link" },
+
+  { "hidden": 0, "is_query_report": 0, "label": "الحوكمة والإعدادات", "link_count": 2, "link_type": "DocType", "onboard": 0, "type": "Card Break" },
+  { "hidden": 0, "is_query_report": 0, "label": "إعدادات التطبيق", "link_count": 0, "link_to": "Hisabi Settings", "link_type": "DocType", "onboard": 0, "type": "Link" },
+  { "hidden": 0, "is_query_report": 0, "label": "مستخدمو Hisabi", "link_count": 0, "link_to": "Hisabi User", "link_type": "DocType", "onboard": 0, "type": "Link" }
  ],
- "modified": "2026-02-11 05:42:16.707880",
+ "modified": "2026-03-22 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "Hisabi Backend",
  "name": "Hisabi",
