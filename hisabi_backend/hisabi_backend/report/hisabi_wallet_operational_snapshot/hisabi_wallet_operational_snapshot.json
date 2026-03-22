@@ -1,0 +1,25 @@
+{
+ "add_total_row": 0,
+ "creation": "2026-03-22 12:00:00.000000",
+ "disable_prepared_report": 0,
+ "disabled": 0,
+ "docstatus": 0,
+ "doctype": "Report",
+ "idx": 0,
+ "is_standard": "Yes",
+ "modified": "2026-03-22 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Hisabi Backend",
+ "name": "Hisabi Wallet Operational Snapshot",
+ "owner": "Administrator",
+ "prepared_report": 0,
+ "query": "SELECT w.name AS \"Wallet:Link/Hisabi Wallet:180\", w.wallet_name AS \"Wallet Name:Data:180\", w.status AS \"Wallet Status:Data:100\", COALESCE(m.member_count, 0) AS \"Members:Int:90\", COALESCE(a.account_count, 0) AS \"Accounts:Int:90\", COALESCE(t.tx_count, 0) AS \"Transactions:Int:100\", COALESCE(d.debt_count, 0) AS \"Open Debts:Int:100\" FROM `tabHisabi Wallet` w LEFT JOIN (SELECT wallet, COUNT(name) AS member_count FROM `tabHisabi Wallet Member` WHERE status = 'active' GROUP BY wallet) m ON m.wallet = w.name LEFT JOIN (SELECT wallet_id, COUNT(name) AS account_count FROM `tabHisabi Account` WHERE is_deleted = 0 GROUP BY wallet_id) a ON a.wallet_id = w.name LEFT JOIN (SELECT wallet_id, COUNT(name) AS tx_count FROM `tabHisabi Transaction` WHERE is_deleted = 0 GROUP BY wallet_id) t ON t.wallet_id = w.name LEFT JOIN (SELECT wallet_id, COUNT(name) AS debt_count FROM `tabHisabi Debt` WHERE is_deleted = 0 AND status IN ('active', 'pending') GROUP BY wallet_id) d ON d.wallet_id = w.name WHERE w.is_deleted = 0 ORDER BY w.modified DESC",
+ "ref_doctype": "Hisabi Wallet",
+ "report_name": "Hisabi Wallet Operational Snapshot",
+ "report_type": "Query Report",
+ "roles": [
+  { "role": "Hisabi User" },
+  { "role": "Hisabi Admin" },
+  { "role": "System Manager" }
+ ]
+}

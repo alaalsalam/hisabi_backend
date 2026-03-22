@@ -1,0 +1,25 @@
+{
+ "add_total_row": 1,
+ "creation": "2026-03-22 12:00:00.000000",
+ "disable_prepared_report": 0,
+ "disabled": 0,
+ "docstatus": 0,
+ "doctype": "Report",
+ "idx": 0,
+ "is_standard": "Yes",
+ "modified": "2026-03-22 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Hisabi Backend",
+ "name": "Hisabi Sync Health Overview",
+ "owner": "Administrator",
+ "prepared_report": 0,
+ "query": "SELECT user AS \"User:Link/User:180\", device_id AS \"Device ID:Data:160\", entity_type AS \"Entity Type:Data:160\", status AS \"Status:Data:120\", COUNT(name) AS \"Ops:Int:100\", MAX(server_modified) AS \"Last Server Modified:Datetime:160\" FROM `tabHisabi Sync Op` GROUP BY user, device_id, entity_type, status ORDER BY `Last Server Modified` DESC",
+ "ref_doctype": "Hisabi Sync Op",
+ "report_name": "Hisabi Sync Health Overview",
+ "report_type": "Query Report",
+ "roles": [
+  { "role": "Hisabi User" },
+  { "role": "Hisabi Admin" },
+  { "role": "System Manager" }
+ ]
+}

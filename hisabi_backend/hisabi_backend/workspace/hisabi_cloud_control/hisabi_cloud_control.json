@@ -1,0 +1,55 @@
+{
+ "charts": [
+  { "chart_name": "Hisabi Sync Status", "label": "حالة المزامنة" },
+  { "chart_name": "Hisabi Device Platforms", "label": "منصات الأجهزة" },
+  { "chart_name": "Hisabi Audit Events", "label": "أحداث التدقيق" }
+ ],
+ "content": "[{\"id\":\"cloud-n1\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Hisabi Active Devices\",\"col\":3}},{\"id\":\"cloud-n2\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Hisabi Sync Conflicts\",\"col\":3}},{\"id\":\"cloud-n3\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Hisabi Sync Errors\",\"col\":3}},{\"id\":\"cloud-n4\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Hisabi Security Events\",\"col\":3}},{\"id\":\"cloud-c1\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Hisabi Sync Status\",\"col\":4}},{\"id\":\"cloud-c2\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Hisabi Device Platforms\",\"col\":4}},{\"id\":\"cloud-c3\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Hisabi Audit Events\",\"col\":4}},{\"id\":\"cloud-card-1\",\"type\":\"card\",\"data\":{\"card_name\":\"المزامنة والجودة\",\"col\":4}},{\"id\":\"cloud-card-2\",\"type\":\"card\",\"data\":{\"card_name\":\"التعاون والوصول\",\"col\":4}},{\"id\":\"cloud-card-3\",\"type\":\"card\",\"data\":{\"card_name\":\"التقارير والضبط\",\"col\":4}}]",
+ "creation": "2026-03-22 12:00:00.000000",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "cloud",
+ "indicator_color": "blue",
+ "is_hidden": 0,
+ "label": "Hisabi Cloud Control",
+ "links": [
+  { "hidden": 0, "is_query_report": 0, "label": "المزامنة والجودة", "link_count": 4, "link_type": "DocType", "onboard": 0, "type": "Card Break" },
+  { "hidden": 0, "is_query_report": 0, "label": "عمليات المزامنة", "link_count": 0, "link_to": "Hisabi Sync Op", "link_type": "DocType", "onboard": 0, "type": "Link" },
+  { "hidden": 0, "is_query_report": 0, "label": "سجل التدقيق", "link_count": 0, "link_to": "Hisabi Audit Log", "link_type": "DocType", "onboard": 0, "type": "Link" },
+  { "hidden": 0, "is_query_report": 0, "label": "الأجهزة", "link_count": 0, "link_to": "Hisabi Device", "link_type": "DocType", "onboard": 0, "type": "Link" },
+  { "hidden": 0, "is_query_report": 0, "label": "مستخدمو Hisabi", "link_count": 0, "link_to": "Hisabi User", "link_type": "DocType", "onboard": 0, "type": "Link" },
+
+  { "hidden": 0, "is_query_report": 0, "label": "التعاون والوصول", "link_count": 4, "link_type": "DocType", "onboard": 0, "type": "Card Break" },
+  { "hidden": 0, "is_query_report": 0, "label": "المحافظ", "link_count": 0, "link_to": "Hisabi Wallet", "link_type": "DocType", "onboard": 0, "type": "Link" },
+  { "hidden": 0, "is_query_report": 0, "label": "أعضاء المحفظة", "link_count": 0, "link_to": "Hisabi Wallet Member", "link_type": "DocType", "onboard": 0, "type": "Link" },
+  { "hidden": 0, "is_query_report": 0, "label": "دعوات المحفظة", "link_count": 0, "link_to": "Hisabi Wallet Invite", "link_type": "DocType", "onboard": 0, "type": "Link" },
+  { "hidden": 0, "is_query_report": 0, "label": "الإعدادات", "link_count": 0, "link_to": "Hisabi Settings", "link_type": "DocType", "onboard": 0, "type": "Link" },
+
+  { "hidden": 0, "is_query_report": 0, "label": "التقارير والضبط", "link_count": 4, "link_type": "DocType", "onboard": 0, "type": "Card Break" },
+  { "hidden": 0, "is_query_report": 1, "label": "نظرة صحة المزامنة", "link_count": 0, "link_to": "Hisabi Sync Health Overview", "link_type": "Report", "onboard": 0, "type": "Link" },
+  { "hidden": 0, "is_query_report": 0, "label": "أسعار الصرف", "link_count": 0, "link_to": "Hisabi FX Rate", "link_type": "DocType", "onboard": 0, "type": "Link" },
+  { "hidden": 0, "is_query_report": 0, "label": "العملات المخصصة", "link_count": 0, "link_to": "Hisabi Custom Currency", "link_type": "DocType", "onboard": 0, "type": "Link" },
+  { "hidden": 0, "is_query_report": 0, "label": "قوالب الصناديق", "link_count": 0, "link_to": "Hisabi Bucket Template", "link_type": "DocType", "onboard": 0, "type": "Link" }
+ ],
+ "modified": "2026-03-22 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Hisabi Backend",
+ "name": "Hisabi Cloud Control",
+ "number_cards": [
+  { "number_card_name": "Hisabi Active Devices", "label": "الأجهزة النشطة" },
+  { "number_card_name": "Hisabi Sync Conflicts", "label": "تعارضات المزامنة" },
+  { "number_card_name": "Hisabi Sync Errors", "label": "أخطاء المزامنة" },
+  { "number_card_name": "Hisabi Security Events", "label": "الأحداث الأمنية" }
+ ],
+ "owner": "Administrator",
+ "parent_page": "",
+ "public": 1,
+ "quick_lists": [],
+ "roles": [],
+ "sequence_id": 27.1,
+ "shortcuts": [],
+ "title": "Hisabi Cloud Control"
+}

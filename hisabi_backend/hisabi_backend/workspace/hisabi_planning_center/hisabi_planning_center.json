@@ -1,0 +1,53 @@
+{
+ "charts": [
+  { "chart_name": "Hisabi Goal Status", "label": "حالة الأهداف" },
+  { "chart_name": "Hisabi Budget Periods", "label": "توزيع الميزانيات" }
+ ],
+ "content": "[{\"id\":\"plan-n1\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Hisabi Active Goals\",\"col\":3}},{\"id\":\"plan-n2\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Hisabi Due Jameya Payments\",\"col\":3}},{\"id\":\"plan-n3\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Hisabi Recurring Rules\",\"col\":3}},{\"id\":\"plan-n4\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Hisabi Wallet Members\",\"col\":3}},{\"id\":\"plan-c1\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Hisabi Goal Status\",\"col\":6}},{\"id\":\"plan-c2\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Hisabi Budget Periods\",\"col\":6}},{\"id\":\"plan-card-1\",\"type\":\"card\",\"data\":{\"card_name\":\"الأهداف والالتزامات\",\"col\":4}},{\"id\":\"plan-card-2\",\"type\":\"card\",\"data\":{\"card_name\":\"الصناديق والتكرار\",\"col\":4}},{\"id\":\"plan-card-3\",\"type\":\"card\",\"data\":{\"card_name\":\"تقارير المتابعة\",\"col\":4}}]",
+ "creation": "2026-03-22 12:00:00.000000",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "target",
+ "indicator_color": "orange",
+ "is_hidden": 0,
+ "label": "Hisabi Planning Center",
+ "links": [
+  { "hidden": 0, "is_query_report": 0, "label": "الأهداف والالتزامات", "link_count": 5, "link_type": "DocType", "onboard": 0, "type": "Card Break" },
+  { "hidden": 0, "is_query_report": 0, "label": "الأهداف", "link_count": 0, "link_to": "Hisabi Goal", "link_type": "DocType", "onboard": 0, "type": "Link" },
+  { "hidden": 0, "is_query_report": 0, "label": "الميزانيات", "link_count": 0, "link_to": "Hisabi Budget", "link_type": "DocType", "onboard": 0, "type": "Link" },
+  { "hidden": 0, "is_query_report": 0, "label": "الديون", "link_count": 0, "link_to": "Hisabi Debt", "link_type": "DocType", "onboard": 0, "type": "Link" },
+  { "hidden": 0, "is_query_report": 0, "label": "الجمعيات", "link_count": 0, "link_to": "Hisabi Jameya", "link_type": "DocType", "onboard": 0, "type": "Link" },
+  { "hidden": 0, "is_query_report": 0, "label": "دفعات الجمعية", "link_count": 0, "link_to": "Hisabi Jameya Payment", "link_type": "DocType", "onboard": 0, "type": "Link" },
+
+  { "hidden": 0, "is_query_report": 0, "label": "الصناديق والتكرار", "link_count": 4, "link_type": "DocType", "onboard": 0, "type": "Card Break" },
+  { "hidden": 0, "is_query_report": 0, "label": "الصناديق", "link_count": 0, "link_to": "Hisabi Bucket", "link_type": "DocType", "onboard": 0, "type": "Link" },
+  { "hidden": 0, "is_query_report": 0, "label": "قواعد التكرار", "link_count": 0, "link_to": "Hisabi Recurring Rule", "link_type": "DocType", "onboard": 0, "type": "Link" },
+  { "hidden": 0, "is_query_report": 0, "label": "العمليات الدورية", "link_count": 0, "link_to": "Hisabi Recurring Instance", "link_type": "DocType", "onboard": 0, "type": "Link" },
+  { "hidden": 0, "is_query_report": 0, "label": "توزيع الصناديق", "link_count": 0, "link_to": "Hisabi Transaction Bucket", "link_type": "DocType", "onboard": 0, "type": "Link" },
+
+  { "hidden": 0, "is_query_report": 0, "label": "تقارير المتابعة", "link_count": 2, "link_type": "DocType", "onboard": 0, "type": "Card Break" },
+  { "hidden": 0, "is_query_report": 1, "label": "الالتزامات المفتوحة", "link_count": 0, "link_to": "Hisabi Debt Commitments", "link_type": "Report", "onboard": 0, "type": "Link" },
+  { "hidden": 0, "is_query_report": 1, "label": "لقطة المحافظ", "link_count": 0, "link_to": "Hisabi Wallet Operational Snapshot", "link_type": "Report", "onboard": 0, "type": "Link" }
+ ],
+ "modified": "2026-03-22 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Hisabi Backend",
+ "name": "Hisabi Planning Center",
+ "number_cards": [
+  { "number_card_name": "Hisabi Active Goals", "label": "الأهداف النشطة" },
+  { "number_card_name": "Hisabi Due Jameya Payments", "label": "دفعات الجمعية المستحقة" },
+  { "number_card_name": "Hisabi Recurring Rules", "label": "قواعد التكرار" },
+  { "number_card_name": "Hisabi Wallet Members", "label": "أعضاء المحافظ" }
+ ],
+ "owner": "Administrator",
+ "parent_page": "",
+ "public": 1,
+ "quick_lists": [],
+ "roles": [],
+ "sequence_id": 27.2,
+ "shortcuts": [],
+ "title": "Hisabi Planning Center"
+}
