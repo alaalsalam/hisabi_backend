@@ -2,25 +2,26 @@
  "charts": [
   {
    "chart_name": "Hisabi User Growth",
-   "label": "نمو المستخدمين"
-  },
-  {
-   "chart_name": "Hisabi Daily Transactions",
-   "label": "العمليات اليومية"
+   "label": "\u0646\u0645\u0648 \u0627\u0644\u0645\u0633\u062a\u062e\u062f\u0645\u064a\u0646"
   },
   {
    "chart_name": "Hisabi Interaction Activity",
-   "label": "التفاعل مع التطبيق"
+   "label": "\u0627\u0644\u062a\u0641\u0627\u0639\u0644 \u0645\u0639 \u0627\u0644\u062a\u0637\u0628\u064a\u0642"
+  },
+  {
+   "chart_name": "Hisabi Daily Transactions",
+   "label": "\u0627\u0644\u0639\u0645\u0644\u064a\u0627\u062a \u0627\u0644\u064a\u0648\u0645\u064a\u0629"
   }
  ],
- "content": "[{\"id\":\"admin-n1\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Hisabi New Users Last Month\",\"col\":3}},{\"id\":\"admin-n2\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Hisabi Transactions Today\",\"col\":3}},{\"id\":\"admin-n3\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Hisabi App Interactions Last Week\",\"col\":3}},{\"id\":\"admin-n4\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Hisabi Active Devices\",\"col\":3}},{\"id\":\"admin-c1\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Hisabi User Growth\",\"col\":4}},{\"id\":\"admin-c2\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Hisabi Daily Transactions\",\"col\":4}},{\"id\":\"admin-c3\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Hisabi Interaction Activity\",\"col\":4}},{\"id\":\"admin-card-1\",\"type\":\"card\",\"data\":{\"card_name\":\"مؤشرات الاستخدام\",\"col\":4}},{\"id\":\"admin-card-2\",\"type\":\"card\",\"data\":{\"card_name\":\"التشغيل والتحليل\",\"col\":4}},{\"id\":\"admin-card-3\",\"type\":\"card\",\"data\":{\"card_name\":\"الوصول إلى المراكز\",\"col\":4}}]",
- "creation": "2026-03-22 12:00:00.000000",
+ "content": "[{\"id\":\"QccdDnyVtU\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"\u0627\u0644\u0645\u0633\u062a\u062e\u062f\u0645\u0648\u0646 \u0627\u0644\u062c\u062f\u062f \u0622\u062e\u0631 30 \u064a\u0648\u0645\",\"col\":3}},{\"id\":\"XGvHfKWol5\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"\u062a\u0641\u0627\u0639\u0644 \u0622\u062e\u0631 \u0623\u0633\u0628\u0648\u0639\",\"col\":3}},{\"id\":\"-LjfdozAcE\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"\u0627\u0644\u0623\u062c\u0647\u0632\u0629 \u0627\u0644\u0646\u0634\u0637\u0629\",\"col\":3}},{\"id\":\"8bGI2jqexr\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"\u0639\u0645\u0644\u064a\u0627\u062a \u0627\u0644\u064a\u0648\u0645\",\"col\":3}},{\"id\":\"lZ5Z5ujmlj\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"tRf7JvFcre\",\"type\":\"chart\",\"data\":{\"chart_name\":\"\u0646\u0645\u0648 \u0627\u0644\u0645\u0633\u062a\u062e\u062f\u0645\u064a\u0646\",\"col\":6}},{\"id\":\"Q4KaH53Nfm\",\"type\":\"chart\",\"data\":{\"chart_name\":\"\u0627\u0644\u062a\u0641\u0627\u0639\u0644 \u0645\u0639 \u0627\u0644\u062a\u0637\u0628\u064a\u0642\",\"col\":6}},{\"id\":\"NJMAgEpFrP\",\"type\":\"chart\",\"data\":{\"chart_name\":\"\u0627\u0644\u0639\u0645\u0644\u064a\u0627\u062a \u0627\u0644\u064a\u0648\u0645\u064a\u0629\",\"col\":12}},{\"id\":\"9oh27FI1Fo\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"admin-card-1\",\"type\":\"card\",\"data\":{\"card_name\":\"\u0645\u0624\u0634\u0631\u0627\u062a \u0627\u0644\u0627\u0633\u062a\u062e\u062f\u0627\u0645\",\"col\":4}},{\"id\":\"admin-card-2\",\"type\":\"card\",\"data\":{\"card_name\":\"\u0627\u0644\u062a\u0634\u063a\u064a\u0644 \u0648\u0627\u0644\u062a\u062d\u0644\u064a\u0644\",\"col\":4}}]",
+ "creation": "2026-03-22 12:00:00",
  "custom_blocks": [],
  "docstatus": 0,
  "doctype": "Workspace",
  "for_user": "",
  "hide_custom": 0,
  "icon": "dashboard",
+ "idx": 0,
  "indicator_color": "purple",
  "is_hidden": 0,
  "label": "Hisabi Admin Observatory",
@@ -28,7 +29,7 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "مؤشرات الاستخدام",
+   "label": "\u0645\u0624\u0634\u0631\u0627\u062a \u0627\u0644\u0627\u0633\u062a\u062e\u062f\u0627\u0645",
    "link_count": 4,
    "link_type": "DocType",
    "onboard": 0,
@@ -37,7 +38,7 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "مستخدمو Hisabi",
+   "label": "\u0645\u0633\u062a\u062e\u062f\u0645\u0648 Hisabi",
    "link_count": 0,
    "link_to": "Hisabi User",
    "link_type": "DocType",
@@ -47,7 +48,7 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "الأجهزة",
+   "label": "\u0627\u0644\u0623\u062c\u0647\u0632\u0629",
    "link_count": 0,
    "link_to": "Hisabi Device",
    "link_type": "DocType",
@@ -57,7 +58,7 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "سجل التدقيق",
+   "label": "\u0633\u062c\u0644 \u0627\u0644\u062a\u062f\u0642\u064a\u0642",
    "link_count": 0,
    "link_to": "Hisabi Audit Log",
    "link_type": "DocType",
@@ -67,7 +68,7 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "عمليات المزامنة",
+   "label": "\u0639\u0645\u0644\u064a\u0627\u062a \u0627\u0644\u0645\u0632\u0627\u0645\u0646\u0629",
    "link_count": 0,
    "link_to": "Hisabi Sync Op",
    "link_type": "DocType",
@@ -77,7 +78,7 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "التشغيل والتحليل",
+   "label": "\u0627\u0644\u062a\u0634\u063a\u064a\u0644 \u0648\u0627\u0644\u062a\u062d\u0644\u064a\u0644",
    "link_count": 3,
    "link_type": "DocType",
    "onboard": 0,
@@ -86,7 +87,7 @@
   {
    "hidden": 0,
    "is_query_report": 1,
-   "label": "نظرة صحة المزامنة",
+   "label": "\u0646\u0638\u0631\u0629 \u0635\u062d\u0629 \u0627\u0644\u0645\u0632\u0627\u0645\u0646\u0629",
    "link_count": 0,
    "link_to": "Hisabi Sync Health Overview",
    "link_type": "Report",
@@ -96,7 +97,7 @@
   {
    "hidden": 0,
    "is_query_report": 1,
-   "label": "لقطة المحافظ",
+   "label": "\u0644\u0642\u0637\u0629 \u0627\u0644\u0645\u062d\u0627\u0641\u0638",
    "link_count": 0,
    "link_to": "Hisabi Wallet Operational Snapshot",
    "link_type": "Report",
@@ -106,73 +107,34 @@
   {
    "hidden": 0,
    "is_query_report": 1,
-   "label": "سجل العمليات",
+   "label": "\u0633\u062c\u0644 \u0627\u0644\u0639\u0645\u0644\u064a\u0627\u062a",
    "link_count": 0,
    "link_to": "Hisabi Transaction Register",
    "link_type": "Report",
    "onboard": 0,
    "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "الوصول إلى المراكز",
-   "link_count": 3,
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Card Break"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Hisabi Finance Hub",
-   "link_count": 0,
-   "link_to": "Hisabi Finance Hub",
-   "link_type": "Workspace",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Hisabi Planning Center",
-   "link_count": 0,
-   "link_to": "Hisabi Planning Center",
-   "link_type": "Workspace",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Hisabi Cloud Control",
-   "link_count": 0,
-   "link_to": "Hisabi Cloud Control",
-   "link_type": "Workspace",
-   "onboard": 0,
-   "type": "Link"
   }
  ],
- "modified": "2026-03-22 12:00:00.000000",
+ "modified": "2026-03-22 13:32:11.340362",
  "modified_by": "Administrator",
  "module": "Hisabi Backend",
  "name": "Hisabi Admin Observatory",
  "number_cards": [
   {
-   "label": "المستخدمون الجدد آخر 30 يوم",
+   "label": "\u0627\u0644\u0645\u0633\u062a\u062e\u062f\u0645\u0648\u0646 \u0627\u0644\u062c\u062f\u062f \u0622\u062e\u0631 30 \u064a\u0648\u0645",
    "number_card_name": "Hisabi New Users Last Month"
   },
   {
-   "label": "عمليات اليوم",
-   "number_card_name": "Hisabi Transactions Today"
-  },
-  {
-   "label": "تفاعل آخر أسبوع",
+   "label": "\u062a\u0641\u0627\u0639\u0644 \u0622\u062e\u0631 \u0623\u0633\u0628\u0648\u0639",
    "number_card_name": "Hisabi App Interactions Last Week"
   },
   {
-   "label": "الأجهزة النشطة",
+   "label": "\u0627\u0644\u0623\u062c\u0647\u0632\u0629 \u0627\u0644\u0646\u0634\u0637\u0629",
    "number_card_name": "Hisabi Active Devices"
+  },
+  {
+   "label": "\u0639\u0645\u0644\u064a\u0627\u062a \u0627\u0644\u064a\u0648\u0645",
+   "number_card_name": "Hisabi Transactions Today"
   }
  ],
  "owner": "Administrator",

@@ -1,48 +1,200 @@
 {
  "charts": [
-  { "chart_name": "Hisabi Sync Status", "label": "حالة المزامنة" },
-  { "chart_name": "Hisabi Device Platforms", "label": "منصات الأجهزة" },
-  { "chart_name": "Hisabi Audit Events", "label": "أحداث التدقيق" }
+  {
+   "chart_name": "Hisabi Device Platforms",
+   "label": "\u0645\u0646\u0635\u0627\u062a \u0627\u0644\u0623\u062c\u0647\u0632\u0629"
+  },
+  {
+   "chart_name": "Hisabi Audit Events",
+   "label": "\u0623\u062d\u062f\u0627\u062b \u0627\u0644\u062a\u062f\u0642\u064a\u0642"
+  },
+  {
+   "chart_name": "Hisabi Sync Status",
+   "label": "\u062d\u0627\u0644\u0629 \u0627\u0644\u0645\u0632\u0627\u0645\u0646\u0629"
+  }
  ],
- "content": "[{\"id\":\"cloud-n1\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Hisabi Active Devices\",\"col\":3}},{\"id\":\"cloud-n2\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Hisabi Sync Conflicts\",\"col\":3}},{\"id\":\"cloud-n3\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Hisabi Sync Errors\",\"col\":3}},{\"id\":\"cloud-n4\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Hisabi Security Events\",\"col\":3}},{\"id\":\"cloud-c1\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Hisabi Sync Status\",\"col\":4}},{\"id\":\"cloud-c2\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Hisabi Device Platforms\",\"col\":4}},{\"id\":\"cloud-c3\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Hisabi Audit Events\",\"col\":4}},{\"id\":\"cloud-card-1\",\"type\":\"card\",\"data\":{\"card_name\":\"المزامنة والجودة\",\"col\":4}},{\"id\":\"cloud-card-2\",\"type\":\"card\",\"data\":{\"card_name\":\"التعاون والوصول\",\"col\":4}},{\"id\":\"cloud-card-3\",\"type\":\"card\",\"data\":{\"card_name\":\"التقارير والضبط\",\"col\":4}}]",
- "creation": "2026-03-22 12:00:00.000000",
+ "content": "[{\"id\":\"-fZ8OWdVK6\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"\u0623\u062e\u0637\u0627\u0621 \u0627\u0644\u0645\u0632\u0627\u0645\u0646\u0629\",\"col\":3}},{\"id\":\"YbtZ6YRuWJ\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"\u062a\u0639\u0627\u0631\u0636\u0627\u062a \u0627\u0644\u0645\u0632\u0627\u0645\u0646\u0629\",\"col\":3}},{\"id\":\"jiipmxadSJ\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"\u0627\u0644\u0623\u062c\u0647\u0632\u0629 \u0627\u0644\u0646\u0634\u0637\u0629\",\"col\":3}},{\"id\":\"owuCHhyuBv\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"\u0627\u0644\u0623\u062d\u062f\u0627\u062b \u0627\u0644\u0623\u0645\u0646\u064a\u0629\",\"col\":3}},{\"id\":\"TeLVS2Qbp_\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"UyJHF-htRL\",\"type\":\"chart\",\"data\":{\"chart_name\":\"\u0645\u0646\u0635\u0627\u062a \u0627\u0644\u0623\u062c\u0647\u0632\u0629\",\"col\":6}},{\"id\":\"ltc8QGO4ZK\",\"type\":\"chart\",\"data\":{\"chart_name\":\"\u0623\u062d\u062f\u0627\u062b \u0627\u0644\u062a\u062f\u0642\u064a\u0642\",\"col\":6}},{\"id\":\"J2OvZEc3Q2\",\"type\":\"chart\",\"data\":{\"chart_name\":\"\u062d\u0627\u0644\u0629 \u0627\u0644\u0645\u0632\u0627\u0645\u0646\u0629\",\"col\":12}},{\"id\":\"X0oZQSbANm\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"cloud-card-2\",\"type\":\"card\",\"data\":{\"card_name\":\"\u0627\u0644\u062a\u0639\u0627\u0648\u0646 \u0648\u0627\u0644\u0648\u0635\u0648\u0644\",\"col\":4}},{\"id\":\"cloud-card-3\",\"type\":\"card\",\"data\":{\"card_name\":\"\u0627\u0644\u062a\u0642\u0627\u0631\u064a\u0631 \u0648\u0627\u0644\u0636\u0628\u0637\",\"col\":4}},{\"id\":\"cloud-card-1\",\"type\":\"card\",\"data\":{\"card_name\":\"\u0627\u0644\u0645\u0632\u0627\u0645\u0646\u0629 \u0648\u0627\u0644\u062c\u0648\u062f\u0629\",\"col\":4}}]",
+ "creation": "2026-03-22 12:00:00",
  "custom_blocks": [],
  "docstatus": 0,
  "doctype": "Workspace",
  "for_user": "",
  "hide_custom": 0,
  "icon": "cloud",
+ "idx": 0,
  "indicator_color": "blue",
  "is_hidden": 0,
  "label": "Hisabi Cloud Control",
  "links": [
-  { "hidden": 0, "is_query_report": 0, "label": "المزامنة والجودة", "link_count": 4, "link_type": "DocType", "onboard": 0, "type": "Card Break" },
-  { "hidden": 0, "is_query_report": 0, "label": "عمليات المزامنة", "link_count": 0, "link_to": "Hisabi Sync Op", "link_type": "DocType", "onboard": 0, "type": "Link" },
-  { "hidden": 0, "is_query_report": 0, "label": "سجل التدقيق", "link_count": 0, "link_to": "Hisabi Audit Log", "link_type": "DocType", "onboard": 0, "type": "Link" },
-  { "hidden": 0, "is_query_report": 0, "label": "الأجهزة", "link_count": 0, "link_to": "Hisabi Device", "link_type": "DocType", "onboard": 0, "type": "Link" },
-  { "hidden": 0, "is_query_report": 0, "label": "مستخدمو Hisabi", "link_count": 0, "link_to": "Hisabi User", "link_type": "DocType", "onboard": 0, "type": "Link" },
-
-  { "hidden": 0, "is_query_report": 0, "label": "التعاون والوصول", "link_count": 4, "link_type": "DocType", "onboard": 0, "type": "Card Break" },
-  { "hidden": 0, "is_query_report": 0, "label": "المحافظ", "link_count": 0, "link_to": "Hisabi Wallet", "link_type": "DocType", "onboard": 0, "type": "Link" },
-  { "hidden": 0, "is_query_report": 0, "label": "أعضاء المحفظة", "link_count": 0, "link_to": "Hisabi Wallet Member", "link_type": "DocType", "onboard": 0, "type": "Link" },
-  { "hidden": 0, "is_query_report": 0, "label": "دعوات المحفظة", "link_count": 0, "link_to": "Hisabi Wallet Invite", "link_type": "DocType", "onboard": 0, "type": "Link" },
-  { "hidden": 0, "is_query_report": 0, "label": "الإعدادات", "link_count": 0, "link_to": "Hisabi Settings", "link_type": "DocType", "onboard": 0, "type": "Link" },
-
-  { "hidden": 0, "is_query_report": 0, "label": "التقارير والضبط", "link_count": 4, "link_type": "DocType", "onboard": 0, "type": "Card Break" },
-  { "hidden": 0, "is_query_report": 1, "label": "نظرة صحة المزامنة", "link_count": 0, "link_to": "Hisabi Sync Health Overview", "link_type": "Report", "onboard": 0, "type": "Link" },
-  { "hidden": 0, "is_query_report": 0, "label": "أسعار الصرف", "link_count": 0, "link_to": "Hisabi FX Rate", "link_type": "DocType", "onboard": 0, "type": "Link" },
-  { "hidden": 0, "is_query_report": 0, "label": "العملات المخصصة", "link_count": 0, "link_to": "Hisabi Custom Currency", "link_type": "DocType", "onboard": 0, "type": "Link" },
-  { "hidden": 0, "is_query_report": 0, "label": "قوالب الصناديق", "link_count": 0, "link_to": "Hisabi Bucket Template", "link_type": "DocType", "onboard": 0, "type": "Link" }
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "\u0627\u0644\u0645\u0632\u0627\u0645\u0646\u0629 \u0648\u0627\u0644\u062c\u0648\u062f\u0629",
+   "link_count": 4,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "\u0639\u0645\u0644\u064a\u0627\u062a \u0627\u0644\u0645\u0632\u0627\u0645\u0646\u0629",
+   "link_count": 0,
+   "link_to": "Hisabi Sync Op",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "\u0633\u062c\u0644 \u0627\u0644\u062a\u062f\u0642\u064a\u0642",
+   "link_count": 0,
+   "link_to": "Hisabi Audit Log",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "\u0627\u0644\u0623\u062c\u0647\u0632\u0629",
+   "link_count": 0,
+   "link_to": "Hisabi Device",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "\u0645\u0633\u062a\u062e\u062f\u0645\u0648 Hisabi",
+   "link_count": 0,
+   "link_to": "Hisabi User",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "\u0627\u0644\u062a\u0639\u0627\u0648\u0646 \u0648\u0627\u0644\u0648\u0635\u0648\u0644",
+   "link_count": 4,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "\u0627\u0644\u0645\u062d\u0627\u0641\u0638",
+   "link_count": 0,
+   "link_to": "Hisabi Wallet",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "\u0623\u0639\u0636\u0627\u0621 \u0627\u0644\u0645\u062d\u0641\u0638\u0629",
+   "link_count": 0,
+   "link_to": "Hisabi Wallet Member",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "\u062f\u0639\u0648\u0627\u062a \u0627\u0644\u0645\u062d\u0641\u0638\u0629",
+   "link_count": 0,
+   "link_to": "Hisabi Wallet Invite",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "\u0627\u0644\u0625\u0639\u062f\u0627\u062f\u0627\u062a",
+   "link_count": 0,
+   "link_to": "Hisabi Settings",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "\u0627\u0644\u062a\u0642\u0627\u0631\u064a\u0631 \u0648\u0627\u0644\u0636\u0628\u0637",
+   "link_count": 4,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "\u0646\u0638\u0631\u0629 \u0635\u062d\u0629 \u0627\u0644\u0645\u0632\u0627\u0645\u0646\u0629",
+   "link_count": 0,
+   "link_to": "Hisabi Sync Health Overview",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "\u0623\u0633\u0639\u0627\u0631 \u0627\u0644\u0635\u0631\u0641",
+   "link_count": 0,
+   "link_to": "Hisabi FX Rate",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "\u0627\u0644\u0639\u0645\u0644\u0627\u062a \u0627\u0644\u0645\u062e\u0635\u0635\u0629",
+   "link_count": 0,
+   "link_to": "Hisabi Custom Currency",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "\u0642\u0648\u0627\u0644\u0628 \u0627\u0644\u0635\u0646\u0627\u062f\u064a\u0642",
+   "link_count": 0,
+   "link_to": "Hisabi Bucket Template",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  }
  ],
- "modified": "2026-03-22 12:00:00.000000",
+ "modified": "2026-03-22 13:23:51.185116",
  "modified_by": "Administrator",
  "module": "Hisabi Backend",
  "name": "Hisabi Cloud Control",
  "number_cards": [
-  { "number_card_name": "Hisabi Active Devices", "label": "الأجهزة النشطة" },
-  { "number_card_name": "Hisabi Sync Conflicts", "label": "تعارضات المزامنة" },
-  { "number_card_name": "Hisabi Sync Errors", "label": "أخطاء المزامنة" },
-  { "number_card_name": "Hisabi Security Events", "label": "الأحداث الأمنية" }
+  {
+   "label": "\u0623\u062e\u0637\u0627\u0621 \u0627\u0644\u0645\u0632\u0627\u0645\u0646\u0629",
+   "number_card_name": "Hisabi Sync Errors"
+  },
+  {
+   "label": "\u062a\u0639\u0627\u0631\u0636\u0627\u062a \u0627\u0644\u0645\u0632\u0627\u0645\u0646\u0629",
+   "number_card_name": "Hisabi Sync Conflicts"
+  },
+  {
+   "label": "\u0627\u0644\u0623\u062c\u0647\u0632\u0629 \u0627\u0644\u0646\u0634\u0637\u0629",
+   "number_card_name": "Hisabi Active Devices"
+  },
+  {
+   "label": "\u0627\u0644\u0623\u062d\u062f\u0627\u062b \u0627\u0644\u0623\u0645\u0646\u064a\u0629",
+   "number_card_name": "Hisabi Security Events"
+  }
  ],
  "owner": "Administrator",
  "parent_page": "",
