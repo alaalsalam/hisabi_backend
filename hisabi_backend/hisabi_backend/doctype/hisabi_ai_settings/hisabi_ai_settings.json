@@ -1,0 +1,102 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "enable_openai",
+  "openai_api_key",
+  "openai_base_url",
+  "openai_text_model",
+  "openai_audio_model",
+  "runtime_status_section",
+  "last_runtime_sync",
+  "runtime_source",
+  "runtime_file_path"
+ ],
+ "fields": [
+  {
+   "default": "0",
+   "fieldname": "enable_openai",
+   "fieldtype": "Check",
+   "label": "Enable OpenAI"
+  },
+  {
+   "depends_on": "eval:doc.enable_openai==1",
+   "fieldname": "openai_api_key",
+   "fieldtype": "Password",
+   "label": "OpenAI API Key"
+  },
+  {
+   "depends_on": "eval:doc.enable_openai==1",
+   "fieldname": "openai_base_url",
+   "fieldtype": "Data",
+   "label": "OpenAI Base URL"
+  },
+  {
+   "default": "gpt-5-mini",
+   "depends_on": "eval:doc.enable_openai==1",
+   "fieldname": "openai_text_model",
+   "fieldtype": "Data",
+   "label": "OpenAI Text Model"
+  },
+  {
+   "default": "gpt-4o-mini-transcribe",
+   "depends_on": "eval:doc.enable_openai==1",
+   "fieldname": "openai_audio_model",
+   "fieldtype": "Data",
+   "label": "OpenAI Audio Model"
+  },
+  {
+   "fieldname": "runtime_status_section",
+   "fieldtype": "Section Break",
+   "label": "Runtime Sync Status"
+  },
+  {
+   "fieldname": "last_runtime_sync",
+   "fieldtype": "Datetime",
+   "label": "Last Runtime Sync",
+   "read_only": 1
+  },
+  {
+   "fieldname": "runtime_source",
+   "fieldtype": "Data",
+   "label": "Runtime Source",
+   "read_only": 1
+  },
+  {
+   "fieldname": "runtime_file_path",
+   "fieldtype": "Data",
+   "label": "Runtime File Path",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "module": "Hisabi Backend",
+ "name": "Hisabi AI Settings",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Hisabi Admin",
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "name"
+}
