@@ -67,6 +67,12 @@ def ensure_default_wallet_for_user(user: str, device_id: Optional[str] = None) -
     profile = get_or_create_hisabi_user(user)
     default_wallet = getattr(profile, "default_wallet", None)
     if default_wallet and frappe.db.exists("Hisabi Wallet", default_wallet):
+        try:
+            from hisabi_backend.api.v1.bucket_templates import ensure_wallet_bucket_defaults
+
+            ensure_wallet_bucket_defaults(default_wallet, user=user)
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), "ensure_default_wallet_for_user:bucket_defaults")
         return default_wallet
 
     row = frappe.db.get_value(
@@ -79,6 +85,12 @@ def ensure_default_wallet_for_user(user: str, device_id: Optional[str] = None) -
     if row and row.wallet:
         profile.default_wallet = row.wallet
         profile.save(ignore_permissions=True)
+        try:
+            from hisabi_backend.api.v1.bucket_templates import ensure_wallet_bucket_defaults
+
+            ensure_wallet_bucket_defaults(row.wallet, user=user)
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), "ensure_default_wallet_for_user:bucket_defaults")
         return row.wallet
 
     # Fall back to any non-removed membership before creating a new wallet.
@@ -92,6 +104,12 @@ def ensure_default_wallet_for_user(user: str, device_id: Optional[str] = None) -
     if row and row.wallet:
         profile.default_wallet = row.wallet
         profile.save(ignore_permissions=True)
+        try:
+            from hisabi_backend.api.v1.bucket_templates import ensure_wallet_bucket_defaults
+
+            ensure_wallet_bucket_defaults(row.wallet, user=user)
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), "ensure_default_wallet_for_user:bucket_defaults")
         return row.wallet
 
     wallet_id = f"wallet-u-{frappe.generate_hash(user, length=12)}"
@@ -119,6 +137,12 @@ def ensure_default_wallet_for_user(user: str, device_id: Optional[str] = None) -
 
     profile.default_wallet = wallet_id
     profile.save(ignore_permissions=True)
+    try:
+        from hisabi_backend.api.v1.bucket_templates import ensure_wallet_bucket_defaults
+
+        ensure_wallet_bucket_defaults(wallet_id, user=user)
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "ensure_default_wallet_for_user:bucket_defaults")
     return wallet_id
 
 

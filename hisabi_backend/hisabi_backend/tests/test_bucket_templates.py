@@ -6,6 +6,7 @@ from frappe.utils.password import update_password
 
 from hisabi_backend.api.v1.bucket_templates import (
     create_bucket_template,
+    ensure_wallet_bucket_defaults,
     get_default_bucket_template,
     list_bucket_templates,
 )
@@ -71,6 +72,13 @@ class TestBucketTemplates(FrappeTestCase):
         ]
 
     def test_api_create_list_and_get_default(self):
+        frappe.db.set_value(
+            "Hisabi Bucket Template",
+            {"wallet_id": self.wallet_id, "is_deleted": 0, "is_default": 1},
+            {"is_default": 0, "is_active": 0},
+            update_modified=False,
+        )
+
         created = create_bucket_template(
             wallet_id=self.wallet_id,
             title="Salary Split",
@@ -83,9 +91,10 @@ class TestBucketTemplates(FrappeTestCase):
 
         listed = list_bucket_templates(wallet_id=self.wallet_id, include_inactive=1, device_id=self.device_id)
         templates = listed.get("templates") or []
-        self.assertEqual(len(templates), 1)
-        self.assertEqual(templates[0].get("is_default"), 1)
-        self.assertEqual(len(templates[0].get("template_items") or []), 2)
+        salary_template = next((row for row in templates if row.get("title") == "Salary Split"), None)
+        self.assertTrue(salary_template, msg=templates)
+        self.assertEqual(salary_template.get("is_default"), 1)
+        self.assertEqual(len(salary_template.get("template_items") or []), 2)
 
         default_payload = get_default_bucket_template(wallet_id=self.wallet_id, device_id=self.device_id)
         default_template = default_payload.get("template") or {}
@@ -156,3 +165,27 @@ class TestBucketTemplates(FrappeTestCase):
         doc = frappe.get_doc("Hisabi Bucket Template", template_id)
         self.assertEqual(doc.title, "Sync Template")
         self.assertEqual(len(doc.template_items or []), 2)
+
+    def test_ensure_wallet_bucket_defaults_repairs_category_links(self):
+        category = frappe.get_doc(
+            {
+                "doctype": "Hisabi Category",
+                "client_id": "cat-groceries",
+                "category_name": "بقالة البيت",
+                "kind": "expense",
+                "user": self.user.name,
+                "wallet_id": self.wallet_id,
+            }
+        ).insert(ignore_permissions=True)
+
+        outcome = ensure_wallet_bucket_defaults(self.wallet_id, user=self.user.name)
+        self.assertGreaterEqual(outcome.get("created_buckets", 0), 0)
+
+        category.reload()
+        self.assertTrue(category.default_bucket)
+
+        bucket = frappe.get_doc("Hisabi Bucket", category.default_bucket)
+        self.assertIn(bucket.title, {"الشخصية", "الالتزامات", "الادخار", "الاستثمار", "الصحة", "الصدقات"})
+
+        default_payload = get_default_bucket_template(wallet_id=self.wallet_id, device_id=self.device_id)
+        self.assertTrue((default_payload.get("template") or {}).get("id"))
