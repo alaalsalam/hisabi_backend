@@ -613,7 +613,7 @@ def report_summary(
         wallet_id=wallet_id,
         from_date=from_date,
         to_date=to_date,
-        currency=currency,
+        currency=None,
         account_id=account_id,
         category_id=category_id,
         type_filter=type,
