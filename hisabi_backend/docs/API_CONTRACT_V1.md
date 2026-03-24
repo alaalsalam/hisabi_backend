@@ -142,21 +142,33 @@ This document covers v1 endpoints used by the current frontend for **sync + repo
 - Optional query params: `from_date`, `to_date`
 - Response shape: `{ "message": { "budgets": [...], "server_time": "..." } }`
 
-### 5) Finance Goals
+### 5) Workspace Overview
+- Path: `/api/method/hisabi_backend.api.v1.reports_finance.report_workspace_overview`
+- Method: `GET`
+- Required headers: `Authorization`
+- Required query params: `wallet_id`
+- Optional query params: `from_date`, `to_date`, `currency`, `account_id`, `category_id`, `type`
+- Behavior:
+  - Reuses the same finance summary authority used by `report_summary`.
+  - `wallet`, `recent_transactions`, and focus rows return client-facing ids.
+  - Focus rows and recent activity dates are normalized to ISO strings.
+- Response shape: `{ "message": { "wallet": {...}, "highlights": {...}, "quick_stats": [...], "sync_health": {...}, "operational_alerts": {...}, "budgets_focus": [...], "goals_focus": [...], "debts_focus": [...], "recent_transactions": [...], "from_date": "...", "to_date": "...", "server_time": "..." } }`
+
+### 6) Finance Goals
 - Path: `/api/method/hisabi_backend.api.v1.reports_finance.report_goals`
 - Method: `GET`
 - Required headers: `Authorization`
 - Required query params: `wallet_id`
 - Response shape: `{ "message": { "goals": [...], "server_time": "..." } }`
 
-### 6) Finance Debts
+### 7) Finance Debts
 - Path: `/api/method/hisabi_backend.api.v1.reports_finance.report_debts`
 - Method: `GET`
 - Required headers: `Authorization`
 - Required query params: `wallet_id`
 - Response shape: `{ "message": { "debts": [...], "totals": {...}, "server_time": "..." } }`
 
-### 7) Bucket Summary
+### 8) Bucket Summary
 - Path: `/api/method/hisabi_backend.api.v1.reports.bucket_summary`
 - Method: `GET`
 - Required headers: `Authorization`
@@ -164,7 +176,7 @@ This document covers v1 endpoints used by the current frontend for **sync + repo
 - Optional query params: `from_date`, `to_date`, `currency`
 - Response shape: `{ "message": { "buckets": [...], "server_time": "..." } }`
 
-### 8) Bucket Rules
+### 9) Bucket Rules
 - Path: `/api/method/hisabi_backend.api.v1.reports.bucket_rules`
 - Method: `GET`
 - Required headers: `Authorization`

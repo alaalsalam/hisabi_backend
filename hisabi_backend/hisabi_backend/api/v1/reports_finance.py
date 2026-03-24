@@ -142,6 +142,13 @@ def _as_iso(value: Any) -> Optional[str]:
     return dt.isoformat() if dt else None
 
 
+def _as_iso_date(value: Any) -> Optional[str]:
+    if not value:
+        return None
+    dt = get_datetime(value)
+    return dt.date().isoformat() if dt else None
+
+
 def _resolve_fx_rate(
     *,
     wallet_id: str,
@@ -829,13 +836,13 @@ def report_workspace_overview(
     recent_transactions = frappe.db.sql(
         """
         SELECT
-            tx.name AS transaction,
+            tx.client_id AS transaction,
             tx.transaction_type,
             tx.amount,
             tx.currency,
-            tx.account,
+            COALESCE(acc.client_id, tx.account) AS account,
             acc.account_name,
-            tx.category,
+            COALESCE(cat.client_id, tx.category) AS category,
             cat.category_name,
             tx.date_time,
             tx.note
@@ -854,7 +861,7 @@ def report_workspace_overview(
     budgets_focus = frappe.db.sql(
         """
         SELECT
-            name AS id,
+            COALESCE(client_id, name) AS id,
             budget_name AS title,
             CONCAT(COALESCE(spent_amount, 0), ' / ', COALESCE(amount, 0)) AS subtitle,
             COALESCE(amount - spent_amount, 0) AS amount,
@@ -888,7 +895,7 @@ def report_workspace_overview(
     goals_focus = frappe.db.sql(
         """
         SELECT
-            name AS id,
+            COALESCE(client_id, name) AS id,
             goal_name AS title,
             goal_type AS subtitle,
             remaining_amount AS amount,
@@ -909,7 +916,7 @@ def report_workspace_overview(
     debts_focus = frappe.db.sql(
         """
         SELECT
-            name AS id,
+            COALESCE(client_id, name) AS id,
             debt_name AS title,
             direction AS subtitle,
             remaining_amount AS amount,
@@ -1040,10 +1047,12 @@ def report_workspace_overview(
             "goals_off_track": goals_off_track,
             "debts_due_soon": debts_due_soon,
         },
-        "budgets_focus": budgets_focus,
-        "goals_focus": goals_focus,
-        "debts_focus": debts_focus,
+        "budgets_focus": [{**row, "due_date": _as_iso_date(row.get("due_date"))} for row in budgets_focus],
+        "goals_focus": [{**row, "due_date": _as_iso_date(row.get("due_date"))} for row in goals_focus],
+        "debts_focus": [{**row, "due_date": _as_iso_date(row.get("due_date"))} for row in debts_focus],
         "recent_transactions": [{**row, "date_time": _as_iso(row.get("date_time"))} for row in recent_transactions],
+        "from_date": from_date,
+        "to_date": to_date,
         "server_time": now_datetime().isoformat(),
     }
 

@@ -318,6 +318,8 @@ class TestReportsContractV2(FrappeTestCase):
 
     def test_workspace_overview_contract(self):
         self._ensure_wallet_base_currency("SAR")
+        from_date = now_datetime().date().isoformat()
+        debt_due_date = add_days(now_datetime(), 3).date().isoformat()
         self._push(
             [
                 {
@@ -345,6 +347,37 @@ class TestReportsContractV2(FrappeTestCase):
                     },
                 },
                 {
+                    "op_id": "op-r4-budget-1",
+                    "entity_type": "Hisabi Budget",
+                    "entity_id": "budget-r4-1",
+                    "operation": "create",
+                    "payload": {
+                        "client_id": "budget-r4-1",
+                        "budget_name": "Ops Budget",
+                        "period": "monthly",
+                        "scope_type": "category",
+                        "category": "cat-r4-1",
+                        "currency": "SAR",
+                        "amount": 200,
+                        "start_date": from_date,
+                        "end_date": add_days(now_datetime(), 30).date().isoformat(),
+                    },
+                },
+                {
+                    "op_id": "op-r4-debt-1",
+                    "entity_type": "Hisabi Debt",
+                    "entity_id": "debt-r4-1",
+                    "operation": "create",
+                    "payload": {
+                        "client_id": "debt-r4-1",
+                        "debt_name": "Ops Debt",
+                        "direction": "owe",
+                        "principal_amount": 70,
+                        "currency": "SAR",
+                        "due_date": debt_due_date,
+                    },
+                },
+                {
                     "op_id": "op-r4-tx-1",
                     "entity_type": "Hisabi Transaction",
                     "entity_id": "tx-r4-1",
@@ -363,7 +396,25 @@ class TestReportsContractV2(FrappeTestCase):
             ]
         )
 
-        workspace = report_workspace_overview(wallet_id=self.wallet_id, device_id=self.device_id)
+        goal = frappe.new_doc("Hisabi Goal")
+        goal.user = frappe.session.user
+        goal.wallet_id = self.wallet_id
+        goal.client_id = "goal-r4-1"
+        goal.name = "goal-r4-1"
+        goal.goal_name = "Ops Goal"
+        goal.goal_type = "save"
+        goal.target_amount = 300
+        goal.currency = "SAR"
+        goal.status = "active"
+        goal.target_date = add_days(now_datetime(), 20).date().isoformat()
+        goal.insert(ignore_permissions=True)
+
+        workspace = report_workspace_overview(
+            wallet_id=self.wallet_id,
+            device_id=self.device_id,
+            from_date=from_date,
+            to_date=add_days(now_datetime(), 30).date().isoformat(),
+        )
         self.assertEqual((workspace.get("wallet") or {}).get("wallet_id"), self.wallet_id)
         self.assertIn((workspace.get("wallet") or {}).get("role"), {"owner", "admin", "member", "viewer"})
         self.assertEqual((workspace.get("wallet") or {}).get("base_currency"), "SAR")
@@ -373,7 +424,23 @@ class TestReportsContractV2(FrappeTestCase):
         self.assertIsInstance(workspace.get("recent_transactions"), list)
         self.assertIsInstance(workspace.get("sync_health"), dict)
         self.assertIsInstance(workspace.get("operational_alerts"), dict)
-        self.assertTrue(any(row.get("note") == "Workspace smoke" for row in workspace.get("recent_transactions") or []))
+        self.assertEqual(workspace.get("from_date"), from_date)
+        recent_row = next((row for row in (workspace.get("recent_transactions") or []) if row.get("transaction") == "tx-r4-1"), {})
+        self.assertEqual(recent_row.get("account"), "acc-r4-1")
+        self.assertEqual(recent_row.get("category"), "cat-r4-1")
+        self.assertEqual(recent_row.get("note"), "Workspace smoke")
+
+        budget_row = next((row for row in (workspace.get("budgets_focus") or []) if row.get("id") == "budget-r4-1"), {})
+        self.assertEqual(budget_row.get("title"), "Ops Budget")
+        self.assertIsInstance(budget_row.get("due_date"), str)
+
+        goal_row = next((row for row in (workspace.get("goals_focus") or []) if row.get("id") == "goal-r4-1"), {})
+        self.assertEqual(goal_row.get("title"), "Ops Goal")
+        self.assertIsInstance(goal_row.get("due_date"), str)
+
+        debt_row = next((row for row in (workspace.get("debts_focus") or []) if row.get("id") == "debt-r4-1"), {})
+        self.assertEqual(debt_row.get("title"), "Ops Debt")
+        self.assertEqual(debt_row.get("due_date"), debt_due_date)
 
     def test_report_summary_matches_frontend_contract_shape(self):
         self._ensure_wallet_base_currency("SAR")
