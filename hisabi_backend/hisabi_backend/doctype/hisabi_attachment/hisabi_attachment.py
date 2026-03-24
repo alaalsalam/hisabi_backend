@@ -21,6 +21,12 @@ class HisabiAttachment(Document):
         if self.owner_entity_type == "Hisabi Transaction":
             tx_wallet = frappe.get_value("Hisabi Transaction", self.owner_client_id, "wallet_id")
             if not tx_wallet:
+                tx_wallet = frappe.get_value(
+                    "Hisabi Transaction",
+                    {"client_id": self.owner_client_id, "wallet_id": self.wallet_id},
+                    "wallet_id",
+                )
+            if not tx_wallet:
                 frappe.throw(_("Transaction not found"), frappe.ValidationError)
             if self.wallet_id and tx_wallet != self.wallet_id:
                 frappe.throw(_("Transaction is not in this wallet"), frappe.PermissionError)

@@ -515,7 +515,7 @@ SYNC_PUSH_REQUIRED_FIELDS_CREATE = {
     "Hisabi Recurring Instance": {"rule_id", "occurrence_date", "status"},
     "Hisabi Jameya": {"jameya_name", "monthly_amount", "total_members", "my_turn", "start_date"},
     "Hisabi Jameya Payment": {"jameya"},
-    "Hisabi Attachment": {"owner_entity_type", "owner_client_id", "file_mime", "file_size"},
+    "Hisabi Attachment": {"owner_entity_type", "owner_client_id", "mime_type", "file_size"},
 }
 
 SYNC_PUSH_REQUIRED_FIELD_GROUPS = {
@@ -577,6 +577,8 @@ SYNC_PUSH_FIELD_TYPES = {
     "start_date": "string",
     "owner_entity_type": "string",
     "owner_client_id": "string",
+    "file_name": "string",
+    "mime_type": "string",
     "file_mime": "string",
     "rrule_type": "string",
     "byweekday": "string",
@@ -667,6 +669,8 @@ SYNC_CLIENT_IGNORED_FIELDS = SYNC_PULL_SYSTEM_FIELDS | {
     "server_modified",
     "docVersion",
     "serverModified",
+    "selectedWalletId",
+    "selected_wallet_id",
 }
 
 FIELD_MAP = {
@@ -766,6 +770,14 @@ FIELD_MAP = {
     },
     "Hisabi Debt": {"name": "debt_name", "title": "debt_name"},
     "Hisabi Jameya": {"name": "jameya_name", "title": "jameya_name"},
+    "Hisabi Attachment": {
+        "fileId": "file_id",
+        "fileUrl": "file_url",
+        "fileName": "file_name",
+        "fileMime": "mime_type",
+        "file_mime": "mime_type",
+        "sha256Hash": "sha256",
+    },
     "Hisabi Transaction": {
         "type": "transaction_type",
         "account_id": "account",
@@ -1118,6 +1130,26 @@ def _resolve_account_doc(
             return doc
 
     return _get_doc_by_client_id("Hisabi Account", user, ref, wallet_id=wallet_id)
+
+
+def _resolve_doc_name(
+    doctype: str,
+    ref: Any,
+    *,
+    user: str,
+    wallet_id: str,
+) -> Optional[str]:
+    if not ref:
+        return None
+    value = str(ref).strip()
+    if not value:
+        return None
+    if frappe.db.exists(doctype, value):
+        doc = frappe.get_doc(doctype, value)
+        if getattr(doc, "wallet_id", None) == wallet_id:
+            return doc.name
+    doc = _get_doc_by_client_id(doctype, user, value, wallet_id=wallet_id)
+    return doc.name if doc else None
 
 
 def _is_multi_currency_parent(account_doc: frappe.model.document.Document | None) -> bool:
@@ -2780,6 +2812,22 @@ def sync_push(
                         payload["currency"] = base_currency
                     if payload.get("target_amount") is None and payload.get("target_amount_base") is not None:
                         payload["target_amount"] = payload.get("target_amount_base")
+                    linked_account_name = _resolve_doc_name(
+                        "Hisabi Account",
+                        payload.get("linked_account") or payload.get("linked_account_id"),
+                        user=user,
+                        wallet_id=wallet_id,
+                    )
+                    if linked_account_name:
+                        payload["linked_account"] = linked_account_name
+                    linked_debt_name = _resolve_doc_name(
+                        "Hisabi Debt",
+                        payload.get("linked_debt") or payload.get("linked_debt_id"),
+                        user=user,
+                        wallet_id=wallet_id,
+                    )
+                    if linked_debt_name:
+                        payload["linked_debt"] = linked_debt_name
 
             if entity_type == "Hisabi Account" and operation != "delete":
                 payload = dict(payload)

@@ -1,7 +1,8 @@
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
-from hisabi_backend.api.v1.auth_v2 import register_user as register_user_v2
+from hisabi_backend.api.v1.auth import register_device
+from hisabi_backend.api.v1 import wallet_create
 from hisabi_backend.api.v1.sync import sync_push
 from hisabi_backend.install import ensure_roles
 
@@ -13,24 +14,27 @@ class TestAttachmentsSync(FrappeTestCase):
     def _set_bearer(self, token: str):
         frappe.local.request = frappe._dict(headers={"Authorization": f"Bearer {token}"}, remote_addr="1.2.3.4")
 
-    def test_attachment_sync_create(self):
-        phone = f"+1555{frappe.generate_hash(length=6)}"
-        password = "testpass123"
-        device_id = f"dev-{frappe.generate_hash(length=8)}"
+    def _sync_push_message(self, **kwargs):
+        response = sync_push(**kwargs)
+        if isinstance(response, dict):
+            return response
+        if hasattr(response, "get_data"):
+            payload = frappe.parse_json(response.get_data(as_text=True) or "{}")
+            return payload.get("message", payload)
+        return response
 
-        res = register_user_v2(
-            phone=phone,
-            full_name="Attachment User",
-            password=password,
-            device={"device_id": device_id, "platform": "android"},
-        )
-        token = res["auth"]["token"]
-        wallet_id = res["default_wallet_id"]
+    def test_attachment_sync_create(self):
+        device_id = f"dev-{frappe.generate_hash(length=8)}"
+        device = register_device(device_id, "android", "Pixel Attachment")
+        token = device["device_token"]
         self._set_bearer(token)
+        wallet_id = f"wallet-att-{frappe.generate_hash(length=6)}"
+        wallet_create(client_id=wallet_id, wallet_name="Attachment Wallet", device_id=device_id)
 
         now = frappe.utils.now_datetime().isoformat()
         items = [
             {
+                "op_id": "op-acc-test-1",
                 "entity_type": "Hisabi Account",
                 "entity_id": "acc-test-1",
                 "operation": "create",
@@ -40,10 +44,10 @@ class TestAttachmentsSync(FrappeTestCase):
                     "type": "cash",
                     "currency": "SAR",
                     "opening_balance": 100,
-                    "current_balance": 100,
                 },
             },
             {
+                "op_id": "op-tx-test-1",
                 "entity_type": "Hisabi Transaction",
                 "entity_id": "tx-test-1",
                 "operation": "create",
@@ -58,6 +62,7 @@ class TestAttachmentsSync(FrappeTestCase):
                 },
             },
             {
+                "op_id": "op-att-test-1",
                 "entity_type": "Hisabi Attachment",
                 "entity_id": "att-test-1",
                 "operation": "create",
@@ -74,10 +79,10 @@ class TestAttachmentsSync(FrappeTestCase):
             },
         ]
 
-        out = sync_push(device_id=device_id, wallet_id=wallet_id, items=items)
+        out = self._sync_push_message(device_id=device_id, wallet_id=wallet_id, items=items)
         results = out.get("results") or []
         self.assertEqual(len(results), 3)
-        self.assertTrue(all(r.get("status") == "accepted" for r in results))
+        self.assertTrue(all(r.get("status") == "accepted" for r in results), out)
 
         doc = frappe.get_doc("Hisabi Attachment", "att-test-1")
         self.assertEqual(doc.owner_entity_type, "Hisabi Transaction")

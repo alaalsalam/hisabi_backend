@@ -39,8 +39,8 @@ Source: `hisabi_backend/hisabi_backend/doctype/*/*.json`
 - **Hisabi Sync Op**: `hisabi_backend/doctype/hisabi_sync_op/hisabi_sync_op.json` (op_id, entity_type, status, result_json, server_modified).
 - **Hisabi Audit Log**: `hisabi_backend/doctype/hisabi_audit_log/hisabi_audit_log.json` (event_type, device_id, ip, user_agent, payload_json).
 
-### Notably referenced but missing
-- **Hisabi Attachment** is referenced in `hisabi_backend/api/v1/sync.py` (DOCTYPE_LIST) and `hooks.py` (doc_events), but there is **no** `hisabi_attachment` DocType folder or JSON in this repo.
+### Recently closed coverage
+- **Hisabi Attachment** now exists as a DocType/controller under `hisabi_backend/doctype/hisabi_attachment/` and is part of the wallet-scoped sync contract.
 
 ## DocType controllers & validations
 Source: `hisabi_backend/doctype/*/*.py`
@@ -115,4 +115,3 @@ Source: `hisabi_backend/api/v1/*.py`
   - `hisabi_backend.patches.v1_0.backfill_default_wallets`
   - `hisabi_backend.patches.v1_3.remove_user_custom_fields`
 - Patch modules in `patches/v1_0`, `patches/v1_1`, `patches/v1_2`, `patches/v1_3`.
-

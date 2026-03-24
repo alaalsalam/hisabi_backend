@@ -9,8 +9,8 @@ Scope: Implement only what the current frontend uses via sync, API calls, and co
 
 ## Must‑Fix Checklist (mapped to report evidence)
 
-### Missing DocTypes
-- **Hisabi Attachment**: frontend sync + receipt metadata requires it (`REPORT_frontend_data_model.md` Attachment; `REPORT_frontend_localdb_sync.md` sync tableMap includes `Hisabi Attachment`). Backend currently references it in `api/v1/sync.py` + `hooks.py` but DocType is missing (`REPORT_backend_current_state.md`, `REPORT_gap_matrix.md`).
+### Closed DocType coverage
+- **Hisabi Attachment**: implemented and now covered by the wallet-scoped sync contract and backend tests.
 
 ### Field mismatches (sync payloads)
 - **Account**: frontend uses `name` + `type` (`REPORT_frontend_data_model.md`) vs backend fields `account_name` + `account_type` (`REPORT_backend_current_state.md`).
@@ -38,7 +38,7 @@ Scope: Implement only what the current frontend uses via sync, API calls, and co
 
 ## Design: DocTypes & Fields (Parity Now)
 
-### 1) Add DocType: **Hisabi Attachment** (required by sync + receipt upload)
+### 1) Add DocType: **Hisabi Attachment** (completed)
 Source requirements: `REPORT_frontend_data_model.md` Attachment + `REPORT_frontend_localdb_sync.md` (sync includes `Hisabi Attachment`).
 
 Fields (snake_case to match `transformToFrappe` output):

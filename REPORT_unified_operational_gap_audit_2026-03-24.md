@@ -99,11 +99,9 @@
   - `hisabi_backend/REPORT_gap_matrix.md:11`
   - `hisabi_backend/REPORT_gap_matrix.md:12`
   - `hisabi_backend/REPORT_gap_matrix.md:18`
-- توجد كيانات frontend بدون backend coverage كامل:
-  - `Hisabi Attachment`: `hisabi_backend/REPORT_gap_matrix.md:25`
-  - `Subscriptions`: `hisabi_backend/REPORT_gap_matrix.md:33`
-  - `Split bills`: `hisabi_backend/REPORT_gap_matrix.md:34`
-  - `Family`: `hisabi_backend/REPORT_gap_matrix.md:35`
+- تم حسم تغطية الكيانات التشغيلية المتبقية:
+  - `Hisabi Attachment` أصبح backend-backed ضمن عقد v1.
+  - `Subscriptions` و`Split bills` و`Family` أصبحت `local-only` صريحة ضمن حدود v1 الحالية.
 
 **الإغلاق المطلوب**
 
@@ -231,7 +229,9 @@
 
 - `sync queue` يجب أن تصبح mostly preventive.
 - `dashboard/report/ledger` يجب أن تعمل على projection contract واحد.
-- `Attachments / Subscriptions / Split Bills / Family` يجب أن تحسم عقودها.
+- تم حسم `Attachments / Subscriptions / Split Bills / Family`:
+  - `Attachments` backend-backed ضمن عقد v1 الحالي.
+  - `Subscriptions / Split Bills / Family` حدودها `local-only` صريحة في v1.
 - كل mismatch موثق في `REPORT_gap_matrix.md` يجب إما إصلاحه أو وسمه رسميًا `local-only / deferred`.
 
 ### يمكن تأجيلها بعد الإطلاق الحذر

@@ -8,6 +8,8 @@
 - Sync push entity allowlist in `hisabi_backend/api/v1/sync.py` (`SYNC_PUSH_ALLOWLIST`).
 - Global bearer-auth enforcement on v1 endpoints in `utils/bearer_auth.py` + `hooks.py`.
 - Wallet role ACL checks in `utils/wallet_acl.py`.
+- `Hisabi Attachment` is backend-backed and inside the sync allowlist.
+- `Subscriptions`, `Split Bills`, and `Family` have no backend v1 contract and remain frontend-local by design.
 
 ## v1 Boundary Flags (Conceptual, Not Implemented)
 - `enableCollaboration=false`

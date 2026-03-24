@@ -818,6 +818,146 @@ class TestSyncV1(FrappeTestCase):
         self.assertEqual(parsed_notifications.get("enabled"), True)
         self.assertEqual(parsed_notifications.get("debtReminders"), False)
 
+    def test_sync_push_accepts_frontend_semantic_aliases_for_core_entities(self):
+        suffix = frappe.generate_hash(length=6)
+        settings_id = f"settings-front-{suffix}"
+        account_id = f"acc-front-{suffix}"
+        category_id = f"cat-front-{suffix}"
+        debt_id = f"debt-front-{suffix}"
+        budget_id = f"budget-front-{suffix}"
+        goal_id = f"goal-front-{suffix}"
+
+        response = sync_push(
+            device_id=self.device_id,
+            wallet_id=self.wallet_id,
+            items=[
+                {
+                    "op_id": f"op-settings-front-{suffix}",
+                    "entity_type": "Hisabi Settings",
+                    "entity_id": settings_id,
+                    "operation": "create",
+                    "payload": {
+                        "client_id": settings_id,
+                        "baseCurrency": "SAR",
+                        "enabledCurrencies": ["SAR", "USD"],
+                        "selectedWalletId": "wallet-client-only",
+                        "themeMode": "dark",
+                    },
+                },
+                {
+                    "op_id": f"op-account-front-{suffix}",
+                    "entity_type": "Hisabi Account",
+                    "entity_id": account_id,
+                    "operation": "create",
+                    "payload": {
+                        "client_id": account_id,
+                        "name": "Cash Front",
+                        "type": "cash",
+                        "currency": "SAR",
+                        "opening_balance": 120,
+                    },
+                },
+                {
+                    "op_id": f"op-category-front-{suffix}",
+                    "entity_type": "Hisabi Category",
+                    "entity_id": category_id,
+                    "operation": "create",
+                    "payload": {
+                        "client_id": category_id,
+                        "name": "Food Front",
+                        "kind": "expense",
+                    },
+                },
+                {
+                    "op_id": f"op-debt-front-{suffix}",
+                    "entity_type": "Hisabi Debt",
+                    "entity_id": debt_id,
+                    "operation": "create",
+                    "payload": {
+                        "client_id": debt_id,
+                        "name": "دين تجريبي",
+                        "direction": "owe",
+                        "principal_amount": 250,
+                        "currency": "SAR",
+                        "due_date": "2026-03-30",
+                    },
+                },
+                {
+                    "op_id": f"op-budget-front-{suffix}",
+                    "entity_type": "Hisabi Budget",
+                    "entity_id": budget_id,
+                    "operation": "create",
+                    "payload": {
+                        "client_id": budget_id,
+                        "name": "Budget Front",
+                        "period": "monthly",
+                        "scope_type": "category",
+                        "category_id": category_id,
+                        "currency": "SAR",
+                        "amount": 300,
+                        "start_date": "2026-03-01",
+                        "end_date": "2026-03-31",
+                    },
+                },
+            ],
+        )
+
+        self.assertTrue(all(row.get("status") == "accepted" for row in response.get("results", [])), response)
+
+        goal_response = sync_push(
+            device_id=self.device_id,
+            wallet_id=self.wallet_id,
+            items=[
+                {
+                    "op_id": f"op-goal-front-{suffix}",
+                    "entity_type": "Hisabi Goal",
+                    "entity_id": goal_id,
+                    "operation": "create",
+                    "payload": {
+                        "client_id": goal_id,
+                        "name": "Goal Front",
+                        "type": "pay_debt",
+                        "currency": "SAR",
+                        "target_amount": 1000,
+                        "linked_account_id": account_id,
+                        "linked_debt_id": debt_id,
+                    },
+                },
+            ],
+        )
+        self.assertEqual(goal_response["results"][0]["status"], "accepted", goal_response)
+
+        settings_name = frappe.get_value("Hisabi Settings", {"client_id": settings_id, "wallet_id": self.wallet_id})
+        self.assertTrue(settings_name)
+        settings = frappe.get_doc("Hisabi Settings", settings_name)
+        self.assertEqual(settings.base_currency, "SAR")
+        self.assertEqual(settings.theme_mode, "dark")
+        self.assertFalse(hasattr(settings, "selected_wallet_id"))
+
+        account = frappe.get_doc("Hisabi Account", account_id)
+        category = frappe.get_doc("Hisabi Category", category_id)
+        debt_name = frappe.get_value("Hisabi Debt", {"client_id": debt_id, "wallet_id": self.wallet_id})
+        self.assertTrue(debt_name)
+        debt = frappe.get_doc("Hisabi Debt", debt_name)
+        budget_name = frappe.get_value("Hisabi Budget", {"client_id": budget_id, "wallet_id": self.wallet_id})
+        goal_name = frappe.get_value("Hisabi Goal", {"client_id": goal_id, "wallet_id": self.wallet_id})
+        self.assertTrue(budget_name)
+        self.assertTrue(goal_name)
+        budget = frappe.get_doc("Hisabi Budget", budget_name)
+        goal = frappe.get_doc("Hisabi Goal", goal_name)
+
+        self.assertEqual(account.account_name, "Cash Front")
+        self.assertEqual(account.account_type, "cash")
+        self.assertEqual(category.category_name, "Food Front")
+        self.assertEqual(debt.debt_name, "دين تجريبي")
+        self.assertTrue(str(debt.due_date).startswith("2026-03-30"))
+        self.assertEqual(budget.budget_name, "Budget Front")
+        self.assertEqual(budget.category, category_id)
+        self.assertEqual(goal.goal_name, "Goal Front")
+        self.assertEqual(goal.goal_type, "pay_debt")
+        self.assertEqual(goal.linked_account, account_id)
+        self.assertEqual(goal.linked_debt, debt.name)
+
     def test_sync_push_rejects_sensitive_password_field_in_payload(self):
         response = sync_push(
             device_id=self.device_id,
