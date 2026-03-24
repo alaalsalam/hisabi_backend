@@ -177,13 +177,21 @@ def bucket_rules(wallet_id: Optional[str] = None, device_id: Optional[str] = Non
     rules = frappe.get_all(
         "Hisabi Allocation Rule",
         filters={"wallet_id": wallet_id, "is_deleted": 0},
-        fields=["name", "scope_type", "scope_ref", "is_default", "active"],
+        fields=["name", "client_id", "scope_type", "scope_ref", "is_default", "active"],
         order_by="server_modified desc, doc_version desc",
     )
     for rule in rules:
-        rule["rule"] = rule.get("name")
+        rule["rule"] = rule.get("client_id") or rule.get("name")
 
     rule_map = {rule.name: rule for rule in rules}
+    bucket_map = {
+        row.get("name"): row.get("client_id") or row.get("name")
+        for row in frappe.get_all(
+            "Hisabi Bucket",
+            filters={"wallet_id": wallet_id, "is_deleted": 0},
+            fields=["name", "client_id"],
+        )
+    }
     lines = frappe.get_all(
         "Hisabi Allocation Rule Line",
         filters={"wallet_id": wallet_id, "is_deleted": 0},
@@ -199,7 +207,7 @@ def bucket_rules(wallet_id: Optional[str] = None, device_id: Optional[str] = Non
         if not rule:
             continue
         rule["lines"].append({
-            "bucket": line.bucket,
+            "bucket": bucket_map.get(line.bucket, line.bucket),
             "percent": line.percent,
             "sort_order": line.sort_order,
         })

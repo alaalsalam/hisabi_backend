@@ -140,6 +140,10 @@ This document covers v1 endpoints used by the current frontend for **sync + repo
 - Required headers: `Authorization`
 - Required query params: `wallet_id`
 - Optional query params: `from_date`, `to_date`
+- Response rows expose frontend-facing aliases:
+  - `budget` uses `client_id` when available
+  - `percent` is the canonical progress field
+  - `start_date` / `end_date` are ISO date strings
 - Response shape: `{ "message": { "budgets": [...], "server_time": "..." } }`
 
 ### 5) Workspace Overview
@@ -159,6 +163,7 @@ This document covers v1 endpoints used by the current frontend for **sync + repo
 - Method: `GET`
 - Required headers: `Authorization`
 - Required query params: `wallet_id`
+- Response rows expose `goal` as the frontend-facing identifier (`client_id` when available).
 - Response shape: `{ "message": { "goals": [...], "server_time": "..." } }`
 
 ### 7) Finance Debts
@@ -166,6 +171,7 @@ This document covers v1 endpoints used by the current frontend for **sync + repo
 - Method: `GET`
 - Required headers: `Authorization`
 - Required query params: `wallet_id`
+- Response rows expose frontend-facing `name` and ISO `due_date`; response also includes `totals`.
 - Response shape: `{ "message": { "debts": [...], "totals": {...}, "server_time": "..." } }`
 
 ### 8) Bucket Summary
@@ -181,6 +187,7 @@ This document covers v1 endpoints used by the current frontend for **sync + repo
 - Method: `GET`
 - Required headers: `Authorization`
 - Required query params: `wallet_id`
+- Response rows expose `rule` as the frontend-facing identifier and line buckets use client-facing ids.
 - Response shape: `{ "message": { "rules": [...] } }`
 
 ## What is NOT Supported in v1 Contract

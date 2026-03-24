@@ -2126,7 +2126,7 @@ def report_budgets(
     budgets = frappe.get_all(
         "Hisabi Budget",
         filters={"wallet_id": wallet_id, "is_deleted": 0, "archived": 0},
-        fields=["name", "budget_name", "currency", "amount", "spent_amount", "start_date", "end_date"],
+        fields=["name", "client_id", "budget_name", "currency", "amount", "spent_amount", "start_date", "end_date"],
     )
 
     result = []
@@ -2141,10 +2141,12 @@ def report_budgets(
         result.append(
             {
                 **budget,
-                "budget": budget.get("name"),
+                "budget": budget.get("client_id") or budget.get("name"),
                 "remaining": amount - spent,
                 "spent_percent": percent,
                 "percent": percent,
+                "start_date": _as_iso_date(budget.get("start_date")),
+                "end_date": _as_iso_date(budget.get("end_date")),
             }
         )
 
@@ -2169,6 +2171,7 @@ def report_goals(wallet_id: Optional[str] = None, device_id: Optional[str] = Non
         filters={"wallet_id": wallet_id, "is_deleted": 0},
         fields=[
             "name",
+            "client_id",
             "goal_name",
             "goal_type",
             "currency",
@@ -2179,7 +2182,7 @@ def report_goals(wallet_id: Optional[str] = None, device_id: Optional[str] = Non
             "status",
         ],
     )
-    goals = [{**row, "goal": row.get("name")} for row in goals]
+    goals = [{**row, "goal": row.get("client_id") or row.get("name")} for row in goals]
     return {
         "goals": goals,
         "server_time": now_datetime().isoformat(),
@@ -2201,6 +2204,7 @@ def report_debts(wallet_id: Optional[str] = None, device_id: Optional[str] = Non
         filters={"wallet_id": wallet_id, "is_deleted": 0},
         fields=[
             "name",
+            "client_id",
             "debt_name",
             "direction",
             "currency",
@@ -2211,6 +2215,14 @@ def report_debts(wallet_id: Optional[str] = None, device_id: Optional[str] = Non
             "due_date",
         ],
     )
+    debts = [
+        {
+            **row,
+            "name": row.get("client_id") or row.get("name"),
+            "due_date": _as_iso_date(row.get("due_date")),
+        }
+        for row in debts
+    ]
     totals = {"owed_by_me": 0, "owed_to_me": 0, "net": 0}
     for row in debts:
         if row.get("direction") == "owe":

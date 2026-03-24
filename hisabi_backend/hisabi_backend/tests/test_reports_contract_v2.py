@@ -8,12 +8,16 @@ from frappe.utils.password import update_password
 from hisabi_backend.api.v1.reports_finance import (
     fx_rates_list,
     fx_rates_upsert,
+    report_budgets,
+    report_debts,
+    report_goals,
     report_cashflow,
     report_category_breakdown,
     report_summary,
     report_trends,
     report_workspace_overview,
 )
+from hisabi_backend.api.v1.reports import bucket_rules
 from hisabi_backend.api.v1.sync import sync_push
 from hisabi_backend.install import ensure_roles
 from hisabi_backend.utils.security import issue_device_token_for_device
@@ -603,3 +607,126 @@ class TestReportsContractV2(FrappeTestCase):
         self.assertEqual(jameya_row.get("next_amount"), 50)
         self.assertEqual(jameya_row.get("status"), "due")
         self.assertEqual(jameya_row.get("is_my_turn"), 1)
+
+    def test_report_endpoint_contract_aliases(self):
+        self._ensure_wallet_base_currency("SAR")
+        start_date = now_datetime().date().isoformat()
+        due_date = add_days(now_datetime(), 14).date().isoformat()
+
+        account = frappe.get_doc({
+            "doctype": "Hisabi Account",
+            "client_id": "acc-r6-1",
+            "account_name": "Report Cash",
+            "account_type": "cash",
+            "currency": "SAR",
+            "opening_balance": 0,
+            "user": self.user,
+            "wallet_id": self.wallet_id,
+        }).insert(ignore_permissions=True)
+
+        category = frappe.get_doc({
+            "doctype": "Hisabi Category",
+            "client_id": "cat-r6-1",
+            "category_name": "Report Ops",
+            "kind": "expense",
+            "user": self.user,
+            "wallet_id": self.wallet_id,
+        }).insert(ignore_permissions=True)
+
+        frappe.get_doc({
+            "doctype": "Hisabi Budget",
+            "client_id": "budget-r6-1",
+            "budget_name": "Report Budget",
+            "period": "monthly",
+            "scope_type": "category",
+            "category": category.name,
+            "currency": "SAR",
+            "amount": 400,
+            "spent_amount": 160,
+            "start_date": start_date,
+            "end_date": add_days(now_datetime(), 30).date().isoformat(),
+            "user": self.user,
+            "wallet_id": self.wallet_id,
+        }).insert(ignore_permissions=True)
+
+        frappe.get_doc({
+            "doctype": "Hisabi Goal",
+            "client_id": "goal-r6-1",
+            "goal_name": "Report Goal",
+            "goal_type": "save",
+            "currency": "SAR",
+            "target_amount": 900,
+            "current_amount": 300,
+            "remaining_amount": 600,
+            "progress_percent": 33.33,
+            "status": "active",
+            "user": self.user,
+            "wallet_id": self.wallet_id,
+        }).insert(ignore_permissions=True)
+
+        frappe.get_doc({
+            "doctype": "Hisabi Debt",
+            "client_id": "debt-r6-1",
+            "debt_name": "Report Debt",
+            "direction": "owed_to_me",
+            "currency": "SAR",
+            "principal_amount": 250,
+            "remaining_amount": 180,
+            "status": "active",
+            "due_date": due_date,
+            "user": self.user,
+            "wallet_id": self.wallet_id,
+        }).insert(ignore_permissions=True)
+
+        bucket = frappe.get_doc({
+            "doctype": "Hisabi Bucket",
+            "client_id": "bucket-r6-1",
+            "bucket_name": "Report Bucket",
+            "user": self.user,
+            "wallet_id": self.wallet_id,
+        }).insert(ignore_permissions=True)
+
+        rule = frappe.get_doc({
+            "doctype": "Hisabi Allocation Rule",
+            "client_id": "rule-r6-1",
+            "rule_name": "Report Rule",
+            "scope_type": "global",
+            "is_default": 1,
+            "active": 1,
+            "user": self.user,
+            "wallet_id": self.wallet_id,
+        }).insert(ignore_permissions=True)
+
+        frappe.get_doc({
+            "doctype": "Hisabi Allocation Rule Line",
+            "client_id": "line-r6-1",
+            "rule": rule.name,
+            "bucket": bucket.name,
+            "percent": 100,
+            "sort_order": 1,
+            "user": self.user,
+            "wallet_id": self.wallet_id,
+        }).insert(ignore_permissions=True)
+
+        budgets = report_budgets(wallet_id=self.wallet_id, device_id=self.device_id, from_date=start_date, to_date=due_date)
+        budget_row = next((row for row in (budgets.get("budgets") or []) if row.get("budget") == "budget-r6-1"), {})
+        self.assertEqual(budget_row.get("budget_name"), "Report Budget")
+        self.assertEqual(budget_row.get("percent"), 40)
+        self.assertEqual(budget_row.get("start_date"), start_date)
+        self.assertIsInstance(budget_row.get("end_date"), str)
+
+        goals = report_goals(wallet_id=self.wallet_id, device_id=self.device_id)
+        goal_row = next((row for row in (goals.get("goals") or []) if row.get("goal") == "goal-r6-1"), {})
+        self.assertEqual(goal_row.get("goal_name"), "Report Goal")
+        self.assertEqual(goal_row.get("goal_type"), "save")
+
+        debts = report_debts(wallet_id=self.wallet_id, device_id=self.device_id)
+        debt_row = next((row for row in (debts.get("debts") or []) if row.get("name") == "debt-r6-1"), {})
+        self.assertEqual(debt_row.get("debt_name"), "Report Debt")
+        self.assertEqual(debt_row.get("due_date"), due_date)
+        self.assertEqual((debts.get("totals") or {}).get("owed_to_me"), 180)
+
+        rules = bucket_rules(wallet_id=self.wallet_id, device_id=self.device_id)
+        rule_row = next((row for row in (rules.get("rules") or []) if row.get("rule") == "rule-r6-1"), {})
+        self.assertEqual(rule_row.get("scope_type"), "global")
+        self.assertEqual(((rule_row.get("lines") or [None])[0] or {}).get("bucket"), "bucket-r6-1")
