@@ -119,7 +119,16 @@ This document covers v1 endpoints used by the current frontend for **sync + repo
     "budgets": [],
     "goals": [],
     "debts": {"owed_by_me": 0, "owed_to_me": 0, "net": 0},
-    "jameya_upcoming": [],
+    "jameya_upcoming": [
+      {
+        "jameya": "jam-1",
+        "jameya_name": "Friends Circle",
+        "next_due_date": "2026-02-12",
+        "next_amount": 50,
+        "status": "due",
+        "is_my_turn": true
+      }
+    ],
     "server_time": "2026-02-07T10:00:00"
   }
 }

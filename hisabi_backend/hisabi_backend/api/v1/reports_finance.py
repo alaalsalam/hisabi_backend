@@ -653,9 +653,9 @@ def report_summary(
     accounts = frappe.get_all(
         "Hisabi Account",
         filters=account_filters,
-        fields=["name", "account_name", "currency", "current_balance"],
+        fields=["name", "client_id", "account_name", "currency", "current_balance"],
     )
-    accounts = [{**row, "account": row.get("name")} for row in accounts]
+    accounts = [{**row, "account": row.get("client_id") or row.get("name")} for row in accounts]
 
     budget_filters = {"wallet_id": wallet_id, "is_deleted": 0, "archived": 0}
     if normalized_currency:
@@ -663,15 +663,16 @@ def report_summary(
     budgets = frappe.get_all(
         "Hisabi Budget",
         filters=budget_filters,
-        fields=["name", "budget_name", "currency", "amount", "spent_amount", "start_date", "end_date"],
+        fields=["name", "client_id", "budget_name", "currency", "amount", "spent_amount", "start_date", "end_date"],
     )
-    budgets = [{**row, "budget": row.get("name")} for row in budgets]
+    budgets = [{**row, "budget": row.get("client_id") or row.get("name")} for row in budgets]
 
     goals = frappe.get_all(
         "Hisabi Goal",
         filters={"wallet_id": wallet_id, "is_deleted": 0},
         fields=[
             "name",
+            "client_id",
             "goal_name",
             "goal_type",
             "currency",
@@ -682,7 +683,7 @@ def report_summary(
             "status",
         ],
     )
-    goals = [{**row, "goal": row.get("name")} for row in goals]
+    goals = [{**row, "goal": row.get("client_id") or row.get("name")} for row in goals]
 
     debt_totals = frappe.db.sql(
         """
@@ -711,6 +712,36 @@ def report_summary(
         order_by="due_date asc",
         limit=20,
     )
+    jameya_ids = [row.get("jameya") for row in upcoming_jameya if row.get("jameya")]
+    jameya_meta_by_id: Dict[str, Dict[str, str]] = {}
+    if jameya_ids:
+        jameya_meta_by_id = {
+            row.get("name"): {
+                "jameya": row.get("client_id") or row.get("name"),
+                "jameya_name": row.get("jameya_name") or row.get("client_id") or row.get("name"),
+            }
+            for row in frappe.get_all(
+                "Hisabi Jameya",
+                filters={"name": ["in", jameya_ids], "wallet_id": wallet_id, "is_deleted": 0},
+                fields=["name", "client_id", "jameya_name"],
+            )
+        }
+    upcoming_jameya = [
+        {
+            **row,
+            "jameya": (jameya_meta_by_id.get(row.get("jameya")) or {}).get("jameya", row.get("jameya") or row.get("name")),
+            "jameya_name": (jameya_meta_by_id.get(row.get("jameya")) or {}).get("jameya_name", row.get("jameya") or row.get("name")),
+            "next_due_date": (
+                row.get("due_date").date().isoformat()
+                if hasattr(row.get("due_date"), "date")
+                else row.get("due_date").isoformat()
+                if hasattr(row.get("due_date"), "isoformat")
+                else row.get("due_date")
+            ),
+            "next_amount": row.get("amount"),
+        }
+        for row in upcoming_jameya
+    ]
 
     return _with_warnings(
         {

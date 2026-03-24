@@ -374,3 +374,165 @@ class TestReportsContractV2(FrappeTestCase):
         self.assertIsInstance(workspace.get("sync_health"), dict)
         self.assertIsInstance(workspace.get("operational_alerts"), dict)
         self.assertTrue(any(row.get("note") == "Workspace smoke" for row in workspace.get("recent_transactions") or []))
+
+    def test_report_summary_matches_frontend_contract_shape(self):
+        self._ensure_wallet_base_currency("SAR")
+        due_date = add_days(now_datetime(), 5)
+
+        self._push(
+            [
+                {
+                    "op_id": "op-r5-acc-1",
+                    "entity_type": "Hisabi Account",
+                    "entity_id": "acc-r5-1",
+                    "operation": "create",
+                    "payload": {
+                        "client_id": "acc-r5-1",
+                        "account_name": "Contract Wallet",
+                        "account_type": "cash",
+                        "currency": "SAR",
+                        "opening_balance": 120,
+                    },
+                },
+                {
+                    "op_id": "op-r5-budget-1",
+                    "entity_type": "Hisabi Budget",
+                    "entity_id": "budget-r5-1",
+                    "operation": "create",
+                    "payload": {
+                        "client_id": "budget-r5-1",
+                        "budget_name": "Living",
+                        "period": "monthly",
+                        "scope_type": "total",
+                        "amount": 300,
+                        "currency": "SAR",
+                        "start_date": now_datetime().date().isoformat(),
+                        "end_date": add_days(now_datetime(), 30).date().isoformat(),
+                    },
+                },
+                {
+                    "op_id": "op-r5-debt-1",
+                    "entity_type": "Hisabi Debt",
+                    "entity_id": "debt-r5-1",
+                    "operation": "create",
+                    "payload": {
+                        "client_id": "debt-r5-1",
+                        "debt_name": "Vendor Credit",
+                        "direction": "owe",
+                        "currency": "SAR",
+                        "principal_amount": 90,
+                        "counterparty_name": "Vendor",
+                    },
+                },
+                {
+                    "op_id": "op-r5-income-1",
+                    "entity_type": "Hisabi Transaction",
+                    "entity_id": "tx-r5-income",
+                    "operation": "create",
+                    "payload": {
+                        "client_id": "tx-r5-income",
+                        "transaction_type": "income",
+                        "date_time": now_datetime().isoformat(),
+                        "amount": 200,
+                        "currency": "SAR",
+                        "account": "acc-r5-1",
+                    },
+                },
+                {
+                    "op_id": "op-r5-expense-1",
+                    "entity_type": "Hisabi Transaction",
+                    "entity_id": "tx-r5-expense",
+                    "operation": "create",
+                    "payload": {
+                        "client_id": "tx-r5-expense",
+                        "transaction_type": "expense",
+                        "date_time": now_datetime().isoformat(),
+                        "amount": 35,
+                        "currency": "SAR",
+                        "account": "acc-r5-1",
+                    },
+                },
+            ]
+        )
+
+        goal = frappe.new_doc("Hisabi Goal")
+        goal.user = frappe.session.user
+        goal.wallet_id = self.wallet_id
+        goal.client_id = "goal-r5-1"
+        goal.name = "goal-r5-1"
+        goal.goal_name = "Safety Fund"
+        goal.goal_type = "save"
+        goal.target_amount = 1000
+        goal.currency = "SAR"
+        goal.status = "active"
+        goal.insert(ignore_permissions=True)
+
+        jameya = frappe.new_doc("Hisabi Jameya")
+        jameya.user = frappe.session.user
+        jameya.wallet_id = self.wallet_id
+        jameya.client_id = "jam-r5-1"
+        jameya.name = "jam-r5-1"
+        jameya.jameya_name = "Friends Circle"
+        jameya.currency = "SAR"
+        jameya.monthly_amount = 50
+        jameya.total_members = 4
+        jameya.my_turn = 1
+        jameya.period = "monthly"
+        jameya.start_date = due_date.date().isoformat()
+        jameya.insert(ignore_permissions=True)
+
+        jameya_payment = frappe.new_doc("Hisabi Jameya Payment")
+        jameya_payment.user = frappe.session.user
+        jameya_payment.wallet_id = self.wallet_id
+        jameya_payment.client_id = "jpay-r5-1"
+        jameya_payment.name = "jpay-r5-1"
+        jameya_payment.jameya = jameya.name
+        jameya_payment.period_number = 1
+        jameya_payment.due_date = due_date.date().isoformat()
+        jameya_payment.amount = 50
+        jameya_payment.status = "due"
+        jameya_payment.is_my_turn = 1
+        jameya_payment.insert(ignore_permissions=True)
+
+        summary = report_summary(wallet_id=self.wallet_id, device_id=self.device_id)
+
+        self.assertIn("accounts", summary)
+        self.assertIn("totals", summary)
+        self.assertIn("budgets", summary)
+        self.assertIn("goals", summary)
+        self.assertIn("debts", summary)
+        self.assertIn("jameya_upcoming", summary)
+        self.assertIn("server_time", summary)
+        self.assertIn("warnings", summary)
+
+        account_row = (summary.get("accounts") or [None])[0] or {}
+        self.assertEqual(account_row.get("account"), "acc-r5-1")
+        self.assertEqual(account_row.get("account_name"), "Contract Wallet")
+        self.assertEqual(account_row.get("currency"), "SAR")
+
+        totals = summary.get("totals") or {}
+        self.assertEqual(totals.get("income"), 200)
+        self.assertEqual(totals.get("expense"), 35)
+        self.assertEqual(totals.get("net"), 165)
+        self.assertEqual(totals.get("base_currency"), "SAR")
+
+        budget_row = next((row for row in (summary.get("budgets") or []) if row.get("budget") == "budget-r5-1"), {})
+        self.assertEqual(budget_row.get("budget_name"), "Living")
+        self.assertEqual(budget_row.get("currency"), "SAR")
+
+        goal_row = next((row for row in (summary.get("goals") or []) if row.get("goal") == "goal-r5-1"), {})
+        self.assertEqual(goal_row.get("goal_name"), "Safety Fund")
+        self.assertEqual(goal_row.get("goal_type"), "save")
+
+        debts = summary.get("debts") or {}
+        self.assertEqual(debts.get("owed_by_me"), 90)
+        self.assertEqual(debts.get("owed_to_me"), 0)
+        self.assertEqual(debts.get("net"), -90)
+
+        jameya_row = next((row for row in (summary.get("jameya_upcoming") or []) if row.get("jameya") == "jam-r5-1"), {})
+        self.assertEqual(jameya_row.get("jameya"), "jam-r5-1")
+        self.assertEqual(jameya_row.get("jameya_name"), "Friends Circle")
+        self.assertEqual(jameya_row.get("next_due_date"), due_date.date().isoformat())
+        self.assertEqual(jameya_row.get("next_amount"), 50)
+        self.assertEqual(jameya_row.get("status"), "due")
+        self.assertEqual(jameya_row.get("is_my_turn"), 1)

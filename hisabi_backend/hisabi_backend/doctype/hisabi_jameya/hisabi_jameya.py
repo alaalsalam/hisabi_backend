@@ -55,6 +55,7 @@ class HisabiJameya(Document):
 
             payment = frappe.new_doc("Hisabi Jameya Payment")
             payment.user = self.user
+            payment.wallet_id = self.wallet_id
             payment.client_id = client_id
             payment.name = client_id
             payment.jameya = self.name
