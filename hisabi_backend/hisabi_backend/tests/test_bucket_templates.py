@@ -2,6 +2,7 @@ import json
 
 import frappe
 from frappe.tests.utils import FrappeTestCase
+from frappe.utils import cint
 from frappe.utils.password import update_password
 
 from hisabi_backend.api.v1.bucket_templates import (
@@ -165,6 +166,132 @@ class TestBucketTemplates(FrappeTestCase):
         doc = frappe.get_doc("Hisabi Bucket Template", template_id)
         self.assertEqual(doc.title, "Sync Template")
         self.assertEqual(len(doc.template_items or []), 2)
+
+    def test_sync_push_updates_seeded_default_template_by_client_id(self):
+        ensure_wallet_bucket_defaults(self.wallet_id, user=self.user.name)
+        template_id = f"{self.wallet_id}:bucket-template:default"
+        seeded_name = frappe.get_value(
+            "Hisabi Bucket Template",
+            {"wallet_id": self.wallet_id, "client_id": template_id, "is_deleted": 0},
+            "name",
+        )
+        self.assertTrue(seeded_name)
+        doc = frappe.get_doc("Hisabi Bucket Template", seeded_name)
+
+        response = sync_push(
+            device_id=self.device_id,
+            wallet_id=self.wallet_id,
+            items=[
+                {
+                    "op_id": "op-bucket-template-update-default",
+                    "entity_type": "Hisabi Bucket Template",
+                    "entity_id": template_id,
+                    "operation": "update",
+                    "base_version": cint(doc.doc_version or 0),
+                    "payload": {
+                        "client_id": template_id,
+                        "title": "التوزيع النشط",
+                        "is_active": 1,
+                        "is_default": 1,
+                        "template_items": self._template_items(),
+                    },
+                }
+            ],
+        )
+
+        if hasattr(response, "get_data"):
+            payload = json.loads(response.get_data(as_text=True) or "{}")
+            self.assertEqual(getattr(response, "status_code", 200), 200, msg=payload)
+            response = payload.get("message", payload)
+
+        result = (response.get("results") or [{}])[0]
+        self.assertEqual(result.get("status"), "accepted", msg=response)
+
+        doc = frappe.get_doc("Hisabi Bucket Template", template_id)
+        self.assertEqual(doc.name, template_id)
+        self.assertEqual(doc.client_id, template_id)
+        self.assertEqual(doc.title, "التوزيع النشط")
+
+    def test_sync_push_line_create_upserts_existing_rule_bucket_pair(self):
+        rule_id = f"rule-sync-{self.suffix}"
+        original_line_id = f"line-sync-{self.suffix}-old"
+        replacement_line_id = f"line-sync-{self.suffix}-new"
+
+        seed_response = sync_push(
+            device_id=self.device_id,
+            wallet_id=self.wallet_id,
+            items=[
+                {
+                    "op_id": "op-rule-seed",
+                    "entity_type": "Hisabi Allocation Rule",
+                    "entity_id": rule_id,
+                    "operation": "create",
+                    "payload": {
+                        "client_id": rule_id,
+                        "rule_name": "Seed Rule",
+                        "scope_type": "global",
+                        "is_default": 1,
+                        "active": 1,
+                    },
+                },
+                {
+                    "op_id": "op-line-seed",
+                    "entity_type": "Hisabi Allocation Rule Line",
+                    "entity_id": original_line_id,
+                    "operation": "create",
+                    "payload": {
+                        "client_id": original_line_id,
+                        "rule": rule_id,
+                        "bucket": self.bucket_a.name,
+                        "percent": 60,
+                        "sort_order": 0,
+                    },
+                },
+            ],
+        )
+        if hasattr(seed_response, "get_data"):
+            payload = json.loads(seed_response.get_data(as_text=True) or "{}")
+            self.assertEqual(getattr(seed_response, "status_code", 200), 200, msg=payload)
+            seed_response = payload.get("message", payload)
+        self.assertTrue(all(row.get("status") == "accepted" for row in seed_response.get("results", [])), seed_response)
+        rule_name = frappe.get_value("Hisabi Allocation Rule", {"client_id": rule_id, "wallet_id": self.wallet_id}, "name")
+        self.assertTrue(rule_name)
+
+        response = sync_push(
+            device_id=self.device_id,
+            wallet_id=self.wallet_id,
+            items=[
+                {
+                    "op_id": "op-line-replace",
+                    "entity_type": "Hisabi Allocation Rule Line",
+                    "entity_id": replacement_line_id,
+                    "operation": "create",
+                    "payload": {
+                        "client_id": replacement_line_id,
+                        "rule": rule_id,
+                        "bucket": self.bucket_a.name,
+                        "percent": 75,
+                        "sort_order": 0,
+                    },
+                }
+            ],
+        )
+        if hasattr(response, "get_data"):
+            payload = json.loads(response.get_data(as_text=True) or "{}")
+            self.assertEqual(getattr(response, "status_code", 200), 200, msg=payload)
+            response = payload.get("message", payload)
+
+        result = (response.get("results") or [{}])[0]
+        self.assertEqual(result.get("status"), "accepted", msg=response)
+
+        rows = frappe.get_all(
+            "Hisabi Allocation Rule Line",
+            filters={"wallet_id": self.wallet_id, "rule": rule_name, "bucket": self.bucket_a.name, "is_deleted": 0},
+            fields=["name", "client_id", "percent"],
+        )
+        self.assertEqual(len(rows), 1, msg=rows)
+        self.assertEqual(rows[0].get("client_id"), replacement_line_id)
+        self.assertEqual(rows[0].get("percent"), 75)
 
     def test_ensure_wallet_bucket_defaults_repairs_category_links(self):
         category = frappe.get_doc(

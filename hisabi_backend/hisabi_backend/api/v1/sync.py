@@ -2077,7 +2077,9 @@ def _rename_doc_to_client_id(
 ) -> frappe.model.document.Document:
     if doc.name == client_id:
         return doc
-    frappe.rename_doc(
+    from frappe.model.rename_doc import rename_doc
+
+    rename_doc(
         doc.doctype,
         doc.name,
         client_id,
@@ -2085,6 +2087,37 @@ def _rename_doc_to_client_id(
         ignore_permissions=True,
     )
     return frappe.get_doc(doc.doctype, client_id)
+
+
+def _find_existing_allocation_rule_line_by_bucket(
+    payload: Dict[str, Any],
+    *,
+    user: str,
+    wallet_id: str,
+) -> Optional[frappe.model.document.Document]:
+    rule_ref = payload.get("rule") or payload.get("rule_id") or payload.get("ruleId")
+    bucket_ref = payload.get("bucket") or payload.get("bucket_id") or payload.get("bucketId")
+    if not rule_ref or not bucket_ref:
+        return None
+
+    rule_name = _resolve_doc_name("Hisabi Allocation Rule", rule_ref, user=user, wallet_id=wallet_id)
+    bucket_name = _resolve_doc_name("Hisabi Bucket", bucket_ref, user=user, wallet_id=wallet_id)
+    if not rule_name or not bucket_name:
+        return None
+
+    existing_name = frappe.get_value(
+        "Hisabi Allocation Rule Line",
+        {
+            "wallet_id": wallet_id,
+            "rule": rule_name,
+            "bucket": bucket_name,
+            "is_deleted": 0,
+        },
+        "name",
+    )
+    if not existing_name:
+        return None
+    return frappe.get_doc("Hisabi Allocation Rule Line", existing_name)
 
 
 def _to_iso(value: Any) -> Optional[str]:
@@ -2630,12 +2663,26 @@ def sync_push(
         base_version = item.get("base_version")
 
         existing = _get_doc_by_client_id(entity_type, user, client_id, wallet_id=wallet_id)
+        if (
+            not existing
+            and operation == "create"
+            and entity_type == "Hisabi Allocation Rule Line"
+        ):
+            existing = _find_existing_allocation_rule_line_by_bucket(
+                payload,
+                user=user,
+                wallet_id=wallet_id,
+            )
 
         if operation == "create" and existing:
             doc = existing
             if entity_type == "Hisabi Account":
                 doc = _prepare_doc_for_write(entity_type, payload, user, existing=existing)
                 doc.save(ignore_permissions=True)
+            elif entity_type == "Hisabi Allocation Rule Line":
+                doc = _prepare_doc_for_write(entity_type, payload, user, existing=existing)
+                apply_common_sync_fields(doc, payload, bump_version=True, mark_deleted=False)
+                doc.save(ignore_permissions=True, ignore_version=True)
             result = {
                 "status": "accepted",
                 "op_id": op_id,
