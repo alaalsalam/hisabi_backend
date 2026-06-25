@@ -29,7 +29,6 @@ def freeze_account(docname: str, reason: str | None = None) -> dict:
         actor=frappe.session.user,
         reason=reason,
     )
-    frappe.db.commit()
     return result
 
 
@@ -42,7 +41,6 @@ def unfreeze_account(docname: str) -> dict:
         freeze=False,
         actor=frappe.session.user,
     )
-    frappe.db.commit()
     return result
 
 
@@ -55,5 +53,4 @@ def delete_account(docname: str, delete_frappe_user: int = 1) -> dict:
         actor=frappe.session.user,
         delete_frappe_user=bool(int(delete_frappe_user or 0)),
     )
-    frappe.db.commit()
     return result
