@@ -2830,6 +2830,10 @@ def sync_push(
                 )
                 continue
 
+        # Isolation: roll back any partial DB writes for this item on failure so
+        # a rejected mutation doesn't pollute the batch's committed state.
+        _sp = f"sp_sync_{len(results)}"
+        frappe.db.savepoint(_sp)
         try:
             prev_tx_account = None
             prev_tx_to_account = None
@@ -3059,6 +3063,7 @@ def sync_push(
                 payload=item,
             )
         except Exception as exc:
+            frappe.db.rollback(save_point=_sp)
             if _is_modified_after_open_error(exc) and existing:
                 latest = _get_doc_by_client_id(entity_type, user, client_id, wallet_id=wallet_id) or existing
                 latest.reload()
