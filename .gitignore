@@ -6,3 +6,7 @@ tags
 node_modules
 hisabi-your-smart-wallet
 __pycache__
+# Stray runtime / debug artifacts — never commit
+*.pdf
+*.png
+sync-failures.json
