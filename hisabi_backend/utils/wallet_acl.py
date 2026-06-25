@@ -142,7 +142,7 @@ def ensure_default_wallet_for_user(user: str, device_id: Optional[str] = None) -
 
         ensure_wallet_bucket_defaults(wallet_id, user=user)
     except Exception:
-        frappe.log_error(frappe.get_traceback(), "ensure_default_wallet_for_user:bucket_defaults")
+        frappe.log_error("ensure_default_wallet_for_user:bucket_defaults", frappe.get_traceback())
     return wallet_id
 
 

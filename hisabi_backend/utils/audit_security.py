@@ -58,4 +58,4 @@ def audit_security_event(
 		doc.insert(ignore_permissions=True)
 	except Exception:
 		# Never block user action on audit log failures.
-		frappe.log_error("Failed to write security audit log")
+		frappe.log_error("hisabi_backend: Failed to write security audit log", frappe.get_traceback())

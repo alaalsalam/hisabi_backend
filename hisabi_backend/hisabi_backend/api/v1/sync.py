@@ -2389,7 +2389,7 @@ def _emit_wallet_sync_event(wallet_id: str, actor_user: str, accepted_results: L
                 after_commit=True,
             )
     except Exception:
-        frappe.log_error(frappe.get_traceback(), "hisabi_backend.sync_emit_wallet_event")
+        frappe.log_error("hisabi_backend.sync_emit_wallet_event", frappe.get_traceback())
 
 
 def _category_item_identity_keys(item: Dict[str, Any]) -> List[str]:
