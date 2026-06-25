@@ -1,0 +1,58 @@
+{
+  "actions": [],
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "role",
+    "content",
+    "sent_at",
+    "has_action",
+    "action_type",
+    "action_payload"
+  ],
+  "fields": [
+    {
+      "fieldname": "role",
+      "fieldtype": "Select",
+      "label": "Role",
+      "options": "user\nassistant\nsystem",
+      "reqd": 1
+    },
+    {
+      "fieldname": "content",
+      "fieldtype": "Long Text",
+      "label": "Content",
+      "reqd": 1
+    },
+    {
+      "fieldname": "sent_at",
+      "fieldtype": "Datetime",
+      "label": "Sent At"
+    },
+    {
+      "default": "0",
+      "fieldname": "has_action",
+      "fieldtype": "Check",
+      "label": "Has Action"
+    },
+    {
+      "fieldname": "action_type",
+      "fieldtype": "Select",
+      "label": "Action Type",
+      "options": "\ncorrection\nbulk_recategorize\nanalysis"
+    },
+    {
+      "fieldname": "action_payload",
+      "fieldtype": "JSON",
+      "label": "Action Payload"
+    }
+  ],
+  "istable": 1,
+  "links": [],
+  "module": "Hisabi Backend",
+  "name": "Hisabi AI Chat Message",
+  "naming_rule": "Random",
+  "permissions": [],
+  "sort_field": "modified",
+  "sort_order": "ASC"
+}

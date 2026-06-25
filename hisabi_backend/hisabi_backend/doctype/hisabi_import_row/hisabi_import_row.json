@@ -1,0 +1,98 @@
+{
+  "actions": [],
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "row_index",
+    "raw_text",
+    "date",
+    "description",
+    "amount",
+    "currency",
+    "transaction_type",
+    "category",
+    "account",
+    "status",
+    "transaction_id",
+    "ai_confidence",
+    "ai_notes"
+  ],
+  "fields": [
+    {
+      "fieldname": "row_index",
+      "fieldtype": "Int",
+      "label": "Row #"
+    },
+    {
+      "fieldname": "raw_text",
+      "fieldtype": "Text",
+      "label": "Raw Text"
+    },
+    {
+      "fieldname": "date",
+      "fieldtype": "Date",
+      "label": "Date"
+    },
+    {
+      "fieldname": "description",
+      "fieldtype": "Data",
+      "label": "Description"
+    },
+    {
+      "fieldname": "amount",
+      "fieldtype": "Currency",
+      "label": "Amount"
+    },
+    {
+      "fieldname": "currency",
+      "fieldtype": "Data",
+      "label": "Currency"
+    },
+    {
+      "fieldname": "transaction_type",
+      "fieldtype": "Select",
+      "label": "Type",
+      "options": "income\nexpense"
+    },
+    {
+      "fieldname": "category",
+      "fieldtype": "Data",
+      "label": "Category (AI)"
+    },
+    {
+      "fieldname": "account",
+      "fieldtype": "Data",
+      "label": "Account"
+    },
+    {
+      "default": "pending",
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "label": "Status",
+      "options": "pending\nimported\nskipped"
+    },
+    {
+      "fieldname": "transaction_id",
+      "fieldtype": "Data",
+      "label": "Created Transaction"
+    },
+    {
+      "fieldname": "ai_confidence",
+      "fieldtype": "Float",
+      "label": "AI Confidence"
+    },
+    {
+      "fieldname": "ai_notes",
+      "fieldtype": "Text",
+      "label": "AI Notes"
+    }
+  ],
+  "istable": 1,
+  "links": [],
+  "module": "Hisabi Backend",
+  "name": "Hisabi Import Row",
+  "naming_rule": "Random",
+  "permissions": [],
+  "sort_field": "modified",
+  "sort_order": "DESC"
+}

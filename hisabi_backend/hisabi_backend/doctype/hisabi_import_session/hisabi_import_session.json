@@ -1,0 +1,157 @@
+{
+  "actions": [],
+  "allow_rename": 1,
+  "autoname": "field:client_id",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "wallet_id",
+    "user",
+    "source_type",
+    "file_name",
+    "status",
+    "total_rows",
+    "imported_rows",
+    "skipped_rows",
+    "confirmed_at",
+    "import_rows_section",
+    "import_rows",
+    "sync_section",
+    "client_id",
+    "client_created_ms",
+    "client_modified_ms",
+    "doc_version",
+    "server_modified",
+    "is_deleted",
+    "deleted_at"
+  ],
+  "fields": [
+    {
+      "fieldname": "wallet_id",
+      "fieldtype": "Link",
+      "label": "Wallet",
+      "options": "Hisabi Wallet",
+      "reqd": 1,
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "user",
+      "fieldtype": "Data",
+      "label": "User",
+      "reqd": 1
+    },
+    {
+      "default": "csv",
+      "fieldname": "source_type",
+      "fieldtype": "Select",
+      "label": "Source Type",
+      "options": "csv\nexcel\npdf\ntext"
+    },
+    {
+      "fieldname": "file_name",
+      "fieldtype": "Data",
+      "label": "File Name"
+    },
+    {
+      "default": "pending",
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "in_list_view": 1,
+      "label": "Status",
+      "options": "pending\nconfirmed\ncancelled"
+    },
+    {
+      "default": "0",
+      "fieldname": "total_rows",
+      "fieldtype": "Int",
+      "label": "Total Rows"
+    },
+    {
+      "default": "0",
+      "fieldname": "imported_rows",
+      "fieldtype": "Int",
+      "label": "Imported Rows"
+    },
+    {
+      "default": "0",
+      "fieldname": "skipped_rows",
+      "fieldtype": "Int",
+      "label": "Skipped Rows"
+    },
+    {
+      "fieldname": "confirmed_at",
+      "fieldtype": "Datetime",
+      "label": "Confirmed At"
+    },
+    {
+      "fieldname": "import_rows_section",
+      "fieldtype": "Section Break",
+      "label": "Import Rows"
+    },
+    {
+      "fieldname": "import_rows",
+      "fieldtype": "Table",
+      "label": "Rows",
+      "options": "Hisabi Import Row"
+    },
+    {
+      "fieldname": "sync_section",
+      "fieldtype": "Section Break",
+      "label": "Sync"
+    },
+    {
+      "fieldname": "client_id",
+      "fieldtype": "Data",
+      "label": "Client ID",
+      "reqd": 1,
+      "unique": 1
+    },
+    {
+      "fieldname": "client_created_ms",
+      "fieldtype": "Int",
+      "label": "Client Created (ms)"
+    },
+    {
+      "fieldname": "client_modified_ms",
+      "fieldtype": "Int",
+      "label": "Client Modified (ms)"
+    },
+    {
+      "default": "1",
+      "fieldname": "doc_version",
+      "fieldtype": "Int",
+      "label": "Doc Version"
+    },
+    {
+      "fieldname": "server_modified",
+      "fieldtype": "Datetime",
+      "label": "Server Modified"
+    },
+    {
+      "default": "0",
+      "fieldname": "is_deleted",
+      "fieldtype": "Check",
+      "label": "Is Deleted"
+    },
+    {
+      "fieldname": "deleted_at",
+      "fieldtype": "Datetime",
+      "label": "Deleted At"
+    }
+  ],
+  "links": [],
+  "module": "Hisabi Backend",
+  "name": "Hisabi Import Session",
+  "naming_rule": "By fieldname",
+  "permissions": [
+    {
+      "create": 1,
+      "delete": 1,
+      "read": 1,
+      "role": "System Manager",
+      "write": 1
+    }
+  ],
+  "sort_field": "modified",
+  "sort_order": "DESC"
+}

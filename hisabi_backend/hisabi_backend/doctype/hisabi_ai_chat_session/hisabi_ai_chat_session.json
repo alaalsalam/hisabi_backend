@@ -1,0 +1,92 @@
+{
+  "actions": [],
+  "allow_rename": 1,
+  "autoname": "field:client_id",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "wallet_id",
+    "user",
+    "session_title",
+    "status",
+    "message_count",
+    "last_message_at",
+    "messages_section",
+    "messages",
+    "client_id"
+  ],
+  "fields": [
+    {
+      "fieldname": "wallet_id",
+      "fieldtype": "Link",
+      "in_standard_filter": 1,
+      "label": "Wallet",
+      "options": "Hisabi Wallet",
+      "reqd": 1
+    },
+    {
+      "fieldname": "user",
+      "fieldtype": "Data",
+      "label": "User",
+      "reqd": 1
+    },
+    {
+      "fieldname": "session_title",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "Session Title"
+    },
+    {
+      "default": "active",
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "in_standard_filter": 1,
+      "label": "Status",
+      "options": "active\narchived"
+    },
+    {
+      "default": "0",
+      "fieldname": "message_count",
+      "fieldtype": "Int",
+      "label": "Messages"
+    },
+    {
+      "fieldname": "last_message_at",
+      "fieldtype": "Datetime",
+      "label": "Last Message"
+    },
+    {
+      "fieldname": "messages_section",
+      "fieldtype": "Section Break",
+      "label": "Messages"
+    },
+    {
+      "fieldname": "messages",
+      "fieldtype": "Table",
+      "label": "Messages",
+      "options": "Hisabi AI Chat Message"
+    },
+    {
+      "fieldname": "client_id",
+      "fieldtype": "Data",
+      "label": "Client ID",
+      "reqd": 1,
+      "unique": 1
+    }
+  ],
+  "links": [],
+  "module": "Hisabi Backend",
+  "name": "Hisabi AI Chat Session",
+  "naming_rule": "By fieldname",
+  "permissions": [
+    {
+      "create": 1,
+      "delete": 1,
+      "read": 1,
+      "role": "System Manager",
+      "write": 1
+    }
+  ],
+  "sort_field": "last_message_at",
+  "sort_order": "DESC"
+}
