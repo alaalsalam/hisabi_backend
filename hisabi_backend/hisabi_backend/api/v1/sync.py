@@ -1645,7 +1645,7 @@ def _prune_sync_op_noise(
         for row in stale_rows:
             frappe.delete_doc("Hisabi Sync Op", row.get("name"), ignore_permissions=True, force=1)
     except Exception:
-        frappe.log_error(frappe.get_traceback(), "hisabi_backend.sync_prune_sync_op_noise")
+        frappe.log_error("hisabi_backend.sync_prune_sync_op_noise", frappe.get_traceback())
 
 
 def _ledger_op_id(wallet_id: str, op_id: str) -> str:
@@ -2268,7 +2268,7 @@ def _write_audit_log(
         audit.payload_json = json.dumps(payload, ensure_ascii=False)
         audit.save(ignore_permissions=True)
     except Exception:
-        frappe.log_error("Failed to write audit log", "hisabi_backend.sync")
+        frappe.log_error("hisabi_backend.sync: Failed to write audit log", frappe.get_traceback())
 
 
 def _log_rejected_sync_item(
@@ -3126,7 +3126,7 @@ def sync_push(
                     )
                     continue
             # Reliability: never crash the whole batch for one bad mutation; return structured rejection.
-            frappe.log_error(frappe.get_traceback(), "hisabi_backend.sync_push_item")
+            frappe.log_error("hisabi_backend.sync_push_item", frappe.get_traceback())
             rejected = _build_item_rejected(
                 op_id=op_id if isinstance(op_id, str) else None,
                 entity_type=entity_type if isinstance(entity_type, str) else None,
@@ -3147,7 +3147,7 @@ def sync_push(
                     result=rejected,
                 )
             except Exception:
-                frappe.log_error(frappe.get_traceback(), "hisabi_backend.sync_push_item_store_rejected")
+                frappe.log_error("hisabi_backend.sync_push_item_store_rejected", frappe.get_traceback())
             _write_audit_log(
                 user=user,
                 device_id=device_id,

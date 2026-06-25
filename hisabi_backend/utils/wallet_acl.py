@@ -72,7 +72,7 @@ def ensure_default_wallet_for_user(user: str, device_id: Optional[str] = None) -
 
             ensure_wallet_bucket_defaults(default_wallet, user=user)
         except Exception:
-            frappe.log_error(frappe.get_traceback(), "ensure_default_wallet_for_user:bucket_defaults")
+            frappe.log_error("ensure_default_wallet_for_user:bucket_defaults", frappe.get_traceback())
         return default_wallet
 
     row = frappe.db.get_value(
@@ -90,7 +90,7 @@ def ensure_default_wallet_for_user(user: str, device_id: Optional[str] = None) -
 
             ensure_wallet_bucket_defaults(row.wallet, user=user)
         except Exception:
-            frappe.log_error(frappe.get_traceback(), "ensure_default_wallet_for_user:bucket_defaults")
+            frappe.log_error("ensure_default_wallet_for_user:bucket_defaults", frappe.get_traceback())
         return row.wallet
 
     # Fall back to any non-removed membership before creating a new wallet.
@@ -109,7 +109,7 @@ def ensure_default_wallet_for_user(user: str, device_id: Optional[str] = None) -
 
             ensure_wallet_bucket_defaults(row.wallet, user=user)
         except Exception:
-            frappe.log_error(frappe.get_traceback(), "ensure_default_wallet_for_user:bucket_defaults")
+            frappe.log_error("ensure_default_wallet_for_user:bucket_defaults", frappe.get_traceback())
         return row.wallet
 
     wallet_id = f"wallet-u-{frappe.generate_hash(user, length=12)}"
