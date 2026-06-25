@@ -529,9 +529,7 @@ def apply_restore(wallet_id: Optional[str] = None, payload: Any = None, mode: st
             template.save(ignore_permissions=True)
             applied_counts["BucketTemplateItem"] = applied_counts.get("BucketTemplateItem", 0) + 1
 
-        frappe.db.commit()
     except Exception:
-        frappe.db.rollback()
         raise
 
     return {
