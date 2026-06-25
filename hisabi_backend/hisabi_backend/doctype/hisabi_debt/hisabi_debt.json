@@ -1,6 +1,7 @@
 {
  "actions": [],
  "allow_rename": 1,
+ "creation": "2026-02-19 16:34:30.621335",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -37,10 +38,10 @@
   {
    "fieldname": "wallet_id",
    "fieldtype": "Link",
+   "in_standard_filter": 1,
    "label": "Wallet",
    "options": "Hisabi Wallet",
-   "reqd": 1,
-   "in_standard_filter": 1
+   "reqd": 1
   },
   {
    "fieldname": "client_id",
@@ -51,45 +52,46 @@
   {
    "fieldname": "debt_name",
    "fieldtype": "Data",
+   "in_list_view": 1,
    "label": "Debt Name",
-   "reqd": 1,
-   "in_list_view": 1
+   "reqd": 1
   },
   {
    "fieldname": "direction",
    "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Direction",
    "options": "owe\nowed_to_me",
-   "reqd": 1,
-   "in_list_view": 1,
-   "in_standard_filter": 1
+   "reqd": 1
   },
   {
    "fieldname": "currency",
    "fieldtype": "Data",
-   "label": "Currency",
    "in_list_view": 1,
-   "in_standard_filter": 1
+   "in_standard_filter": 1,
+   "label": "Currency"
   },
   {
    "fieldname": "principal_amount",
    "fieldtype": "Currency",
    "label": "Principal Amount",
+   "options": "currency",
    "reqd": 1
   },
   {
    "fieldname": "remaining_amount",
    "fieldtype": "Currency",
-   "label": "Remaining Amount",
-   "in_list_view": 1
+   "in_list_view": 1,
+   "label": "Remaining Amount"
   },
   {
    "fieldname": "status",
    "fieldtype": "Select",
-   "label": "Status",
-   "options": "active\nclosed\npending",
    "in_list_view": 1,
-   "in_standard_filter": 1
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "active\nclosed\npending"
   },
   {
    "fieldname": "counterparty_name",
@@ -121,8 +123,8 @@
   {
    "fieldname": "due_date",
    "fieldtype": "Datetime",
-   "label": "Due Date",
-   "in_list_view": 1
+   "in_list_view": 1,
+   "label": "Due Date"
   },
   {
    "fieldname": "client_created_ms",
@@ -157,28 +159,18 @@
    "label": "Deleted At"
   }
  ],
- "indexes": [
-  {
-   "fields": [
-    "user",
-    "client_id"
-   ],
-   "unique": 1
-  },
-  {
-   "fields": [
-    "wallet_id"
-   ]
-  }
- ],
+ "links": [],
+ "modified": "2026-03-24 00:09:59.715739",
+ "modified_by": "Administrator",
  "module": "Hisabi Backend",
  "name": "Hisabi Debt",
+ "owner": "Administrator",
  "permissions": [
   {
    "create": 1,
+   "if_owner": 1,
    "read": 1,
    "role": "Hisabi User",
-   "if_owner": 1,
    "write": 1
   },
   {
@@ -198,8 +190,10 @@
    "write": 1
   }
  ],
+ "row_format": "Dynamic",
+ "search_fields": "debt_name,direction,status,currency,counterparty_name,client_id",
  "sort_field": "modified",
  "sort_order": "DESC",
- "title_field": "debt_name",
- "search_fields": "debt_name,direction,status,currency,counterparty_name,client_id"
+ "states": [],
+ "title_field": "debt_name"
 }

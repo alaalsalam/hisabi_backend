@@ -958,6 +958,79 @@ class TestSyncV1(FrappeTestCase):
         self.assertEqual(goal.linked_account, account_id)
         self.assertEqual(goal.linked_debt, debt.name)
 
+    def test_sync_push_rejects_goal_links_from_other_wallet(self):
+        suffix = frappe.generate_hash(length=6)
+        other_wallet_id = f"wallet-{frappe.generate_hash(length=6)}"
+        wallet_create(client_id=other_wallet_id, wallet_name="Other Wallet", device_id=self.device_id)
+
+        other_account_id = f"acc-goal-foreign-{suffix}"
+        other_debt_id = f"debt-goal-foreign-{suffix}"
+        goal_id = f"goal-foreign-{suffix}"
+
+        seed_other_wallet = sync_push(
+            device_id=self.device_id,
+            wallet_id=other_wallet_id,
+            items=[
+                {
+                    "op_id": f"op-goal-foreign-acc-{suffix}",
+                    "entity_type": "Hisabi Account",
+                    "entity_id": other_account_id,
+                    "operation": "create",
+                    "payload": {
+                        "client_id": other_account_id,
+                        "account_name": "Foreign Goal Account",
+                        "account_type": "cash",
+                        "currency": "SAR",
+                    },
+                },
+                {
+                    "op_id": f"op-goal-foreign-debt-{suffix}",
+                    "entity_type": "Hisabi Debt",
+                    "entity_id": other_debt_id,
+                    "operation": "create",
+                    "payload": {
+                        "client_id": other_debt_id,
+                        "debt_name": "Foreign Goal Debt",
+                        "direction": "owe",
+                        "principal_amount": 300,
+                        "currency": "SAR",
+                    },
+                },
+            ],
+        )
+        self.assertTrue(all(row.get("status") == "accepted" for row in seed_other_wallet.get("results", [])), seed_other_wallet)
+
+        other_debt_name = frappe.get_value("Hisabi Debt", {"client_id": other_debt_id, "wallet_id": other_wallet_id})
+        self.assertTrue(other_debt_name)
+
+        response = sync_push(
+            device_id=self.device_id,
+            wallet_id=self.wallet_id,
+            items=[
+                {
+                    "op_id": f"op-goal-foreign-{suffix}",
+                    "entity_type": "Hisabi Goal",
+                    "entity_id": goal_id,
+                    "operation": "create",
+                    "payload": {
+                        "client_id": goal_id,
+                        "goal_name": "Cross Wallet Goal",
+                        "goal_type": "pay_debt",
+                        "currency": "SAR",
+                        "target_amount": 500,
+                        "linked_account": other_account_id,
+                        "linked_debt": other_debt_name,
+                    },
+                },
+            ],
+        )
+
+        result = response["results"][0]
+        self.assertEqual(result["status"], "rejected")
+        self.assertEqual(result["error_code"], "rejected")
+        self.assertIn("is not in this wallet", str(result.get("detail") or ""))
+        self.assertFalse(frappe.db.exists("Hisabi Goal", {"client_id": goal_id, "wallet_id": self.wallet_id}))
+
     def test_sync_push_rejects_sensitive_password_field_in_payload(self):
         response = sync_push(
             device_id=self.device_id,

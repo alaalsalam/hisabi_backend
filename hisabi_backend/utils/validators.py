@@ -135,7 +135,10 @@ LINK_OWNERSHIP_FIELDS = {
     "Hisabi Recurring Rule": {"account_id": "Hisabi Account", "category_id": "Hisabi Category"},
     "Hisabi Recurring Instance": {"rule_id": "Hisabi Recurring Rule", "transaction_id": "Hisabi Transaction"},
     "Hisabi Budget": {"account": "Hisabi Account", "category": "Hisabi Category"},
-    "Hisabi Goal": {"account": "Hisabi Account"},
+    "Hisabi Goal": {
+        "linked_account": "Hisabi Account",
+        "linked_debt": "Hisabi Debt",
+    },
     "Hisabi Debt": {"account": "Hisabi Account"},
     "Hisabi Debt Installment": {"debt": "Hisabi Debt"},
     "Hisabi Debt Request": {"debt": "Hisabi Debt"},
