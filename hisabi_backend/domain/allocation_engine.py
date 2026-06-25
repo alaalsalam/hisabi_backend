@@ -28,39 +28,26 @@ class AllocationRow:
 
 def _allocation_doctypes() -> List[str]:
     doctypes: List[str] = []
-    for doctype in ("Hisabi Transaction Allocation", "Hisabi Transaction Bucket"):
+    for doctype in ("Hisabi Transaction Bucket",):
         if frappe.db.exists("DocType", doctype):
             doctypes.append(doctype)
     return doctypes
 
 
 def _hard_delete_allocations(transaction_id: str, *, manual_only: Optional[bool] = None) -> None:
-    if frappe.db.exists("DocType", "Hisabi Transaction Allocation"):
-        legacy_filters: Dict[str, object] = {"transaction": transaction_id}
-        if manual_only is True:
-            legacy_filters["is_manual_override"] = 1
-        if manual_only is False:
-            legacy_filters["is_manual_override"] = 0
-        frappe.db.delete("Hisabi Transaction Allocation", legacy_filters)
-
     if frappe.db.exists("DocType", "Hisabi Transaction Bucket"):
         bucket_filters: Dict[str, object] = {"transaction_id": transaction_id}
         if manual_only is True:
-            bucket_filters["client_id"] = ["like", "%:manual"]
+            bucket_filters["is_manual_override"] = 1
         elif manual_only is False:
-            bucket_filters["client_id"] = ["not like", "%:manual"]
+            bucket_filters["is_manual_override"] = 0
         frappe.db.delete("Hisabi Transaction Bucket", bucket_filters)
 
 
 def _has_manual_allocations(transaction_id: str) -> bool:
     if frappe.db.exists(
-        "Hisabi Transaction Allocation",
-        {"transaction": transaction_id, "is_manual_override": 1},
-    ):
-        return True
-    if frappe.db.exists(
         "Hisabi Transaction Bucket",
-        {"transaction_id": transaction_id, "client_id": ["like", "%:manual"], "is_deleted": 0},
+        {"transaction_id": transaction_id, "is_manual_override": 1, "is_deleted": 0},
     ):
         return True
     return False
@@ -79,21 +66,14 @@ def _insert_allocation_row(
     alloc.wallet_id = tx_doc.wallet_id
     alloc.client_id = client_id
     alloc.name = client_id
-
-    if doctype == "Hisabi Transaction Allocation":
-        alloc.transaction = tx_doc.name
-        alloc.bucket = row.bucket
-        alloc.percent = int(round(flt(row.percent, 6)))
-        alloc.amount = flt(row.amount, 2)
-        alloc.currency = row.currency
-        alloc.amount_base = flt(row.amount_base, 2)
-        alloc.rule_used = row.rule_used
-        alloc.is_manual_override = row.is_manual_override
-    else:
-        alloc.transaction_id = tx_doc.name
-        alloc.bucket_id = row.bucket
-        alloc.amount = flt(row.amount, 2)
-        alloc.percentage = flt(row.percent, 6)
+    alloc.transaction_id = tx_doc.name
+    alloc.bucket_id = row.bucket
+    alloc.amount = flt(row.amount, 2)
+    alloc.percentage = flt(row.percent, 6)
+    alloc.currency = row.currency
+    alloc.amount_base = flt(row.amount_base, 2)
+    alloc.is_manual_override = row.is_manual_override
+    alloc.rule_used = row.rule_used
 
     alloc.insert(ignore_permissions=True)
 

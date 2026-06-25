@@ -11,6 +11,10 @@
     "bucket_id",
     "amount",
     "percentage",
+    "currency",
+    "amount_base",
+    "is_manual_override",
+    "rule_used",
     "client_created_ms",
     "client_modified_ms",
     "doc_version",
@@ -69,6 +73,27 @@
       "fieldtype": "Float",
       "label": "Percentage",
       "in_list_view": 1
+    },
+    {
+      "fieldname": "currency",
+      "fieldtype": "Data",
+      "label": "Currency"
+    },
+    {
+      "fieldname": "amount_base",
+      "fieldtype": "Currency",
+      "label": "Amount (Base)"
+    },
+    {
+      "default": "0",
+      "fieldname": "is_manual_override",
+      "fieldtype": "Check",
+      "label": "Manual Override"
+    },
+    {
+      "fieldname": "rule_used",
+      "fieldtype": "Data",
+      "label": "Rule Used"
     },
     {
       "fieldname": "client_created_ms",
