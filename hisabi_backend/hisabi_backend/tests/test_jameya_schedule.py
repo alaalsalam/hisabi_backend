@@ -1,5 +1,5 @@
 import frappe
-from frappe.tests.utils import FrappeTestCase
+from frappe.tests import IntegrationTestCase as FrappeTestCase
 from frappe.utils import now_datetime
 from frappe.utils.password import update_password
 
@@ -55,5 +55,8 @@ class TestJameyaSchedule(FrappeTestCase):
             ],
         )
 
-        count = frappe.db.count("Hisabi Jameya Payment", {"jameya": "jam-1"})
+        jameya_name = frappe.get_value(
+            "Hisabi Jameya", {"client_id": "jam-1", "wallet_id": self.wallet_id}
+        )
+        count = frappe.db.count("Hisabi Jameya Payment", {"jameya": jameya_name})
         self.assertEqual(count, 5)

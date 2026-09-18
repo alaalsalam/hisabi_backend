@@ -1,5 +1,5 @@
 import hisabi_backend
-from frappe.tests.utils import FrappeTestCase
+from frappe.tests import IntegrationTestCase as FrappeTestCase
 
 from hisabi_backend.api.v1.health import diag
 

@@ -1,5 +1,5 @@
 import frappe
-from frappe.tests.utils import FrappeTestCase
+from frappe.tests import IntegrationTestCase as FrappeTestCase
 from frappe.utils.password import update_password
 
 from hisabi_backend.api.v1.auth import register_device
@@ -46,7 +46,6 @@ class TestDebtsInstallments(FrappeTestCase):
                         "direction": "owe",
                         "currency": "SAR",
                         "principal_amount": 300,
-                        "remaining_amount": 300,
                     },
                 },
                 {
@@ -65,5 +64,6 @@ class TestDebtsInstallments(FrappeTestCase):
             ],
         )
 
-        debt = frappe.get_doc("Hisabi Debt", "debt-2")
+        name = frappe.get_value("Hisabi Debt", {"client_id": "debt-2"})
+        debt = frappe.get_doc("Hisabi Debt", name)
         self.assertEqual(debt.remaining_amount, 180)

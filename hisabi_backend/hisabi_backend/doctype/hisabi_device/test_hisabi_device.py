@@ -2,11 +2,18 @@
 # See license.txt
 
 import frappe
-from frappe.tests.utils import FrappeTestCase
+from frappe.tests import IntegrationTestCase as FrappeTestCase
 from frappe.utils.password import update_password
 
 from hisabi_backend.api.v1.auth import register_device
 from hisabi_backend.install import ensure_roles
+
+# The test creates its own User explicitly and never touches Hisabi Wallet;
+# skip Frappe's auto-fixture walk for both link fields, since walking User's
+# own dependency graph cascades into a broken ERPNext link (Payment Gateway
+# doctype, provided by the `payments` app, which isn't installed on this
+# bench) unrelated to Hisabi Device.
+IGNORE_TEST_RECORD_DEPENDENCIES = ["User", "Hisabi Wallet"]
 
 
 class TestHisabiDevice(FrappeTestCase):

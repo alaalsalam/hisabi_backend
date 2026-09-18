@@ -1,7 +1,7 @@
 import datetime
 
 import frappe
-from frappe.tests.utils import FrappeTestCase
+from frappe.tests import IntegrationTestCase as FrappeTestCase
 from frappe.utils import now_datetime
 from frappe.utils.password import update_password
 

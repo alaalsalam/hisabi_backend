@@ -1,5 +1,5 @@
 import frappe
-from frappe.tests.utils import FrappeTestCase
+from frappe.tests import IntegrationTestCase as FrappeTestCase
 from frappe.utils import add_months, now_datetime
 from frappe.utils.password import update_password
 
@@ -8,6 +8,7 @@ from hisabi_backend.api.v1 import wallet_create
 from hisabi_backend.api.v1.reports_finance import cashflow, category_breakdown, report_budgets
 from hisabi_backend.api.v1.sync import sync_push
 from hisabi_backend.install import ensure_roles
+from hisabi_backend.utils.sync_common import apply_common_sync_fields
 
 
 class TestBudgetsReports(FrappeTestCase):
@@ -31,6 +32,27 @@ class TestBudgetsReports(FrappeTestCase):
         frappe.local.request = type("obj", (object,), {"headers": {"Authorization": f"Bearer {self.device_token}"}})()
         self.wallet_id = f"wallet-{frappe.generate_hash(length=6)}"
         wallet_create(client_id=self.wallet_id, wallet_name="Test Wallet", device_id=self.device_id)
+        # Pin the wallet base currency to the transactions' currency (SAR) so these
+        # single-currency budget/report assertions are not skewed by FX conversion to
+        # the System Settings default currency (YER).
+        self._ensure_wallet_base_currency("SAR")
+
+    def _ensure_wallet_base_currency(self, currency):
+        existing_name = frappe.get_value(
+            "Hisabi Settings",
+            {"wallet_id": self.wallet_id, "user": self.user.name, "is_deleted": 0},
+        )
+        if existing_name:
+            doc = frappe.get_doc("Hisabi Settings", existing_name)
+        else:
+            doc = frappe.new_doc("Hisabi Settings")
+            doc.client_id = f"settings-{self.wallet_id}"
+            doc.name = doc.client_id
+            doc.user = self.user.name
+            doc.wallet_id = self.wallet_id
+        doc.base_currency = currency
+        apply_common_sync_fields(doc, bump_version=True, mark_deleted=False)
+        doc.save(ignore_permissions=True)
 
     def test_budget_spent_report(self):
         start = now_datetime()

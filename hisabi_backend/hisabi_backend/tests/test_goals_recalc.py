@@ -1,5 +1,5 @@
 import frappe
-from frappe.tests.utils import FrappeTestCase
+from frappe.tests import IntegrationTestCase as FrappeTestCase
 from frappe.utils.password import update_password
 
 from hisabi_backend.api.v1.auth import register_device
@@ -46,7 +46,6 @@ class TestGoalsRecalc(FrappeTestCase):
                         "direction": "owe",
                         "currency": "SAR",
                         "principal_amount": 200,
-                        "remaining_amount": 200,
                     },
                 },
                 {
@@ -80,6 +79,9 @@ class TestGoalsRecalc(FrappeTestCase):
             ],
         )
 
-        goal = frappe.get_doc("Hisabi Goal", "goal-1")
+        goal_name = frappe.get_value(
+            "Hisabi Goal", {"client_id": "goal-1", "wallet_id": self.wallet_id}
+        )
+        goal = frappe.get_doc("Hisabi Goal", goal_name)
         self.assertEqual(goal.current_amount, 100)
         self.assertEqual(goal.remaining_amount, 100)

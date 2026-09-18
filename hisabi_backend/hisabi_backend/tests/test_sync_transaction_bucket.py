@@ -1,7 +1,7 @@
 import json
 
 import frappe
-from frappe.tests.utils import FrappeTestCase
+from frappe.tests import IntegrationTestCase as FrappeTestCase
 from frappe.utils import now_datetime
 from frappe.utils.password import update_password
 
@@ -192,3 +192,56 @@ class TestSyncTransactionBucket(FrappeTestCase):
         self.assertEqual(result.get("error_code"), "rejected")
         self.assertIn("income transactions", (result.get("detail") or "").lower())
         self.assertFalse(frappe.db.exists("Hisabi Transaction Bucket", row_id))
+
+    def test_transaction_bucket_push_tolerates_spread_client_row_fields(self):
+        # Regression: the client enqueues a transaction-bucket by spreading the whole Dexie row, which
+        # leaks created_at / updated_at (client-only timestamps) and is_manual_override. Previously any
+        # of these tripped invalid_field and the allocation never synced ("العملية لا تُحفظ"). They must
+        # now be tolerated: created_at/updated_at stripped defensively, is_manual_override persisted.
+        acc_id = f"acc-tbfields-{self.suffix}"
+        bucket_id = f"bucket-tbfields-{self.suffix}"
+        tx_id = f"tx-tbfields-{self.suffix}"
+        row_id = f"tb-fields-row-{self.suffix}"
+
+        account = frappe.get_doc({
+            "doctype": "Hisabi Account", "client_id": acc_id, "account_name": "Cash",
+            "account_type": "cash", "currency": "SAR", "opening_balance": 0,
+            "user": self.user.name, "wallet_id": self.wallet_id,
+        }).insert(ignore_permissions=True)
+        bucket = frappe.get_doc({
+            "doctype": "Hisabi Bucket", "client_id": bucket_id, "title": "Primary Bucket",
+            "user": self.user.name, "wallet_id": self.wallet_id,
+        }).insert(ignore_permissions=True)
+        tx = frappe.get_doc({
+            "doctype": "Hisabi Transaction", "client_id": tx_id, "transaction_type": "income",
+            "date_time": now_datetime(), "amount": 200, "currency": "SAR",
+            "account": account.name, "user": self.user.name, "wallet_id": self.wallet_id,
+        }).insert(ignore_permissions=True)
+
+        response = self._push([
+            {
+                "op_id": "op-tb-fields",
+                "entity_type": "Hisabi Transaction Bucket",
+                "entity_id": row_id,
+                "operation": "create",
+                "payload": {
+                    "client_id": row_id,
+                    "id": row_id,
+                    "transaction_id": tx.name,
+                    "bucket_id": bucket.name,
+                    "amount": 200,
+                    "percentage": 100,
+                    "is_manual_override": True,
+                    "created_at": "2026-08-10 11:00:00",
+                    "updated_at": "2026-08-10 11:00:00",
+                    "client_created_ms": 1786349960324,
+                    "client_modified_ms": 1786349960324,
+                },
+            }
+        ])
+
+        result = response["results"][0]
+        self.assertEqual(result.get("status"), "accepted", msg=result)
+        tx_bucket = frappe.get_doc("Hisabi Transaction Bucket", row_id)
+        self.assertEqual(tx_bucket.is_manual_override, 1)
+        self.assertEqual(tx_bucket.amount, 200)

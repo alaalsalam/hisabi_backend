@@ -1,6 +1,6 @@
 import frappe
 import json
-from frappe.tests.utils import FrappeTestCase
+from frappe.tests import IntegrationTestCase as FrappeTestCase
 from frappe.utils import now_datetime
 from frappe.utils.password import update_password
 
@@ -118,6 +118,7 @@ class TestTransactionBalanceDeterminism(FrappeTestCase):
                     "payload": {
                         "client_id": "tx-det-update",
                         "amount": 35,
+                        "currency": "SAR",
                     },
                 }
             ]

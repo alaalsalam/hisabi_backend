@@ -1,5 +1,8 @@
+import random
+
 import frappe
-from frappe.tests.utils import FrappeTestCase
+from frappe.auth import CookieManager
+from frappe.tests import IntegrationTestCase as FrappeTestCase
 from frappe.utils import cint
 from frappe.utils.password import update_password
 
@@ -26,27 +29,44 @@ class TestAuthV1(FrappeTestCase):
         return user.name
 
     def test_register_and_login_with_phone(self):
-        phone = f"+1555{frappe.generate_hash(length=6)}"
+        phone = "+1555" + "".join(random.choices("0123456789", k=6))
         password = "testpass123"
 
         response = register(phone=phone, password=password, full_name="Phone User")
         self.assertTrue(response.get("user"))
         self.assertEqual(response.get("profile", {}).get("mobile_no"), phone)
 
+        # login() builds a LoginManager + post_login(); those read request.path/cookies,
+        # request_ip (login-attempt tracker), and form_dict. Use a unique IP per test run so
+        # Frappe's native IP-keyed LoginAttemptTracker doesn't cross-contaminate with other
+        # tests/modules that share a static "127.0.0.1" (which could accumulate failures from
+        # unrelated lockout-scenario tests and lock this one out too).
+        test_ip = "10." + ".".join(str(random.randint(1, 254)) for _ in range(3))
+        frappe.local.request = frappe._dict(
+            path="/api/method/hisabi_backend.api.v1.auth.login",
+            headers={},
+            cookies={},
+            scheme="http",
+            remote_addr=test_ip,
+        )
+        frappe.local.request_ip = test_ip
+        frappe.local.form_dict = frappe._dict()
+        frappe.local.cookie_manager = CookieManager()
         login_response = login(login=phone, password=password)
         self.assertEqual(login_response.get("user"), response.get("user"))
 
     def test_link_device_rejects_other_user(self):
         user_a = self._create_hisabi_user("a")
+        shared_device = f"device-shared-{frappe.generate_hash(length=6)}"
 
         frappe.set_user(user_a)
-        register_device("device-shared", "android", "Pixel")
+        register_device(shared_device, "android", "Pixel")
 
         user_b = self._create_hisabi_user("b")
 
         frappe.set_user(user_b)
         with self.assertRaises(frappe.PermissionError):
-            link_device_to_user("device-shared")
+            link_device_to_user(shared_device)
 
     def test_register_device_sets_wallet_id(self):
         user = self._create_hisabi_user("register_device")

@@ -1,11 +1,12 @@
 import frappe
-from frappe.tests.utils import FrappeTestCase
+from frappe.tests import IntegrationTestCase as FrappeTestCase
 from frappe.utils import now_datetime
 from frappe.utils.password import update_password
 
 from hisabi_backend.domain.allocation_engine import apply_auto_allocations
 from hisabi_backend.install import ensure_roles
 from hisabi_backend.api.v1 import wallet_create
+from hisabi_backend.api.v1.auth import register_device
 
 
 class TestAllocationEngine(FrappeTestCase):
@@ -23,8 +24,12 @@ class TestAllocationEngine(FrappeTestCase):
         update_password(user.name, "test123")
         frappe.set_user(user.name)
         self.user = user
+        self.device_id = f"device-{frappe.generate_hash(length=6)}"
+        device = register_device(self.device_id, "android", "Pixel 8")
+        self.device_token = device.get("device_token")
+        frappe.local.request = type("obj", (object,), {"headers": {"Authorization": f"Bearer {self.device_token}"}})()
         self.wallet_id = f"wallet-{frappe.generate_hash(length=6)}"
-        wallet_create(client_id=self.wallet_id, wallet_name="Test Wallet")
+        wallet_create(client_id=self.wallet_id, wallet_name="Test Wallet", device_id=self.device_id)
 
         self.account = frappe.get_doc({
             "doctype": "Hisabi Account",
@@ -98,8 +103,8 @@ class TestAllocationEngine(FrappeTestCase):
         }).insert(ignore_permissions=True)
 
         allocs = frappe.get_all(
-            "Hisabi Transaction Allocation",
-            filters={"transaction": tx.name, "is_manual_override": 0},
+            "Hisabi Transaction Bucket",
+            filters={"transaction_id": tx.name, "is_manual_override": 0},
             fields=["amount"],
         )
         self.assertEqual(len(allocs), 2)
@@ -122,8 +127,8 @@ class TestAllocationEngine(FrappeTestCase):
         tx.save(ignore_permissions=True)
 
         allocs = frappe.get_all(
-            "Hisabi Transaction Allocation",
-            filters={"transaction": tx.name, "is_manual_override": 0},
+            "Hisabi Transaction Bucket",
+            filters={"transaction_id": tx.name, "is_manual_override": 0},
             fields=["amount"],
         )
         self.assertAlmostEqual(sum([a.amount for a in allocs]), 120)
@@ -142,11 +147,11 @@ class TestAllocationEngine(FrappeTestCase):
         }).insert(ignore_permissions=True)
 
         frappe.get_doc({
-            "doctype": "Hisabi Transaction Allocation",
+            "doctype": "Hisabi Transaction Bucket",
             "client_id": "manual-1",
-            "transaction": tx.name,
-            "bucket": self.bucket_a.name,
-            "percent": 100,
+            "transaction_id": tx.name,
+            "bucket_id": self.bucket_a.name,
+            "percentage": 100,
             "amount": 100,
             "currency": "SAR",
             "amount_base": 100,
@@ -159,8 +164,8 @@ class TestAllocationEngine(FrappeTestCase):
         tx.save(ignore_permissions=True)
 
         allocs = frappe.get_all(
-            "Hisabi Transaction Allocation",
-            filters={"transaction": tx.name, "is_manual_override": 1},
+            "Hisabi Transaction Bucket",
+            filters={"transaction_id": tx.name, "is_manual_override": 1},
             fields=["amount"],
         )
         self.assertEqual(len(allocs), 1)
@@ -183,8 +188,8 @@ class TestAllocationEngine(FrappeTestCase):
         tx.save(ignore_permissions=True)
 
         allocs = frappe.get_all(
-            "Hisabi Transaction Allocation",
-            filters={"transaction": tx.name},
+            "Hisabi Transaction Bucket",
+            filters={"transaction_id": tx.name},
             fields=["name"],
         )
         self.assertEqual(len(allocs), 0)

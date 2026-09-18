@@ -1,5 +1,7 @@
+import unittest
+
 import frappe
-from frappe.tests.utils import FrappeTestCase
+from frappe.tests import IntegrationTestCase as FrappeTestCase
 from frappe.utils import now_datetime
 from frappe.utils.password import update_password
 
@@ -202,6 +204,10 @@ class TestBucketCashflowReport(FrappeTestCase):
         self.assertNotIn((day, self.bucket_a.name), key_map)
 
     def test_fx_missing_warning_excludes_rows_without_rate(self):
+        # P0.1c (TS-B3) — FIXED 2026-07-03. reports_finance._resolve_fx_rate now caches None
+        # (not the default rate) for a pair with no real FX rate, so EVERY row of that pair is
+        # excluded consistently with an fx_missing warning (previously the cache was primed with
+        # the default rate, so later rows of the pair leaked in → order-dependent totals).
         income = self._create_transaction(tx_type="income", amount=10, currency="USD")
         self._set_manual_allocations(income.name, [{"bucket": self.bucket_a.name, "value": 10}])
         self._create_transaction(tx_type="expense", amount=5, currency="USD")

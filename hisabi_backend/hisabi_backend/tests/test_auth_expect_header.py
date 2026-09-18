@@ -1,5 +1,5 @@
 import frappe
-from frappe.tests.utils import FrappeTestCase
+from frappe.tests import IntegrationTestCase as FrappeTestCase
 
 from hisabi_backend.api.v1 import login as v1_login
 from hisabi_backend.api.v1 import me as v1_me

@@ -1,5 +1,5 @@
 import frappe
-from frappe.tests.utils import FrappeTestCase
+from frappe.tests import IntegrationTestCase as FrappeTestCase
 
 from hisabi_backend.api.v1.auth import register_device
 from hisabi_backend.api.v1 import wallet_create
