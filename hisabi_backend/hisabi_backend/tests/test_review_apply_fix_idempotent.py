@@ -185,7 +185,13 @@ class TestReviewApplyFixIdempotent(FrappeTestCase):
         self.assertIn("duplicate_recurring_output", by_type)
 
         income_issue = by_type["missing_income_allocation"]
-        expense_issue = by_type["missing_expense_bucket"]
+        # Several expense issues exist (incl. the recurring duplicates); pick the one for expense_tx.
+        expense_issue = next(
+            row
+            for row in issues
+            if row.get("type") == "missing_expense_bucket"
+            and (row.get("entity") or {}).get("id") == expense_tx.name
+        )
         duplicate_issue = by_type["duplicate_recurring_output"]
         income_issue_id = income_issue.get("issue_id")
         expense_issue_id = expense_issue.get("issue_id")
