@@ -5,7 +5,10 @@ import re
 import frappe
 from frappe import _
 
-CLIENT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_:-]{2,127}$")
+# Allow the Arabic block (U+0600–U+06FF) in addition to alnum/_/-/: so client-generated ids that
+# embed an Arabic wallet/owner name (e.g. `wallet-محمد-1234-001`) can be created, synced and invited.
+# Space/quote/%/;/backslash/slash stay blocked — this is an allowlist extension, not an opening.
+CLIENT_ID_RE = re.compile("^[A-Za-z0-9؀-ۿ][A-Za-z0-9_:؀-ۿ-]{2,127}$")
 PHONE_ALLOWED_RE = re.compile(r"^\+?[0-9]+$")
 PHONE_MIN_DIGITS = 8
 PHONE_MAX_DIGITS = 15

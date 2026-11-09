@@ -313,16 +313,18 @@ def require_device_token_auth(*, expected_device_id: str | None = None) -> tuple
         audit_security_event("token_expired", user=device.user, device_id=device.device_id, payload={"reason": "expired"})
         frappe.throw("token_expired", frappe.AuthenticationError)
 
-    device.last_seen_at = frappe.utils.now_datetime()
+    # Use targeted set_value instead of doc.save() to avoid TimestampMismatchError when
+    # multiple concurrent requests auth with the same device simultaneously on page load.
+    _seen_updates: dict = {"last_seen_at": frappe.utils.now_datetime()}
     if hasattr(device, "last_seen_ip"):
-        device.last_seen_ip = _truncate_for_doc_field(device, "last_seen_ip", get_request_ip())
+        _seen_updates["last_seen_ip"] = _truncate_for_doc_field(device, "last_seen_ip", get_request_ip())
     if hasattr(device, "last_seen_user_agent"):
-        device.last_seen_user_agent = _truncate_for_doc_field(
+        _seen_updates["last_seen_user_agent"] = _truncate_for_doc_field(
             device,
             "last_seen_user_agent",
             get_user_agent(),
         )
-    device.save(ignore_permissions=True)
+    frappe.db.set_value("Hisabi Device", device.name, _seen_updates, update_modified=False)
 
     user = device.user
     if not user:

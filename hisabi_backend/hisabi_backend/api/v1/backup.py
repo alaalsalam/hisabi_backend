@@ -478,7 +478,9 @@ def apply_restore(wallet_id: Optional[str] = None, payload: Any = None, mode: st
         return _error_response("unsupported_mode", f"unsupported restore mode: {mode}", status=422)
 
     user, _device = require_device_token_auth()
-    require_wallet_member(wallet_id, user)
+    # Restore rewrites wallet-wide data — an admin/owner operation, not something a viewer or
+    # plain member should perform.
+    require_wallet_member(wallet_id, user, min_role="admin")
 
     parsed = _extract_payload(payload)
     validation = _validate_restore_payload(wallet_id=wallet_id, payload=parsed, check_collisions=True)
@@ -511,7 +513,12 @@ def apply_restore(wallet_id: Optional[str] = None, payload: Any = None, mode: st
         # Child-table restore: merge template items after parent upserts.
         for item in entities.get("BucketTemplateItem", []):
             parent = item.get("parent")
-            if not parent or not frappe.db.exists("Hisabi Bucket Template", parent):
+            if not parent:
+                continue
+            # Tenancy: the parent template MUST belong to THIS wallet. Child rows carry no
+            # wallet_id, so without this a crafted payload could point `parent` at another
+            # wallet's template and rewrite its allocation percentages.
+            if frappe.db.get_value("Hisabi Bucket Template", parent, "wallet_id") != wallet_id:
                 continue
             template = frappe.get_doc("Hisabi Bucket Template", parent)
             rows = list(getattr(template, "template_items", []) or [])

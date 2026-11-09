@@ -148,6 +148,7 @@ else:
 
 # before_install = "hisabi_backend.install.before_install"
 after_install = "hisabi_backend.install.after_install"
+after_migrate = "hisabi_backend.install.after_migrate"
 
 # Uninstallation
 # ------------
@@ -258,6 +259,14 @@ doc_events = {
 #         "hisabi_backend.tasks.monthly"
 #     ],
 # }
+
+scheduler_events = {
+    "daily": [
+        # Bound the sync idempotency ledger (Hisabi Sync Op) so query latency + storage stay flat
+        # over the life of the product.
+        "hisabi_backend.tasks.daily",
+    ],
+}
 
 # Testing
 # -------

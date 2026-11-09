@@ -12,6 +12,7 @@ from hisabi_backend.utils.security import require_device_token_auth
 from hisabi_backend.utils.sync_common import apply_common_sync_fields
 from hisabi_backend.utils.validators import normalize_phone, validate_client_id
 from hisabi_backend.utils.wallet_acl import (
+    ROLE_RANK,
     get_or_create_hisabi_user,
     ensure_default_wallet_for_user,
     get_wallets_for_user,
@@ -147,13 +148,43 @@ def list_wallets(device_id: Optional[str] = None) -> Dict[str, Any]:
     }
 
 
+def _ensure_wallet_base_currency(wallet_id: str, user: str, currency: str) -> None:
+    """Pin a wallet's base currency into its Hisabi Settings (server-authoritative for reports)."""
+    existing = frappe.get_value("Hisabi Settings", {"wallet_id": wallet_id, "user": user, "is_deleted": 0})
+    if existing:
+        doc = frappe.get_doc("Hisabi Settings", existing)
+    else:
+        doc = frappe.new_doc("Hisabi Settings")
+        doc.client_id = f"settings-{wallet_id}"
+        doc.name = doc.client_id
+        doc.user = user
+        doc.wallet_id = wallet_id
+    doc.base_currency = currency
+    apply_common_sync_fields(doc, bump_version=True, mark_deleted=False)
+    doc.save(ignore_permissions=True)
+
+
 @frappe.whitelist(allow_guest=False)
-def wallet_create(client_id: str, wallet_name: str, device_id: Optional[str] = None) -> Dict[str, Any]:
+def wallet_create(
+    client_id: str,
+    wallet_name: str,
+    device_id: Optional[str] = None,
+    is_family: Optional[int] = 0,
+    family_photo: Optional[str] = None,
+    base_currency: Optional[str] = None,
+) -> Dict[str, Any]:
     user, device = require_device_token_auth()
     client_id = validate_client_id(client_id)
     wallet_name = (wallet_name or "").strip()
     if not wallet_name:
         frappe.throw(_("wallet_name is required"), frappe.ValidationError)
+
+    is_family = 1 if cint(is_family) else 0
+    base_currency = (base_currency or "").strip().upper() or None
+
+    # The family columns are added by a doctype migration the pipeline runs. Guard with has_column so
+    # wallet creation keeps working before that migration lands, and gains family metadata after it.
+    has_family_cols = frappe.db.has_column("Hisabi Wallet", "is_family")
 
     if frappe.db.exists("Hisabi Wallet", client_id):
         wallet = frappe.get_doc("Hisabi Wallet", client_id)
@@ -161,12 +192,23 @@ def wallet_create(client_id: str, wallet_name: str, device_id: Optional[str] = N
         wallet = frappe.new_doc("Hisabi Wallet")
         wallet.client_id = client_id
         wallet.wallet_name = wallet_name
+        if has_family_cols:
+            wallet.is_family = is_family
+            wallet.family_photo = family_photo or None
+            wallet.base_currency = base_currency
         wallet.status = "active"
         wallet.owner_user = user
         if device:
             wallet.created_from_device = device.device_id
         apply_common_sync_fields(wallet, bump_version=True, mark_deleted=False)
         wallet.save(ignore_permissions=True)
+
+    # Pin the wallet's base currency into its Hisabi Settings so reports/aggregations use it.
+    if base_currency:
+        try:
+            _ensure_wallet_base_currency(wallet.name, user, base_currency)
+        except Exception:
+            frappe.log_error("wallet_create: base_currency", frappe.get_traceback())
 
     if not frappe.db.exists("Hisabi Wallet Member", {"wallet": wallet.name, "user": user}):
         member = frappe.new_doc("Hisabi Wallet Member")
@@ -305,7 +347,7 @@ def wallet_invite_create(
     require_wallet_member(wallet_id, user, min_role="admin")
 
     role_to_grant = (role_to_grant or "member").strip().lower()
-    if role_to_grant not in {"admin", "member", "viewer"}:
+    if role_to_grant not in {"admin", "member", "viewer", "children_supervisor"}:
         frappe.throw(_("Invalid role_to_grant"), frappe.ValidationError)
 
     if target_phone:
@@ -328,6 +370,33 @@ def wallet_invite_create(
     invite.expires_at = expires_at
     invite.save(ignore_permissions=True)
     audit_security_event("wallet_invite_created", user=user, payload={"wallet_id": wallet_id, "role_to_grant": role_to_grant})
+
+    # Best-effort: if the invitee is already a registered user, drop a notification in their inbox.
+    try:
+        from .debts import _find_user_by_phone_digits, _phone_digits
+        from hisabi_backend.utils.notifications import create_user_notification
+
+        invitee_user = None
+        if target_email and frappe.db.exists("User", target_email):
+            invitee_user = target_email
+        elif target_phone:
+            invitee_user = _find_user_by_phone_digits(_phone_digits(target_phone))
+        if invitee_user and invitee_user != user:
+            inviter_name = frappe.db.get_value("User", user, "full_name") or ""
+            wallet_name = frappe.db.get_value("Hisabi Wallet", wallet_id, "wallet_name") or "محفظة"
+            create_user_notification(
+                invitee_user,
+                notif_type="invite_received",
+                title="دعوة للانضمام إلى محفظة مشتركة",
+                body=f'{inviter_name} دعاك للانضمام إلى "{wallet_name}"'.strip(),
+                action_route="/wallets",
+                ref_doctype="Hisabi Wallet Invite",
+                ref_name=invite.name,
+                from_user=user,
+                from_name=inviter_name,
+            )
+    except Exception:
+        frappe.log_error("error in wallets: wallet_invite_create notify", frappe.get_traceback())
 
     return {
         "invite": {
@@ -370,7 +439,11 @@ def wallet_invite_accept(
     member_name = frappe.get_value("Hisabi Wallet Member", {"wallet": wallet_id, "user": user})
     if member_name:
         member = frappe.get_doc("Hisabi Wallet Member", member_name)
-        member.role = invite.role_to_grant
+        # Never downgrade an existing member — critically, accepting an invite must not demote the
+        # owner (an invite's role_to_grant is never "owner"). Only raise the role if the invite grants
+        # a higher one than they already hold.
+        if ROLE_RANK.get(invite.role_to_grant, 0) > ROLE_RANK.get(member.role, 0):
+            member.role = invite.role_to_grant
         member.status = "active"
         member.joined_at = member.joined_at or now_datetime()
         member.removed_at = None
@@ -420,6 +493,38 @@ def wallet_member_remove(wallet_id: str, user_to_remove: str, device_id: Optiona
     apply_common_sync_fields(member, bump_version=True, mark_deleted=False)
     member.save(ignore_permissions=True)
     return {"status": "removed", "server_time": now_datetime().isoformat()}
+
+
+@frappe.whitelist(allow_guest=False)
+def wallet_member_role_update(
+    wallet_id: str,
+    member_user: str,
+    new_role: str,
+    device_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Change a member's role. Owner-only ("إدارة الصلاحيات"). Cannot touch the owner or grant owner."""
+    user, _device = require_device_token_auth()
+    wallet_id = validate_client_id(wallet_id)
+    caller = require_wallet_member(wallet_id, user, min_role="owner")
+    if caller.role != "owner":
+        frappe.throw(_("Only the owner can change roles"), frappe.PermissionError)
+
+    new_role = (new_role or "").strip().lower()
+    if new_role not in {"admin", "member", "viewer", "children_supervisor"}:
+        frappe.throw(_("Invalid role"), frappe.ValidationError)
+
+    member_name = frappe.get_value("Hisabi Wallet Member", {"wallet": wallet_id, "user": member_user})
+    if not member_name:
+        frappe.throw(_("Member not found"), frappe.ValidationError)
+    member = frappe.get_doc("Hisabi Wallet Member", member_name)
+    if member.role == "owner":
+        frappe.throw(_("Cannot change the owner's role"), frappe.PermissionError)
+
+    member.role = new_role
+    apply_common_sync_fields(member, bump_version=True, mark_deleted=False)
+    member.save(ignore_permissions=True)
+    audit_security_event("wallet_member_role_changed", user=user, payload={"wallet_id": wallet_id, "member": member_user, "role": new_role})
+    return {"status": "updated", "role": new_role, "server_time": now_datetime().isoformat()}
 
 
 @frappe.whitelist(allow_guest=False)

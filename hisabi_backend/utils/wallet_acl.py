@@ -21,6 +21,9 @@ WalletRole = Literal["owner", "admin", "member", "viewer"]
 
 ROLE_RANK = {
     "viewer": 1,
+    # children_supervisor (مشرف الأبناء) sits at member level: it can record/view like a member, and
+    # gains scoped oversight over specific child members via the per-member permission layer (later).
+    "children_supervisor": 2,
     "member": 2,
     "admin": 3,
     "owner": 4,
@@ -174,9 +177,12 @@ def require_wallet_member(wallet_id: str, user: str, min_role: WalletRole = "vie
 
 def get_wallets_for_user(user: str, default_wallet_id: Optional[str] = None) -> list[dict]:
     """List wallets where user is an active member."""
+    # Family columns are added by a pipeline migration; select them only once they exist so this
+    # keeps working before the migration lands.
+    family_cols = ", w.is_family, w.family_photo, w.base_currency" if frappe.db.has_column("Hisabi Wallet", "is_family") else ""
     rows = frappe.db.sql(
-        """
-        SELECT m.wallet, m.role, m.status, w.wallet_name, w.status AS wallet_status
+        f"""
+        SELECT m.wallet, m.role, m.status, w.wallet_name, w.status AS wallet_status{family_cols}
         FROM `tabHisabi Wallet Member` m
         JOIN `tabHisabi Wallet` w ON w.name = m.wallet
         WHERE m.user=%s AND m.status='active' AND w.is_deleted=0

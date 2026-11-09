@@ -41,6 +41,11 @@ def validate_wallet_scope(doc, method=None) -> None:
     if doc.doctype not in WALLET_SCOPED_DOCTYPES:
         return
 
+    # Server-authoritative cross-user transitions (e.g. a debt-request recipient accepting/declining a
+    # request scoped to the SENDER's wallet) set this flag AFTER doing their own authorization check.
+    if doc.flags.get("ignore_wallet_scope"):
+        return
+
     user = frappe.session.user
     if not user or user == "Guest":
         return

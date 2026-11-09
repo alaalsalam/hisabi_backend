@@ -17,6 +17,9 @@ from hisabi_backend.utils.security import (
 from hisabi_backend.utils.sync_common import apply_common_sync_fields
 from hisabi_backend.utils.validators import normalize_phone, validate_password_strength, validate_platform
 from hisabi_backend.utils.wallet_acl import ensure_default_wallet_for_user
+from hisabi_backend.utils.security_rate_limit import rate_limit
+from hisabi_backend.utils.auth_lockout import on_login_failed, on_login_success, raise_if_locked
+from hisabi_backend.utils.request_context import get_request_ip
 
 INT32_MAX = 2147483647
 
@@ -70,11 +73,23 @@ def login(login: str | None = None, password: str | None = None, identifier: str
     if not password:
         frappe.throw(_("password is required"), frappe.ValidationError)
 
+    # Brute-force protection — mirror auth_v2.login so this legacy path is not an unthrottled
+    # bypass: per-IP+identifier rate limit, per-account lockout, and failed-attempt tracking.
+    ip = get_request_ip() or "unknown"
+    identifier_key = login_value.strip().lower()[:120]
+    rate_limit(f"login:ip:{ip}:id:{identifier_key}", limit=5, window_seconds=300)
+
     user = _resolve_user_by_identifier(login_value)
+    raise_if_locked(user)
 
     login_manager = LoginManager()
-    login_manager.authenticate(user=user, pwd=password)
+    try:
+        login_manager.authenticate(user=user, pwd=password)
+    except Exception:
+        on_login_failed(login_value, user=user, device_id=None)
+        raise
     login_manager.post_login()
+    on_login_success(user, device_id=None)
 
     frappe.set_user(user)
     return {
@@ -92,6 +107,9 @@ def register(
 ) -> dict:
     """Register a new user with email or phone."""
     ensure_roles()
+
+    # Throttle account creation per IP (mirror auth_v2.register_user).
+    rate_limit(f"register:ip:{get_request_ip() or 'unknown'}", limit=20, window_seconds=600)
 
     if not password:
         frappe.throw(_("password is required"), frappe.ValidationError)

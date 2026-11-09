@@ -22,7 +22,7 @@ from hisabi_backend.domain.recalc_engine import (
 )
 from hisabi_backend.utils.security import require_device_auth
 from hisabi_backend.utils.fx_defaults import resolve_default_fx_rate
-from hisabi_backend.utils.sync_common import apply_common_sync_fields
+from hisabi_backend.utils.sync_common import COMMON_SYNC_FIELDS, apply_common_sync_fields
 from hisabi_backend.utils.wallet_acl import require_wallet_member
 from hisabi_backend.utils.validators import (
     ensure_entity_id_matches,
@@ -95,6 +95,9 @@ SYNC_PUSH_ALLOWED_FIELDS = {
         "client_id",
         "wallet_id",
         "wallet_name",
+        "is_family",
+        "family_photo",
+        "base_currency",
         "status",
         "client_created_ms",
         "client_modified_ms",
@@ -224,6 +227,9 @@ SYNC_PUSH_ALLOWED_FIELDS = {
         "direction",
         "currency",
         "principal_amount",
+        # remaining_amount is client-managed for simple debts (direct repayments / partially-paid on
+        # create). For installment debts recalc_debt_remaining derives it, so allowing it is safe.
+        "remaining_amount",
         "counterparty_name",
         "counterparty_type",
         "counterparty_phone",
@@ -289,6 +295,10 @@ SYNC_PUSH_ALLOWED_FIELDS = {
         "currency",
         "target_amount",
         "target_amount_base",
+        # current_amount is client-managed for standalone "save" goals (the user enters what they
+        # already saved). For linked goals (pay_debt/linked_account) recalc_goal_progress overwrites
+        # it from the source, so allowing it here is safe.
+        "current_amount",
         "target_date",
         "linked_account",
         "linked_debt",
@@ -380,6 +390,7 @@ SYNC_PUSH_ALLOWED_FIELDS = {
         "transaction",
         "bucket",
         "percent",
+        "is_manual_override",
         "client_created_ms",
         "client_modified_ms",
         "is_deleted",
@@ -636,8 +647,12 @@ INT32_MAX = 2_147_483_647
 SERVER_AUTH_FIELDS = {
     "Hisabi Account": {"current_balance"},
     "Hisabi Budget": {"spent_amount"},
-    "Hisabi Goal": {"current_amount", "progress_percent", "remaining_amount"},
-    "Hisabi Debt": {"remaining_amount", "status"},
+    # current_amount is client-writable for standalone goals; progress_percent/remaining_amount stay
+    # server-derived (recalc_goal_progress computes them).
+    "Hisabi Goal": {"progress_percent", "remaining_amount"},
+    # remaining_amount is client-writable for simple debts; status stays server-derived (recalc sets
+    # closed/active from remaining).
+    "Hisabi Debt": {"status"},
     "Hisabi Jameya": {"status", "total_amount"},
 }
 
@@ -671,6 +686,14 @@ SYNC_CLIENT_IGNORED_FIELDS = SYNC_PULL_SYSTEM_FIELDS | {
     "serverModified",
     "selectedWalletId",
     "selected_wallet_id",
+    # Client-only Dexie row timestamps. The domain model uses client_created_ms/client_modified_ms,
+    # so created_at/updated_at are never valid sync fields — but some client code spreads the whole
+    # local row (e.g. transaction-bucket allocations), leaking them and tripping invalid_field. Strip
+    # defensively for ALL entities so a spread row can never block a sync push again.
+    "created_at",
+    "updated_at",
+    "createdAt",
+    "updatedAt",
 }
 
 FIELD_MAP = {
@@ -2181,6 +2204,27 @@ def _sanitize_pull_record(doctype: str, record: Dict[str, Any]) -> Dict[str, Any
     return sanitized
 
 
+def _pull_is_batch_safe(doctype: str) -> bool:
+    """True if this doctype's pull payload can be reproduced EXACTLY from a flat batched query.
+
+    `_sanitize_pull_record` keeps only `SYNC_PULL_ALLOWED_FIELDS[doctype]`. When every allowed
+    field is a real, scalar DB column (no child `Table` and no virtual/computed field), a single
+    `frappe.get_all(fields=["*"])` yields byte-identical sanitized output to
+    `frappe.get_doc(...).as_dict()` — letting sync_pull batch-load instead of one get_doc per row.
+    Anything else (unknown allow-list, or an allowed child-table/virtual field) falls back to
+    get_doc so child rows / computed values are never dropped.
+    """
+    allowed = SYNC_PULL_ALLOWED_FIELDS.get(doctype)
+    if not allowed:
+        return False
+    allowed_set = set(allowed)
+    meta = frappe.get_meta(doctype)
+    for df in meta.fields:
+        if df.fieldname in allowed_set and (df.fieldtype == "Table" or getattr(df, "is_virtual", 0)):
+            return False
+    return True
+
+
 def _conflict_response(
     doctype: str,
     doc: frappe.model.document.Document,
@@ -2203,6 +2247,71 @@ def _conflict_response(
         "server_modified": _to_iso(doc.server_modified),
         "server_record": server_doc,
     }
+
+
+# Fields that never count as a real content change for field-level conflict resolution.
+_FIELD_LEVEL_IGNORED_FIELDS = SYNC_CLIENT_IGNORED_FIELDS | set(COMMON_SYNC_FIELDS) | {
+    "base_version",
+    "wallet_id",
+    "user",
+}
+
+
+def _values_equal_for_merge(a: Any, b: Any) -> bool:
+    """Conservative equality for conflict resolution. Numbers compare via flt; everything else
+    via strict string equality. MUST err toward *not equal* (→ safe conflict) when unsure — a
+    false 'equal' could wrongly accept a clashing write, so ambiguous types stay unequal."""
+    if a is None and b is None:
+        return True
+    if a is None or b is None:
+        return False
+    a_is_num = isinstance(a, (int, float)) and not isinstance(a, bool)
+    b_is_num = isinstance(b, (int, float)) and not isinstance(b, bool)
+    if a_is_num or b_is_num:
+        try:
+            return flt(a) == flt(b)
+        except Exception:
+            return False
+    return str(a) == str(b)
+
+
+def _resolve_field_level_conflict(
+    entity_type: str,
+    existing: frappe.model.document.Document,
+    payload: Dict[str, Any],
+    item: Dict[str, Any],
+) -> str:
+    """Decide whether a base_version mismatch is a REAL conflict or safely resolvable.
+
+    Returns "accept" (safe to apply the partial patch — the fields the client is changing do not
+    clash with the server's newer version) or "conflict" (a shared field was edited by both).
+
+    Safe cases:
+      * idempotent / identical edit — every changed field already equals the server value.
+      * disjoint edit — the client sends `base_values` (its pre-edit view) and, for every field it
+        is changing, the server still holds that base value (i.e. nobody else touched that field).
+        Without `base_values`, a differing field is treated as a conflict (current safe behavior).
+    """
+    ignored = _FIELD_LEVEL_IGNORED_FIELDS | set(SERVER_AUTH_FIELDS.get(entity_type, set()))
+    meta = frappe.get_meta(entity_type)
+    base_values = item.get("base_values")
+    if not isinstance(base_values, dict):
+        base_values = {}
+
+    for field, new_val in payload.items():
+        if field in ignored or not meta.has_field(field):
+            continue
+        current_val = existing.get(field)
+        if _values_equal_for_merge(current_val, new_val):
+            continue  # no-op for this field — nothing to clash with
+        # The client is changing this field to a different value than the server currently holds.
+        # It is only safe if the server still holds the base value the client edited from (nobody
+        # else changed this field). Otherwise it's a genuine same-field conflict.
+        if field in base_values and _values_equal_for_merge(current_val, base_values.get(field)):
+            continue
+        return "conflict"
+    return "accept"
+
 
 def _get_op_result(user: str, device_id: str, wallet_id: str, op_id: str) -> Optional[Dict[str, Any]]:
     if not device_id or not op_id:
@@ -2251,6 +2360,7 @@ def _write_audit_log(
     *,
     user: str,
     device_id: str,
+    wallet_id: str,
     op_id: str,
     entity_type: str,
     entity_client_id: str,
@@ -2260,6 +2370,7 @@ def _write_audit_log(
     try:
         audit = frappe.new_doc("Hisabi Audit Log")
         audit.user = user
+        audit.wallet_id = wallet_id
         audit.device_id = device_id
         audit.op_id = op_id
         audit.entity_type = entity_type
@@ -2283,27 +2394,37 @@ def _log_rejected_sync_item(
     payload: Dict[str, Any],
 ) -> None:
     code = str(reason or "").strip() or "rejected"
-    if code in {"wallet_id_mismatch", "entity_id_mismatch"}:
-        frappe.logger("hisabi_backend.sync").warning(
-            "sync_push_rejected",
-            extra={
+    # Observability: every rejection must be visible with its reason. Previously the reason was written
+    # ONLY to the audit log with status="rejected" — a value the Hisabi Audit Log status Select does not
+    # allow — so the write threw and the reason was silently lost. Log it explicitly here, and pass a
+    # VALID audit status ("error") so the audit row persists too.
+    frappe.log_error(
+        "hisabi_backend.sync: rejected sync item",
+        json.dumps(
+            {
                 "reason": code,
-                "wallet_id": wallet_id,
                 "entity_type": entity_type,
                 "client_id": client_id,
                 "op_id": op_id,
-                "device_id": device_id,
+                "wallet_id": wallet_id,
                 "user": user,
+                "device_id": device_id,
+                "payload_keys": sorted((payload.get("payload") or {}).keys())
+                if isinstance(payload, dict)
+                else None,
             },
-        )
+            default=str,
+        ),
+    )
 
     _write_audit_log(
         user=user,
         device_id=device_id,
+        wallet_id=wallet_id,
         op_id=op_id or "",
         entity_type=entity_type or "",
         entity_client_id=client_id or "",
-        status="rejected",
+        status="error",
         payload={
             "reason": code,
             "wallet_id": wallet_id,
@@ -2478,6 +2599,35 @@ def _order_sync_items_for_dependencies(items: List[Dict[str, Any]]) -> List[Dict
     return reordered
 
 
+def _restore_original_result_order(
+    original_items: List[Dict[str, Any]],
+    processed_items: List[Dict[str, Any]],
+    results: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Return results in the CLIENT's original request order.
+
+    `_order_sync_items_for_dependencies` may process items in a different order (parent categories
+    before children), and the item loop appends results 1:1 in that PROCESSED order. But the client
+    pairs responses to its batch POSITIONALLY (`results[i]` ↔ `batch[i]`), so a permuted response
+    array makes it apply/delete the wrong queue rows. `processed_items` holds the SAME dict objects
+    as `original_items` (just reordered), so we remap by object identity. Falls back to the given
+    order whenever the mapping isn't a clean 1:1 (never worse than before).
+    """
+    if len(results) != len(processed_items) or len(original_items) != len(processed_items):
+        return results
+    try:
+        orig_index = {id(item): pos for pos, item in enumerate(original_items)}
+        if len(orig_index) != len(original_items):
+            return results  # duplicate object refs → ambiguous, bail out safely
+        paired = sorted(
+            enumerate(results),
+            key=lambda pair: orig_index.get(id(processed_items[pair[0]]), pair[0]),
+        )
+        return [res for _, res in paired]
+    except Exception:
+        return results
+
+
 @frappe.whitelist(allow_guest=False)
 def sync_push(
     device_id: Optional[str] = None,
@@ -2567,6 +2717,7 @@ def sync_push(
     if not isinstance(items, list):
         return _build_sync_error("items_invalid", "items must be a list", status_code=417)
 
+    original_item_order = items  # client request order; results are restored to it before return
     items = _order_sync_items_for_dependencies(items)
 
     if len(items) > MAX_PUSH_ITEMS:
@@ -2707,6 +2858,7 @@ def sync_push(
             _write_audit_log(
                 user=user,
                 device_id=device_id,
+                wallet_id=wallet_id,
                 op_id=op_id or "",
                 entity_type=entity_type,
                 entity_client_id=client_id,
@@ -2736,6 +2888,7 @@ def sync_push(
             _write_audit_log(
                 user=user,
                 device_id=device_id,
+                wallet_id=wallet_id,
                 op_id=op_id or "",
                 entity_type=entity_type,
                 entity_client_id=client_id,
@@ -2745,8 +2898,17 @@ def sync_push(
             continue
 
         if existing and base_version is not None:
-            # Concurrency: prevent blind overwrites across devices.
-            if int(base_version) != int(existing.doc_version or 0):
+            # Concurrency: prevent blind overwrites across devices. A version mismatch is only a
+            # REAL conflict if the fields this update changes actually clash with the server's
+            # newer version. Idempotent or field-disjoint edits fall through to the normal
+            # patch+save, which merges onto the current server doc and bumps from ITS version —
+            # eliminating false conflicts (e.g. two members editing different fields of one record).
+            version_mismatch = int(base_version) != int(existing.doc_version or 0)
+            is_real_conflict = version_mismatch and (
+                operation != "update"
+                or _resolve_field_level_conflict(entity_type, existing, payload, item) == "conflict"
+            )
+            if is_real_conflict:
                 conflict = _conflict_response(
                     entity_type,
                     existing,
@@ -2768,6 +2930,7 @@ def sync_push(
                 _write_audit_log(
                     user=user,
                     device_id=device_id,
+                    wallet_id=wallet_id,
                     op_id=op_id or "",
                     entity_type=entity_type,
                     entity_client_id=client_id,
@@ -2923,7 +3086,10 @@ def sync_push(
             fx_sanity_warnings: List[str] = []
             if entity_type == "Hisabi Transaction":
                 fx_sanity_warnings = _collect_transaction_fx_sanity_warnings(doc)
-            mark_deleted = operation == "delete"
+            # Treat an explicit is_deleted=1 in an update payload as a delete too — otherwise the
+            # apply_common_sync_fields(mark_deleted=False) below (via apply_soft_delete) would reset
+            # is_deleted→0 and silently resurrect the record on the next pull.
+            mark_deleted = operation == "delete" or cint(payload.get("is_deleted") or 0) == 1
 
             if entity_type == "Hisabi Account" and not existing:
                 if _is_multi_currency_parent(doc):
@@ -3056,6 +3222,7 @@ def sync_push(
             _write_audit_log(
                 user=user,
                 device_id=device_id,
+                wallet_id=wallet_id,
                 op_id=op_id or "",
                 entity_type=entity_type,
                 entity_client_id=doc.client_id,
@@ -3090,6 +3257,7 @@ def sync_push(
                     _write_audit_log(
                         user=user,
                         device_id=device_id,
+                        wallet_id=wallet_id,
                         op_id=op_id or "",
                         entity_type=entity_type,
                         entity_client_id=client_id,
@@ -3123,6 +3291,7 @@ def sync_push(
                     _write_audit_log(
                         user=user,
                         device_id=device_id,
+                        wallet_id=wallet_id,
                         op_id=op_id or "",
                         entity_type=entity_type,
                         entity_client_id=client_id,
@@ -3156,6 +3325,7 @@ def sync_push(
             _write_audit_log(
                 user=user,
                 device_id=device_id,
+                wallet_id=wallet_id,
                 op_id=op_id or "",
                 entity_type=entity_type,
                 entity_client_id=client_id,
@@ -3164,33 +3334,72 @@ def sync_push(
             )
             continue
 
-    for account_name in affected_accounts:
-        _recalculate_account_balance(user, account_name, wallet_id=wallet_id)
+    # Recalc runs AFTER the per-item writes (already committed to their savepoints). It is derived
+    # and idempotent, so a recalc failure must NEVER abort the response — otherwise the client can't
+    # mark any accepted op applied and re-pushes the whole batch forever. Each recalc is wrapped in
+    # its own savepoint so a failure rolls back only its partial writes and is logged, letting the
+    # accepted results still return; the next sync recomputes.
+    def _safe_recalc(label: str, fn) -> None:
+        sp = f"recalc_{frappe.generate_hash(length=8)}"
+        frappe.db.savepoint(sp)
+        try:
+            fn()
+        except (frappe.QueryDeadlockError, frappe.QueryTimeoutError):
+            # A deadlock/lock-wait-timeout means InnoDB has (deadlock) or may have rolled back the
+            # WHOLE transaction — the earlier accepted item writes are gone. Swallowing this and
+            # returning "accepted" would make the client mark rolled-back ops as applied → silent
+            # data loss. Re-raise so the entire push fails and the client re-pushes; the op-id
+            # idempotency ledger makes that retry safe (no double-apply). Do NOT touch the
+            # savepoint — the transaction it belonged to no longer exists.
+            frappe.log_error(f"sync_push: recalc aborted by lock contention ({label})", frappe.get_traceback())
+            raise
+        except frappe.TimestampMismatchError:
+            # A concurrent writer changed the derived doc between our read and save. Roll back just
+            # this recalc's partial writes and retry once with a fresh doc; if it still fails, defer
+            # to the next push (recalc is self-healing) rather than aborting the whole batch.
+            frappe.db.rollback(save_point=sp)
+            try:
+                frappe.db.savepoint(sp)
+                fn()
+            except Exception:
+                frappe.db.rollback(save_point=sp)
+                frappe.log_error(f"sync_push: recalc retry failed ({label})", frappe.get_traceback())
+        except Exception:
+            frappe.db.rollback(save_point=sp)
+            frappe.log_error(f"sync_push: recalc failed ({label})", frappe.get_traceback())
 
-    for parent_account_name in affected_multi_parents:
-        _recalculate_multi_currency_parent_balance(
-            user=user,
-            wallet_id=wallet_id,
-            parent_account_id=parent_account_name,
+    # sorted() → deterministic FOR UPDATE lock-acquisition order across concurrent pushes.
+    for account_name in sorted(affected_accounts):
+        _safe_recalc(
+            f"account:{account_name}",
+            lambda account_name=account_name: _recalculate_account_balance(user, account_name, wallet_id=wallet_id),
+        )
+
+    for parent_account_name in sorted(affected_multi_parents):
+        _safe_recalc(
+            f"multi_parent:{parent_account_name}",
+            lambda p=parent_account_name: _recalculate_multi_currency_parent_balance(
+                user=user, wallet_id=wallet_id, parent_account_id=p
+            ),
         )
 
     if affected_debts:
-        recalc_debts(user, affected_debts)
+        _safe_recalc("debts", lambda: recalc_debts(user, affected_debts))
 
     if budgets_dirty and not affected_budgets:
         affected_budgets = {
             b.name for b in frappe.get_all("Hisabi Budget", filters={"wallet_id": wallet_id, "is_deleted": 0})
         }
     if affected_budgets:
-        recalc_budgets(user, affected_budgets)
+        _safe_recalc("budgets", lambda: recalc_budgets(user, affected_budgets))
 
     if goals_dirty and not affected_goals:
         affected_goals = {g.name for g in frappe.get_all("Hisabi Goal", filters={"wallet_id": wallet_id, "is_deleted": 0})}
     if affected_goals:
-        recalc_goals(user, affected_goals)
+        _safe_recalc("goals", lambda: recalc_goals(user, affected_goals))
 
     if affected_jameyas:
-        recalc_jameyas(user, affected_jameyas)
+        _safe_recalc("jameyas", lambda: recalc_jameyas(user, affected_jameyas))
 
     for account_name in deleted_accounts:
         try:
@@ -3204,11 +3413,16 @@ def sync_push(
         acc.db_set("is_deleted", 1, update_modified=False)
         acc.db_set("deleted_at", acc.deleted_at, update_modified=False)
 
-    device.last_sync_at = now_datetime()
-    device.last_sync_ms = min(int(device.last_sync_at.timestamp() * 1000), 2147483647)
-    device.save(ignore_permissions=True)
+    _sync_now = now_datetime()
+    frappe.db.set_value("Hisabi Device", device.name, {
+        "last_sync_at": _sync_now,
+        "last_sync_ms": min(int(_sync_now.timestamp() * 1000), 2147483647),
+    }, update_modified=False)
     _emit_wallet_sync_event(wallet_id=wallet_id, actor_user=user, accepted_results=accepted_for_event)
 
+    # Return results in the client's original request order so its positional response pairing
+    # stays correct even when items were processed in dependency order.
+    results = _restore_original_result_order(original_item_order, items, results)
     return _build_sync_response(
         {"message": {"results": results, "server_time": now_datetime().isoformat()}},
         status_code=200,
@@ -3716,9 +3930,31 @@ def sync_pull(
     has_more = len(candidates) > limit
     items: List[Dict[str, Any]] = []
 
+    # Batch-load to avoid an N+1 (previously one frappe.get_doc per selected row — up to 500 per
+    # page). Batch-safe doctypes (flat allow-listed projection) are fetched with a single get_all
+    # per doctype; others keep the per-doc load. frappe.get_all is permission-agnostic (matching
+    # the previous get_doc), and the selected names are already wallet-scoped from the candidate
+    # queries above.
+    _batch_decision: Dict[str, bool] = {}
+    names_by_doctype: Dict[str, List[str]] = {}
+    for row in selected:
+        dt = row["doctype"]
+        if dt not in _batch_decision:
+            _batch_decision[dt] = _pull_is_batch_safe(dt)
+        if _batch_decision[dt]:
+            names_by_doctype.setdefault(dt, []).append(row["name"])
+
+    preloaded: Dict[tuple, Dict[str, Any]] = {}
+    for dt, names in names_by_doctype.items():
+        for rec in frappe.get_all(dt, filters={"name": ["in", names]}, fields=["*"]):
+            preloaded[(dt, rec["name"])] = rec
+
     for row in selected:
         doctype = row["doctype"]
-        doc = _sanitize_pull_record(doctype, frappe.get_doc(doctype, row["name"]).as_dict())
+        raw = preloaded.get((doctype, row["name"]))
+        if raw is None:
+            raw = frappe.get_doc(doctype, row["name"]).as_dict()
+        doc = _sanitize_pull_record(doctype, raw)
         if doctype == "Hisabi Account":
             doc = _enrich_multi_currency_account_payload(doc, user=user, wallet_id=wallet_id)
         doc = _coerce_json(doc)

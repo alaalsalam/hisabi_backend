@@ -7,6 +7,9 @@
  "field_order": [
   "client_id",
   "wallet_name",
+  "is_family",
+  "family_photo",
+  "base_currency",
   "status",
   "owner_user",
   "created_from_device",
@@ -32,6 +35,24 @@
    "in_list_view": 1,
    "label": "Wallet Name",
    "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "is_family",
+   "fieldtype": "Check",
+   "label": "Is Family Space",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "family_photo",
+   "fieldtype": "Long Text",
+   "label": "Family Photo"
+  },
+  {
+   "fieldname": "base_currency",
+   "fieldtype": "Data",
+   "label": "Base Currency"
   },
   {
    "fieldname": "status",

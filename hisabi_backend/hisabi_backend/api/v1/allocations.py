@@ -88,9 +88,13 @@ def rebuild_income_allocations(
         "transaction_type": "income",
         "is_deleted": 0,
     }
-    if from_date:
+    # Use a single range condition so passing BOTH bounds keeps the lower bound
+    # (assigning date_time twice previously clobbered from_date, widening the scope).
+    if from_date and to_date:
+        filters["date_time"] = ["between", [get_datetime(from_date), get_datetime(to_date)]]
+    elif from_date:
         filters["date_time"] = [">=", get_datetime(from_date)]
-    if to_date:
+    elif to_date:
         filters["date_time"] = ["<=", get_datetime(to_date)]
 
     transactions = frappe.get_all(

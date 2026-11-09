@@ -266,10 +266,87 @@ def wallet_member_remove(wallet_id: str, user_to_remove: str, device_id: Optiona
 
 
 @frappe.whitelist(allow_guest=False)
+def wallet_member_role_update(
+    wallet_id: str,
+    member_user: str,
+    new_role: str,
+    device_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    from .wallets import wallet_member_role_update as _impl
+
+    return _impl(wallet_id=wallet_id, member_user=member_user, new_role=new_role, device_id=device_id)
+
+
+@frappe.whitelist(allow_guest=False)
 def wallet_leave(wallet_id: str, device_id: Optional[str] = None) -> Dict[str, Any]:
     from .wallets import wallet_leave as _impl
 
     return _impl(wallet_id=wallet_id, device_id=device_id)
+
+
+@frappe.whitelist(allow_guest=False)
+def user_lookup_by_phone(phone: str, device_id: Optional[str] = None) -> Dict[str, Any]:
+    from .debts import user_lookup_by_phone as _impl
+
+    return _impl(phone=phone, device_id=device_id)
+
+
+@frappe.whitelist(allow_guest=False)
+def debt_request_create(
+    to_phone: str, payload: Dict[str, Any], device_id: Optional[str] = None
+) -> Dict[str, Any]:
+    from .debts import create_network_request as _impl
+
+    return _impl(to_phone=to_phone, payload=payload, device_id=device_id)
+
+
+@frappe.whitelist(allow_guest=False)
+def debt_requests_list(direction: str = "incoming", device_id: Optional[str] = None) -> Dict[str, Any]:
+    from .debts import debt_requests_list as _impl
+
+    return _impl(direction=direction, device_id=device_id)
+
+
+@frappe.whitelist(allow_guest=False)
+def debt_request_accept(request_id: str, device_id: Optional[str] = None) -> Dict[str, Any]:
+    from .debts import accept_request as _impl
+
+    return _impl(request_id=request_id, device_id=device_id)
+
+
+@frappe.whitelist(allow_guest=False)
+def debt_request_decline(request_id: str, device_id: Optional[str] = None) -> Dict[str, Any]:
+    from .debts import decline_request as _impl
+
+    return _impl(request_id=request_id, device_id=device_id)
+
+
+@frappe.whitelist(allow_guest=False)
+def notifications_list(device_id: Optional[str] = None, limit: int = 50) -> Dict[str, Any]:
+    from .notifications import notifications_list as _impl
+
+    return _impl(device_id=device_id, limit=limit)
+
+
+@frappe.whitelist(allow_guest=False)
+def notifications_mark_read(ids: Any = None, device_id: Optional[str] = None) -> Dict[str, Any]:
+    from .notifications import notifications_mark_read as _impl
+
+    return _impl(ids=ids, device_id=device_id)
+
+
+@frappe.whitelist(allow_guest=False)
+def notifications_mark_all_read(device_id: Optional[str] = None) -> Dict[str, Any]:
+    from .notifications import notifications_mark_all_read as _impl
+
+    return _impl(device_id=device_id)
+
+
+@frappe.whitelist(allow_guest=False)
+def notification_dismiss(notification_id: str, device_id: Optional[str] = None) -> Dict[str, Any]:
+    from .notifications import notification_dismiss as _impl
+
+    return _impl(notification_id=notification_id, device_id=device_id)
 
 
 @frappe.whitelist(allow_guest=False)
@@ -491,3 +568,34 @@ def review_apply_fix(
     from .review import apply_fix as _impl
 
     return _impl(wallet_id=wallet_id, fixes=fixes, device_id=device_id)
+
+
+@frappe.whitelist(allow_guest=False)
+def verify_integrity(
+    wallet_id: Optional[str] = None,
+    device_id: Optional[str] = None,
+):
+    from .integrity import verify as _impl
+
+    return _impl(wallet_id=wallet_id, device_id=device_id)
+
+
+@frappe.whitelist(allow_guest=False)
+def heal_integrity(
+    wallet_id: Optional[str] = None,
+    device_id: Optional[str] = None,
+):
+    from .integrity import heal as _impl
+
+    return _impl(wallet_id=wallet_id, device_id=device_id)
+
+
+@frappe.whitelist(allow_guest=False)
+def reconcile_account_balance(
+    wallet_id: Optional[str] = None,
+    account_id: Optional[str] = None,
+    device_id: Optional[str] = None,
+):
+    from .integrity import reconcile_account as _impl
+
+    return _impl(wallet_id=wallet_id, account_id=account_id, device_id=device_id)

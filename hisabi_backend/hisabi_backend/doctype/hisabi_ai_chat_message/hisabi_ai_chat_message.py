@@ -1,5 +1,5 @@
 from frappe.model.document import Document
 
 
-class HisabiAiChatMessage(Document):
+class HisabiAIChatMessage(Document):
     pass

@@ -67,16 +67,21 @@ def _resolve_app_version() -> str | None:
 
 @frappe.whitelist(allow_guest=True)
 def diag() -> dict:
-    conf = getattr(frappe.local, "conf", {}) or {}
-    # Safety-critical: expose only a boolean for encryption key presence; never return config values.
-    return {
+    result: dict = {
         "status": "ok",
         "server_time": now_datetime().isoformat(),
-        "site": getattr(frappe.local, "site", None),
-        "encryption_key_present": bool(conf.get("encryption_key")),
         "app": {
             "name": "hisabi_backend",
             "version": _resolve_app_version(),
-            "commit": _resolve_git_commit(),
         },
     }
+    # Deployment fingerprint (site, git commit, encryption-key presence) is only for
+    # authenticated callers — don't hand anonymous clients details that help target the
+    # deployment (e.g. mapping a commit to known CVEs). Bearer-app users don't need diag.
+    is_authenticated = getattr(frappe.session, "user", "Guest") not in (None, "", "Guest")
+    if is_authenticated:
+        conf = getattr(frappe.local, "conf", {}) or {}
+        result["site"] = getattr(frappe.local, "site", None)
+        result["encryption_key_present"] = bool(conf.get("encryption_key"))
+        result["app"]["commit"] = _resolve_git_commit()
+    return result

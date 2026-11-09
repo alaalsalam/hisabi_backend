@@ -167,6 +167,8 @@ def generate_allocations(user: str, tx_doc) -> List[AllocationRow]:
     """Generate allocations for an income transaction."""
     if not tx_doc or tx_doc.transaction_type != "income" or tx_doc.is_deleted:
         return []
+    if flt(tx_doc.amount, 2) <= 0:
+        return []
 
     rule = resolve_rule(user, tx_doc)
     if not rule:

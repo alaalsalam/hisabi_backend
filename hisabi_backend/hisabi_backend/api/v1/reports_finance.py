@@ -13,7 +13,7 @@ from werkzeug.wrappers import Response
 
 from hisabi_backend.utils.request_params import get_request_param
 from hisabi_backend.utils.security import require_device_token_auth
-from hisabi_backend.utils.fx_defaults import build_default_fx_matrix, resolve_default_fx_rate
+from hisabi_backend.utils.fx_defaults import build_default_fx_matrix
 from hisabi_backend.utils.sync_common import apply_common_sync_fields
 from hisabi_backend.utils.validators import validate_client_id
 from hisabi_backend.utils.wallet_acl import require_wallet_member
@@ -209,8 +209,12 @@ def _resolve_fx_rate(
             cache[cache_key] = 1.0 / reverse_rate
             return cache[cache_key]
 
-    default_rate = resolve_default_fx_rate(src, dst)
-    cache[cache_key] = flt(default_rate, 8) if default_rate and flt(default_rate) > 0 else None
+    # No real (direct or inverse) FX rate exists for this pair. Reports must EXCLUDE such rows
+    # and emit an fx_missing warning rather than silently converting at a default rate. Cache
+    # None (not the default rate) so EVERY row of this pair is treated consistently — caching
+    # the default here previously leaked it into later lookups, so the first row of a pair was
+    # excluded while later rows converted, making mixed-currency totals order-dependent (P0.1c).
+    cache[cache_key] = None
     return None
 
 
@@ -264,7 +268,11 @@ def _tx_amount_in_base(
 
     amount_base = tx.get("amount_base")
     if amount_base is not None:
-        amount_base_value = flt(amount_base)
+        # amount_base is stored SIGNED (negative for expense). This helper returns a POSITIVE
+        # magnitude in base currency — matching the same-currency and fx branches — so callers
+        # that bucket income/expense separately stay consistent. abs() keeps that contract for
+        # cross-currency rows (the branch that was silently returning a signed value).
+        amount_base_value = abs(flt(amount_base))
         if amount_base_value or not amount:
             return amount_base_value
 
