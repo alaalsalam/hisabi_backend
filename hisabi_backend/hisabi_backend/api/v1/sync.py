@@ -2376,7 +2376,9 @@ def _write_audit_log(
         audit.entity_type = entity_type
         audit.entity_client_id = entity_client_id
         audit.status = status
-        audit.payload_json = json.dumps(payload, ensure_ascii=False)
+        audit.payload_json = json.dumps(payload, ensure_ascii=False, default=str)
+        # Server-written log (incl. rejected non-member pushes); bypass the per-user wallet-scope event.
+        audit.flags.ignore_wallet_scope = True
         audit.save(ignore_permissions=True)
     except Exception:
         frappe.log_error("hisabi_backend.sync: Failed to write audit log", frappe.get_traceback())

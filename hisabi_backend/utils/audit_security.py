@@ -54,7 +54,10 @@ def audit_security_event(
 
 		body = payload or {}
 		body.setdefault("server_time", now_datetime().isoformat())
-		doc.payload_json = json.dumps(body, ensure_ascii=False)
+		doc.payload_json = json.dumps(body, ensure_ascii=False, default=str)
+		# Server-written log: denied (non-member) attempts are exactly what must be recorded,
+		# so the per-user wallet-membership doc event must not reject this row.
+		doc.flags.ignore_wallet_scope = True
 		doc.insert(ignore_permissions=True)
 	except Exception:
 		# Never block user action on audit log failures.
