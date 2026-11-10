@@ -121,7 +121,28 @@ else:
 # ----------
 
 # application home page (will override Website Settings)
-# home_page = "login"
+# The SPA's dashboard lives at "/" (it uses device tokens, so visitors are Guest to Frappe);
+# Desk stays at /app and /login.
+home_page = "hisabi-wallet"
+
+# The React SPA (www/hisabi-wallet.html) uses root-level client routes. A full reload or deep link on
+# any of them (e.g. the PWA's first-install reload while on /auth) must serve the SPA, not a 404.
+# Keep in sync with the <Route> list in hisabi-your-smart-wallet/src/App.tsx.
+_SPA_ROUTES = (
+    "accounts", "achievements", "add", "ai-chat", "auth", "buckets", "budgets", "categories",
+    "community", "conflicts", "debts", "devices", "education", "family", "goals", "help", "import",
+    "insights", "install", "ledger", "notifications", "onboarding", "qa-center", "recurring", "reports",
+    "review-center", "settings", "smart", "split-bills", "subscriptions", "sync", "sync-queue", "today",
+    "wallets", "workspace",
+)
+website_route_rules = [
+    rule
+    for route in _SPA_ROUTES
+    for rule in (
+        {"from_route": f"/{route}", "to_route": "hisabi-wallet"},
+        {"from_route": f"/{route}/<path:subpath>", "to_route": "hisabi-wallet"},
+    )
+]
 
 # website user home page (by Role)
 # role_home_page = {

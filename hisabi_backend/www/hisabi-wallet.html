@@ -32,193 +32,20 @@
         -webkit-tap-highlight-color: transparent;
       }
     </style>
-    <script type="module" crossorigin src="/assets/hisabi_backend/hisabi-your-smart-wallet/assets/index-B7IQBRzN.js"></script>
+    <script type="module" crossorigin src="/assets/hisabi_backend/hisabi-your-smart-wallet/assets/index-Dc0Hl0U4.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/hisabi_backend/hisabi-your-smart-wallet/assets/vendor-react-CFFDeOv7.js">
-    <link rel="modulepreload" crossorigin href="/assets/hisabi_backend/hisabi-your-smart-wallet/assets/vendor-icons-dynamic-Djl12AY_.js">
+    <link rel="modulepreload" crossorigin href="/assets/hisabi_backend/hisabi-your-smart-wallet/assets/vendor-icons-dynamic-DGvDhN1G.js">
     <link rel="modulepreload" crossorigin href="/assets/hisabi_backend/hisabi-your-smart-wallet/assets/vendor-radix-XctxX1uo.js">
     <link rel="modulepreload" crossorigin href="/assets/hisabi_backend/hisabi-your-smart-wallet/assets/vendor-charts-vn6s6mNZ.js">
     <link rel="modulepreload" crossorigin href="/assets/hisabi_backend/hisabi-your-smart-wallet/assets/vendor-icons-BzEqrC1c.js">
     <link rel="modulepreload" crossorigin href="/assets/hisabi_backend/hisabi-your-smart-wallet/assets/vendor-dexie-XQQ62CYY.js">
-    <link rel="modulepreload" crossorigin href="/assets/hisabi_backend/hisabi-your-smart-wallet/assets/domain-reports-CcjUlXGe.js">
-    <link rel="modulepreload" crossorigin href="/assets/hisabi_backend/hisabi-your-smart-wallet/assets/domain-review-CA5yuaG6.js">
+    <link rel="modulepreload" crossorigin href="/assets/hisabi_backend/hisabi-your-smart-wallet/assets/domain-reports-CR4MTRHa.js">
+    <link rel="modulepreload" crossorigin href="/assets/hisabi_backend/hisabi-your-smart-wallet/assets/domain-review-DaRBBVfo.js">
     <link rel="modulepreload" crossorigin href="/assets/hisabi_backend/hisabi-your-smart-wallet/assets/vendor-motion-DDSF9C2R.js">
     <link rel="stylesheet" crossorigin href="/assets/hisabi_backend/hisabi-your-smart-wallet/assets/index-L2ix1ODs.css">
   <script id="vite-plugin-pwa:register-sw" src="/assets/hisabi_backend/hisabi-your-smart-wallet/registerSW.js"></script></head>
   <body>
     <div id="root"></div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  <!-- bildfast-inspector:start v3 -->
-<script>
-(function(){
-  if (window['__bildfastInspector']) return;
-  window['__bildfastInspector'] = true;
-  var active = false, overlay = null, label = null, hovered = null;
-  function send(msg){ try { parent.postMessage(msg, '*'); } catch(_){} }
-
-  // ---- route sync (so the workspace route bar follows in-preview navigation, even cross-origin) ----
-  function curPath(){ return (location.pathname + location.search + location.hash).replace(/[?&]_preview=\d+/, '').replace(/[?&]$/, ''); }
-  function reportRoute(){ send({ source:'bildfast-inspector', type:'route', path: curPath(), title: document.title || '' }); }
-  ['pushState','replaceState'].forEach(function(m){
-    var orig = history[m];
-    if (orig && !orig['__bf']){ var wrap = function(){ var r = orig.apply(this, arguments); try { reportRoute(); } catch(_){} return r; }; wrap['__bf'] = true; history[m] = wrap; }
-  });
-  window.addEventListener('popstate', function(){ try { reportRoute(); } catch(_){} });
-  window.addEventListener('hashchange', function(){ try { reportRoute(); } catch(_){} });
-  var lastRoute = '';
-  setInterval(function(){ var p = curPath(); if (p !== lastRoute){ lastRoute = p; reportRoute(); } }, 700);
-
-  // ---- element inspector ----
-  function ensureOverlay(){
-    if (overlay) return;
-    overlay = document.createElement('div');
-    overlay.style.cssText = 'position:fixed;z-index:2147483646;pointer-events:none;border:2px solid #6366f1;background:rgba(99,102,241,0.15);border-radius:3px;display:none;';
-    label = document.createElement('div');
-    label.style.cssText = 'position:fixed;z-index:2147483647;pointer-events:none;background:#6366f1;color:#fff;font:600 11px/1.4 ui-sans-serif,system-ui,sans-serif;padding:2px 6px;border-radius:4px;display:none;white-space:nowrap;max-width:300px;overflow:hidden;text-overflow:ellipsis;';
-    document.documentElement.appendChild(overlay);
-    document.documentElement.appendChild(label);
-  }
-  function hideOverlay(){ if(overlay) overlay.style.display='none'; if(label) label.style.display='none'; }
-
-  function fiberOf(el){ for (var k in el){ if (k.indexOf('__reactFiber$')===0 || k.indexOf('__reactInternalInstance$')===0) return el[k]; } return null; }
-  function compName(type){ if(!type || typeof type==='string') return ''; return type.displayName || type.name || ''; }
-  function componentChain(el){
-    var out = [], f = fiberOf(el), guard = 0;
-    while (f && guard < 300){
-      var n = compName(f.type);
-      if (n && n.length > 1 && !/^[a-z]$/.test(n) && out.indexOf(n) < 0){ out.push(n); if (out.length >= 3) break; }
-      f = f.return; guard++;
-    }
-    return out;
-  }
-  function nearestSource(el){
-    var n = el, d = 0;
-    while (n && n.nodeType === 1 && d < 18){
-      var s = n.getAttribute('data-lov-id') || n.getAttribute('data-component-path') || n.getAttribute('data-bf-source');
-      if (s){ var line = n.getAttribute('data-component-line') || ''; return s + (line ? (':' + line) : ''); }
-      n = n.parentNode; d++;
-    }
-    return '';
-  }
-  function nearestLandmark(el){
-    var TAGS = {SECTION:1,ARTICLE:1,NAV:1,HEADER:1,FOOTER:1,MAIN:1,ASIDE:1,FORM:1,DIALOG:1,TABLE:1};
-    var n = el, d = 0;
-    while (n && n.nodeType === 1 && d < 18){
-      if (TAGS[n.tagName] || n.getAttribute('role')){
-        var lbl = n.getAttribute('aria-label') || '';
-        return n.tagName.toLowerCase() + (n.getAttribute('role') ? ('[role=' + n.getAttribute('role') + ']') : '') + (lbl ? (' "' + lbl.slice(0,60) + '"') : '');
-      }
-      n = n.parentNode; d++;
-    }
-    return '';
-  }
-  function nearestHeading(el){
-    var n = el, d = 0;
-    while (n && n.nodeType === 1 && d < 6){
-      var h = n.querySelector && n.querySelector('h1,h2,h3,h4,h5,h6');
-      if (h && (h.innerText || h.textContent)) return (h.innerText || h.textContent).replace(/\s+/g,' ').trim().slice(0,80);
-      n = n.parentNode; d++;
-    }
-    return '';
-  }
-  function nameFor(el){
-    var dc = (el.getAttribute('data-component-name') || '').trim();
-    if (dc) return dc;
-    var c = componentChain(el); if (c[0]) return c[0];
-    var lov = (el.getAttribute('data-lov-id') || '').trim(); if (lov) return lov.split('/').pop();
-    return el.tagName.toLowerCase() + (el.id ? '#' + el.id : '');
-  }
-  function dataAttrs(el){
-    var out = [];
-    if (el.attributes){ for (var i=0;i<el.attributes.length;i++){ var a = el.attributes[i]; if (a.name.indexOf('data-')===0 || a.name==='role' || a.name==='aria-label' || a.name==='name' || a.name==='type'){ out.push(a.name + '=' + (a.value||'').slice(0,40)); } } }
-    return out.join(' ').slice(0,300);
-  }
-  function cssPath(el){
-    var parts = [], node = el, depth = 0;
-    while (node && node.nodeType === 1 && depth < 6 && node.tagName.toLowerCase() !== 'html'){
-      var sel = node.tagName.toLowerCase();
-      if (node.id){ parts.unshift(sel + '#' + node.id); break; }
-      var p = node.parentNode;
-      if (p){ var sib = Array.prototype.filter.call(p.children, function(c){ return c.tagName === node.tagName; }); if (sib.length > 1) sel += ':nth-of-type(' + (Array.prototype.indexOf.call(sib, node) + 1) + ')'; }
-      parts.unshift(sel); node = node.parentNode; depth++;
-    }
-    return parts.join(' > ');
-  }
-  function xpath(el){
-    if (el.id) return '//*[@id="' + el.id + '"]';
-    var parts = [], n = el;
-    while (n && n.nodeType === 1 && n.tagName.toLowerCase() !== 'html'){
-      var i = 1, sib = n.previousElementSibling;
-      while (sib){ if (sib.tagName === n.tagName) i++; sib = sib.previousElementSibling; }
-      parts.unshift(n.tagName.toLowerCase() + '[' + i + ']');
-      n = n.parentNode;
-    }
-    return '/html/' + parts.join('/');
-  }
-  function descriptor(el){
-    var txt = ''; try { txt = (el.innerText || el.textContent || '').replace(/\s+/g,' ').trim().slice(0,300); } catch(_){}
-    var oh = ''; try { oh = (el.outerHTML || '').slice(0,1500); } catch(_){}
-    return {
-      url: location.href,
-      route: location.pathname + (location.hash || ''),
-      title: document.title || '',
-      tag: el.tagName.toLowerCase(),
-      id: el.id || '',
-      classes: (el.getAttribute('class') || '').slice(0,300),
-      name: nameFor(el),
-      components: componentChain(el),
-      role: el.getAttribute('role') || '',
-      ariaLabel: el.getAttribute('aria-label') || '',
-      text: txt,
-      heading: nearestHeading(el),
-      container: nearestLandmark(el),
-      dataAttrs: dataAttrs(el),
-      selector: cssPath(el),
-      xpath: xpath(el),
-      source: nearestSource(el),
-      html: oh
-    };
-  }
-  function position(el){
-    var r = el.getBoundingClientRect();
-    overlay.style.display='block'; overlay.style.left=r.left+'px'; overlay.style.top=r.top+'px'; overlay.style.width=r.width+'px'; overlay.style.height=r.height+'px';
-    label.style.display='block'; label.textContent = nameFor(el);
-    var ly = r.top - 22; if (ly < 2) ly = r.top + 4;
-    label.style.left = Math.max(2, r.left) + 'px'; label.style.top = ly + 'px';
-  }
-  function onMove(e){ if (!active) return; var el = e.target; if (!el || el === overlay || el === label) return; hovered = el; ensureOverlay(); position(el); }
-  function setActive(on){ active = !!on; if (active){ ensureOverlay(); if (document.body) document.body.style.cursor='crosshair'; } else { hideOverlay(); hovered=null; if (document.body) document.body.style.cursor=''; } }
-  function onClick(e){ if (!active) return; e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); var el = hovered || e.target; var d = descriptor(el); setActive(false); send({ source:'bildfast-inspector', type:'element', payload:d }); }
-  function onKey(e){ if (active && e.key === 'Escape'){ setActive(false); send({ source:'bildfast-inspector', type:'cancel' }); } }
-  document.addEventListener('mousemove', onMove, true);
-  document.addEventListener('click', onClick, true);
-  document.addEventListener('keydown', onKey, true);
-  window.addEventListener('scroll', function(){ if (active && hovered) position(hovered); }, true);
-  window.addEventListener('message', function(e){
-    var d = e.data || {};
-    if (d.source !== 'bildfast') return;
-    if (d.action === 'select-mode') setActive(!!d.on);
-    else if (d.action === 'ping'){ send({ source:'bildfast-inspector', type:'ready' }); reportRoute(); }
-  });
-  send({ source:'bildfast-inspector', type:'ready' });
-  reportRoute();
-})();
-</script>
-<!-- bildfast-inspector:end -->
   <!-- mostaad-inspector:start v4 -->
 <script>
 (function(){
