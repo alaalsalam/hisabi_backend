@@ -79,15 +79,21 @@ def _call_ai(messages: List[Dict[str, str]], settings: Dict[str, Any], max_token
 
 
 def _call_openai(messages: List[Dict[str, str]], settings: Dict[str, Any], max_tokens: int) -> str:
+    return _openai_completion(messages, settings, max_tokens, temperature=0.3)
+
+
+def _openai_completion(
+    messages: List[Dict[str, Any]], settings: Dict[str, Any], max_tokens: int, *, temperature: float
+) -> str:
     """Call OpenAI Chat Completions API.
 
     Handles both classic models (gpt-4o, gpt-4o-mini …) that use max_tokens + temperature,
-    and new reasoning models (gpt-5, o1, o3, o4 …) that require max_completion_tokens,
+    and reasoning models (gpt-5, gpt-6, o1, o3, o4 …) that require max_completion_tokens,
     developer role instead of system, and do not accept temperature.
     """
     import requests
 
-    model = settings.get("openai_text_model", "gpt-4o-mini")
+    model = settings.get("openai_text_model") or "gpt-4o-mini"
     base_url = (settings.get("openai_base_url") or "https://api.openai.com/v1").rstrip("/")
     url = f"{base_url}/chat/completions"
     headers = {
@@ -96,10 +102,9 @@ def _call_openai(messages: List[Dict[str, str]], settings: Dict[str, Any], max_t
     }
 
     # Reasoning / new-format models use max_completion_tokens + developer role
-    _REASONING_PREFIXES = ("gpt-5", "o1", "o3", "o4")
-    is_reasoning = any(model.startswith(p) for p in _REASONING_PREFIXES)
+    is_reasoning = model.startswith(("gpt-5", "gpt-6", "o1", "o3", "o4"))
 
-    adapted: List[Dict[str, str]] = []
+    adapted: List[Dict[str, Any]] = []
     for msg in messages:
         if msg["role"] == "system" and is_reasoning:
             adapted.append({"role": "developer", "content": msg["content"]})
@@ -115,7 +120,7 @@ def _call_openai(messages: List[Dict[str, str]], settings: Dict[str, Any], max_t
         payload["reasoning_effort"] = "low"
     else:
         payload["max_tokens"] = max_tokens
-        payload["temperature"] = 0.3
+        payload["temperature"] = temperature
 
     response = requests.post(url, headers=headers, json=payload, timeout=90)
     response.raise_for_status()
@@ -790,28 +795,14 @@ def _smart_input_context(wallet_id: str, default_currency: Optional[str] = None)
 def _vision_openai(image_bytes: bytes, mime_type: str, prompt: str, settings: Dict[str, Any]) -> str:
     """Extract transactions from a receipt image via OpenAI vision (chat completions + image_url)."""
     import base64 as _b64
-    import requests
-
-    model = settings.get("openai_text_model") or "gpt-4o-mini"
-    base_url = (settings.get("openai_base_url") or "https://api.openai.com/v1").rstrip("/")
-    url = f"{base_url}/chat/completions"
-    headers = {"Authorization": f"Bearer {settings['openai_api_key']}", "Content-Type": "application/json"}
     data_url = f"data:{mime_type or 'image/jpeg'};base64,{_b64.b64encode(image_bytes).decode()}"
     content = [
         {"type": "text", "text": prompt + "\n\nاقرأ صورة الإيصال/الفاتورة التالية واستخرج المعاملات منها."},
         {"type": "image_url", "image_url": {"url": data_url}},
     ]
-    is_reasoning = any(model.startswith(p) for p in ("gpt-5", "o1", "o3", "o4"))
-    payload: Dict[str, Any] = {"model": model, "messages": [{"role": "user", "content": content}]}
-    if is_reasoning:
-        payload["max_completion_tokens"] = 5000
-        payload["reasoning_effort"] = "low"
-    else:
-        payload["max_tokens"] = 1500
-        payload["temperature"] = 0.2
-    response = requests.post(url, headers=headers, json=payload, timeout=90)
-    response.raise_for_status()
-    return response.json()["choices"][0]["message"]["content"]
+    return _openai_completion(
+        [{"role": "user", "content": content}], settings, max_tokens=1500, temperature=0.2
+    )
 
 
 def _vision_gemini(image_bytes: bytes, mime_type: str, prompt: str, settings: Dict[str, Any]) -> str:
